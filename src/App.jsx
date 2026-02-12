@@ -94,10 +94,13 @@ const LoginScreen = () => {
 
   const handleGoogleLogin = async () => {
     setLoading(true);
+    // Constrói a URL correta: Origem + Base do Projeto (ex: https://dominio.com/in-assessments/)
+    const redirectUrl = window.location.origin + import.meta.env.BASE_URL;
+    
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${window.location.origin}/in-assessments/`
+        redirectTo: redirectUrl
       }
     });
     if (error) alert(error.message);
