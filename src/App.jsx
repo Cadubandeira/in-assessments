@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation, useParams } from 'react-router-dom';
+import { HashRouter, Routes, Route, Navigate, useNavigate, useLocation, useParams } from 'react-router-dom';
 import { 
   BarChart3, 
   ClipboardList, 
@@ -388,7 +388,7 @@ export default function App() {
   if (loading) return <div className="min-h-screen flex items-center justify-center bg-[#F5F3EC]">Carregando...</div>;
 
   return (
-    <BrowserRouter>
+    <HashRouter>
       <div className={`min-h-screen ${TOKENS.colors.bg} ${TOKENS.colors.ink} selection:bg-[#C6513A] selection:text-white`}>
         <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
         
@@ -402,6 +402,6 @@ export default function App() {
           <Route path="/results" element={<ProtectedLayout user={user}><ResultsSummary /></ProtectedLayout>} />
         </Routes>
       </div>
-    </BrowserRouter>
+    </HashRouter>
   );
 }
