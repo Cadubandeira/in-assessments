@@ -96,6 +96,9 @@ const LoginScreen = () => {
     setLoading(true);
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
+      options: {
+        redirectTo: `${window.location.origin}/in-assessments/`
+      }
     });
     if (error) alert(error.message);
     setLoading(false);
