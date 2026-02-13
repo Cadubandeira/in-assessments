@@ -57,12 +57,12 @@ const LoginScreen = () => {
         
         <div className="mt-12 md:mt-0 animate-in fade-in slide-in-from-left-4 duration-1000 delay-100">
           <h1 className={`${TOKENS.fonts.serif} text-5xl md:text-7xl lg:text-8xl leading-[0.95] tracking-tight text-[#1E1B4B]`}>
-            Revele o <br/>
-            <span className="text-[#4F46E5] italic">potencial</span> <br/>
-            oculto.
+            Autoconhecimento,<br/>
+            <span className="text-[#4F46E5] italic">potencial</span><br/>
+            & transformação.
           </h1>
-          <p className="mt-6 text-lg md:text-xl text-[#64748B] max-w-md leading-relaxed">
-            Avaliações de inteligência emocional e liderança para o profissional contemporâneo.
+          <p className="mt-6 text-lg md:text-xl text-[#64748B] max-w-md leading-relaxed" style={{ paddingBottom: '2rem' }}>
+            Avaliações de conhecimentos, habilidades e atitudes. Contém o necessário para profissionais conscientes.
           </p>
         </div>
 
@@ -92,7 +92,7 @@ const LoginScreen = () => {
                   <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05" />
                   <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
                 </svg>
-                <span className="font-sans">Continuar com Google</span>
+                <span className="font-sans text-[#1E1B4B]">Continuar com Google</span>
               </Button>
 
               <div className="pt-4 text-center">

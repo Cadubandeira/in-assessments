@@ -9,10 +9,10 @@ const Logo = ({ size = 'normal', className = '', dark = true }) => {
   
   return (
     <div className={`flex flex-col justify-center select-none ${className}`}>
-      <div className="flex items-baseline gap-1">
+      <div className="flex items-baseline gap-2">
         <span className={`font-['Dancing_Script'] ${textSize} ${textColor} font-bold leading-none`}>In</span>
-        <span className={`font-sans ${subTextSize} ${textColor} font-bold uppercase tracking-[0.3em] self-end mb-1.5 md:mb-2`}>Assessments</span>
         <div className={`w-1.5 h-1.5 md:w-2 md:h-2 rounded-full ${accentColor.replace('text-', 'bg-')} self-end mb-1.5 md:mb-2 animate-pulse`} />
+        <span className={`font-sans ${subTextSize} ${textColor} font-bold uppercase tracking-[0.3em] self-end mb-1.5 md:mb-2`}>Assessments</span>
       </div>
     </div>
   );
