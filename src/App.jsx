@@ -11,7 +11,7 @@ import {
   ChevronRight,
   TrendingUp,
   Award,
-  CheckCircle2
+  CheckCircle2,
 } from 'lucide-react';
 import { supabase } from './supabaseClient';
 
@@ -21,14 +21,14 @@ import { supabase } from './supabaseClient';
  */
 const TOKENS = {
   colors: {
-    bg: "bg-[#F5F3EC]",
+    bg: "bg-[#EEF2FF]", // Indigo 50 (Tom mais azulado/frio)
     surface: "bg-white",
-    ink: "text-[#232220]",
-    muted: "text-[#6D6A61]",
-    accent: "text-[#C6513A]",
-    accentBg: "bg-[#C6513A]",
-    forest: "bg-[#2B4C3F]",
-    border: "border-[#E6E3DB]"
+    ink: "text-[#1E1B4B]", // Indigo 950
+    muted: "text-[#64748B]", // Slate 500
+    accent: "text-[#4F46E5]", // Indigo 600
+    accentBg: "bg-[#4F46E5]",
+    forest: "bg-[#312E81]", // Indigo 900
+    border: "border-[#C7D2FE]" // Indigo 200
   },
   fonts: {
     serif: "font-serif", // 'DM Serif Display'
@@ -59,12 +59,29 @@ const Button = ({ children, variant = 'primary', icon: Icon, className = '', ...
   );
 };
 
+const Logo = ({ size = 'normal', className = '', dark = true }) => {
+  const textSize = size === 'large' ? 'text-5xl md:text-6xl' : 'text-2xl';
+  const subTextSize = size === 'large' ? 'text-sm md:text-base' : 'text-[10px]';
+  const textColor = dark ? 'text-[#1E1B4B]' : 'text-white';
+  const accentColor = dark ? 'text-[#4F46E5]' : 'text-white';
+  
+  return (
+    <div className={`flex flex-col justify-center select-none ${className}`}>
+      <div className="flex items-baseline gap-1">
+        <span className={`font-['Dancing_Script'] ${textSize} ${textColor} font-bold leading-none`}>In</span>
+        <span className={`font-sans ${subTextSize} ${textColor} font-bold uppercase tracking-[0.3em] self-end mb-1.5 md:mb-2`}>Assessments</span>
+        <div className={`w-1.5 h-1.5 md:w-2 md:h-2 rounded-full ${accentColor.replace('text-', 'bg-')} self-end mb-1.5 md:mb-2 animate-pulse`} />
+      </div>
+    </div>
+  );
+};
+
 const AssessmentCard = ({ assessment, onStart }) => (
-  <div className={`group p-8 border ${TOKENS.colors.border} ${TOKENS.colors.surface} rounded-2xl flex flex-col h-full transition-all hover:border-[#C6513A] shadow-sm hover:shadow-md`}>
+  <div className={`group p-8 border ${TOKENS.colors.border} ${TOKENS.colors.surface} rounded-2xl flex flex-col h-full transition-all hover:border-[#4F46E5] shadow-sm hover:shadow-md`}>
     <div className="flex-grow">
       <div className="flex flex-wrap gap-2 mb-6">
         {assessment.indicators.map(ind => (
-          <span key={ind} className="px-2 py-0.5 bg-[#F5F3EC] text-[10px] font-bold uppercase tracking-widest text-[#6D6A61]">
+          <span key={ind} className="px-2 py-0.5 bg-[#EEF2FF] text-[10px] font-bold uppercase tracking-widest text-[#64748B]">
             {ind}
           </span>
         ))}
@@ -91,6 +108,7 @@ const LoginScreen = () => {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [isSignUp, setIsSignUp] = useState(false);
+  const [emailMode, setEmailMode] = useState(false);
 
   const handleGoogleLogin = async () => {
     setLoading(true);
@@ -124,60 +142,97 @@ const LoginScreen = () => {
   };
 
   return (
-    <div className={`min-h-screen ${TOKENS.colors.bg} flex flex-col items-center justify-center p-6`}>
-      <div className="w-full max-w-sm text-center">
-        <div className={`inline-flex items-center justify-center w-14 h-14 ${TOKENS.colors.accentBg} rounded-full mb-8 shadow-xl`}>
-          <Sparkles className="text-white w-6 h-6" />
+    <div className={`min-h-screen ${TOKENS.colors.bg} flex flex-col md:flex-row relative overflow-hidden`}>
+      {/* Elementos Decorativos de Fundo */}
+      <div className="absolute top-[-10%] right-[-5%] w-[300px] h-[300px] md:w-[600px] md:h-[600px] bg-[#4F46E5]/10 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute bottom-[-10%] left-[-10%] w-[400px] h-[400px] bg-[#312E81]/10 rounded-full blur-3xl pointer-events-none" />
+
+      {/* Lado Esquerdo / Topo: Branding e Mensagem */}
+      <div className="flex-1 p-8 md:p-16 lg:p-24 flex flex-col justify-between z-10">
+        <div className="animate-in fade-in slide-in-from-top-4 duration-700">
+          <Logo size="large" />
         </div>
-        <h1 className={`${TOKENS.fonts.serif} text-5xl mb-4 text-[#232220]`}>Evolutiva.</h1>
-        <p className={`${TOKENS.colors.muted} mb-12`}>
-          {isSignUp ? 'Crie sua conta para começar.' : 'Entre com seu e-mail e senha.'}
-        </p>
         
-        <form onSubmit={handleAuth} className="space-y-4">
-          <input 
-            type="email" placeholder="E-mail" value={email} onChange={e => setEmail(e.target.value)}
-            className="w-full p-3 rounded-lg border border-[#E6E3DB] bg-white" required
-          />
-          <input 
-            type="password" placeholder="Senha" value={password} onChange={e => setPassword(e.target.value)}
-            className="w-full p-3 rounded-lg border border-[#E6E3DB] bg-white" required
-          />
-          <Button type="submit" className="w-full" icon={ArrowRight}>
-            {isSignUp ? 'Cadastrar' : 'Entrar'}
-          </Button>
-        </form>
-
-        <div className="relative my-6">
-          <div className="absolute inset-0 flex items-center">
-            <span className="w-full border-t border-[#E6E3DB]" />
-          </div>
-          <div className="relative flex justify-center text-xs uppercase">
-            <span className={`px-2 ${TOKENS.colors.bg} text-[#6D6A61]`}>Ou continue com</span>
-          </div>
+        <div className="mt-12 md:mt-0 animate-in fade-in slide-in-from-left-4 duration-1000 delay-100">
+          <h1 className={`${TOKENS.fonts.serif} text-5xl md:text-7xl lg:text-8xl leading-[0.95] tracking-tight text-[#1E1B4B]`}>
+            Revele o <br/>
+            <span className="text-[#4F46E5] italic">potencial</span> <br/>
+            oculto.
+          </h1>
+          <p className="mt-6 text-lg md:text-xl text-[#64748B] max-w-md leading-relaxed">
+            Avaliações de inteligência emocional e liderança para o profissional contemporâneo.
+          </p>
         </div>
 
-        <Button 
-          type="button" 
-          variant="secondary" 
-          className="w-full" 
-          onClick={handleGoogleLogin}
-        >
-          <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24">
-            <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
-            <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
-            <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05" />
-            <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
-          </svg>
-          Google
-        </Button>
+        <div className="hidden md:block text-sm text-[#94A3B8] animate-in fade-in duration-1000 delay-300">
+          © {new Date().getFullYear()} In Assessments. All rights reserved.
+        </div>
+      </div>
 
-        <p className="text-xs text-[#6D6A61] mt-4">
-          {isSignUp ? 'Já tem uma conta?' : 'Não tem uma conta?'}
-          <button onClick={() => setIsSignUp(!isSignUp)} className="ml-1 text-[#C6513A] font-bold hover:underline">
-            {isSignUp ? 'Faça Login' : 'Cadastre-se'}
-          </button>
-        </p>
+      {/* Lado Direito / Bottom Sheet: Área de Login */}
+      <div className="md:w-[480px] lg:w-[560px] bg-white/60 backdrop-blur-2xl border-t md:border-t-0 md:border-l border-[#C7D2FE] p-8 md:p-16 flex flex-col justify-center shadow-[0_-10px_40px_rgba(0,0,0,0.05)] md:shadow-none z-20 rounded-t-[2.5rem] md:rounded-none mt-[-2rem] md:mt-0 transition-all">
+        <div className="w-full max-w-sm mx-auto">
+          {!emailMode ? (
+            <div className="space-y-8 animate-in fade-in slide-in-from-bottom-8 duration-500">
+              <div className="text-center md:text-left">
+                <h2 className={`${TOKENS.fonts.serif} text-3xl mb-2`}>Bem-vindo</h2>
+                <p className={TOKENS.colors.muted}>Faça login para acessar sua conta.</p>
+              </div>
+              
+              <Button 
+                type="button" 
+                className="w-full py-3.5 text-base font-medium shadow-md hover:shadow-lg hover:bg-gray-50 transition-all duration-300 bg-white text-[#374151] border border-gray-200 flex items-center justify-center gap-3" 
+                onClick={handleGoogleLogin}
+              >
+                <svg className="w-5 h-5" viewBox="0 0 24 24">
+                  <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
+                  <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
+                  <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05" />
+                  <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
+                </svg>
+                <span className="font-sans">Continuar com Google</span>
+              </Button>
+
+              <div className="pt-4 text-center">
+                <button 
+                  onClick={() => setEmailMode(true)} 
+                  className="text-sm font-medium text-[#64748B] hover:text-[#1E1B4B] transition-colors border-b border-transparent hover:border-[#1E1B4B]"
+                >
+                  Entrar com e-mail
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-6 animate-in fade-in slide-in-from-right-8 duration-500">
+              <button onClick={() => setEmailMode(false)} className="text-[#64748B] hover:text-[#1E1B4B] flex items-center gap-2 text-sm mb-4 group">
+                <span className="group-hover:-translate-x-1 transition-transform">&larr;</span> Voltar
+              </button>
+              
+              <h2 className={`${TOKENS.fonts.serif} text-3xl mb-2`}>{isSignUp ? 'Criar conta' : 'Entrar'}</h2>
+
+              <form onSubmit={handleAuth} className="space-y-4">
+                <input 
+                  type="email" placeholder="E-mail" value={email} onChange={e => setEmail(e.target.value)}
+                  className="w-full p-4 rounded-xl border border-[#C7D2FE] bg-white/50 focus:bg-white focus:ring-2 focus:ring-[#4F46E5]/20 focus:border-[#4F46E5] outline-none transition-all" required
+                />
+                <input 
+                  type="password" placeholder="Senha" value={password} onChange={e => setPassword(e.target.value)}
+                  className="w-full p-4 rounded-xl border border-[#C7D2FE] bg-white/50 focus:bg-white focus:ring-2 focus:ring-[#4F46E5]/20 focus:border-[#4F46E5] outline-none transition-all" required
+                />
+                <Button type="submit" className="w-full py-4 text-lg shadow-lg" icon={ArrowRight}>
+                  {isSignUp ? 'Cadastrar' : 'Acessar'}
+                </Button>
+              </form>
+              
+              <div className="text-center mt-6">
+                <button onClick={() => setIsSignUp(!isSignUp)} className="text-sm text-[#64748B]">
+                  {isSignUp ? 'Já tem uma conta? ' : 'Ainda não tem conta? '}
+                  <span className="text-[#4F46E5] font-semibold hover:underline">{isSignUp ? 'Faça Login' : 'Cadastre-se'}</span>
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -193,23 +248,22 @@ const Header = () => {
     <nav className={`h-20 border-b ${TOKENS.colors.border} ${TOKENS.colors.bg} sticky top-0 z-10 px-6`}>
       <div className="max-w-6xl mx-auto flex h-full items-center justify-between">
         <div className="flex items-center gap-2 cursor-pointer" onClick={() => navigate('/dashboard')}>
-          <Sparkles className="text-[#C6513A] w-5 h-5" />
-          <span className={`${TOKENS.fonts.serif} text-2xl`}>Evolutiva.</span>
+          <Logo />
         </div>
         <div className="flex items-center gap-8">
           <button 
             onClick={() => navigate('/dashboard')} 
-            className={`text-sm font-medium transition-colors ${isActive('/dashboard') ? 'text-[#C6513A]' : 'text-[#6D6A61] hover:text-[#232220]'}`}
+            className={`text-sm font-medium transition-colors ${isActive('/dashboard') ? 'text-[#4F46E5]' : 'text-[#64748B] hover:text-[#1E1B4B]'}`}
           >
             Dashboard
           </button>
           <button 
             onClick={() => navigate('/assessments')} 
-            className={`text-sm font-medium transition-colors ${isActive('/assessments') ? 'text-[#C6513A]' : 'text-[#6D6A61] hover:text-[#232220]'}`}
+            className={`text-sm font-medium transition-colors ${isActive('/assessments') ? 'text-[#4F46E5]' : 'text-[#64748B] hover:text-[#1E1B4B]'}`}
           >
             Testes
           </button>
-          <button onClick={() => supabase.auth.signOut()} className="text-[#6D6A61] hover:text-[#C6513A]">
+          <button onClick={() => supabase.auth.signOut()} className="text-[#64748B] hover:text-[#4F46E5]">
             <LogOut className="w-5 h-5" />
           </button>
         </div>
@@ -226,8 +280,8 @@ const Dashboard = ({ user }) => (
       </header>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
         <div className={`md:col-span-2 p-8 border ${TOKENS.colors.border} bg-white rounded-2xl h-80 flex flex-col justify-center items-center text-center shadow-sm`}>
-          <BarChart3 className="w-12 h-12 text-[#E6E3DB] mb-4" />
-          <p className="text-[#A3A098] font-medium italic">Gráfico de Evolução (Em breve)</p>
+          <BarChart3 className="w-12 h-12 text-[#C7D2FE] mb-4" />
+          <p className="text-[#94A3B8] font-medium italic">Gráfico de Evolução (Em breve)</p>
         </div>
         <div className={`p-8 border ${TOKENS.colors.border} bg-white rounded-2xl shadow-sm`}>
           <h3 className={`${TOKENS.fonts.serif} text-xl mb-6`}>Indicadores</h3>
@@ -238,8 +292,8 @@ const Dashboard = ({ user }) => (
                   <span className="font-medium">{ind}</span>
                   <span className="font-serif">8.5</span>
                 </div>
-                <div className="w-full bg-[#F5F3EC] h-1.5 rounded-full overflow-hidden">
-                  <div className="bg-[#2B4C3F] h-full w-[85%] rounded-full"></div>
+                <div className="w-full bg-[#EEF2FF] h-1.5 rounded-full overflow-hidden">
+                  <div className="bg-[#312E81] h-full w-[85%] rounded-full"></div>
                 </div>
               </div>
             ))}
@@ -318,10 +372,10 @@ const AssessmentRunner = ({ user }) => {
     return (
       <div className="max-w-2xl mx-auto px-6 py-20">
         <div className="mb-12 text-center md:text-left">
-          <div className="w-full bg-[#E6E3DB] h-1 rounded-full mb-8">
-            <div className="bg-[#C6513A] h-full transition-all duration-500 ease-out" style={{ width: `${progress}%` }}></div>
+          <div className="w-full bg-[#C7D2FE] h-1 rounded-full mb-8">
+            <div className="bg-[#4F46E5] h-full transition-all duration-500 ease-out" style={{ width: `${progress}%` }}></div>
           </div>
-          <span className="text-[#C6513A] font-bold text-xs uppercase tracking-[0.2em]">{question.indicator}</span>
+          <span className="text-[#4F46E5] font-bold text-xs uppercase tracking-[0.2em]">{question.indicator}</span>
           <h2 className={`${TOKENS.fonts.serif} text-3xl md:text-4xl mt-4 leading-tight`}>{question.text}</h2>
         </div>
         <div className="space-y-4">
@@ -329,11 +383,11 @@ const AssessmentRunner = ({ user }) => {
             <button 
               key={i} 
               onClick={() => handleAnswer(opt.value)}
-              className="w-full text-left p-6 border border-[#E6E3DB] bg-white rounded-2xl hover:border-[#232220] hover:shadow-md transition-all active:scale-[0.98] group"
+              className="w-full text-left p-6 border border-[#C7D2FE] bg-white rounded-2xl hover:border-[#1E1B4B] hover:shadow-md transition-all active:scale-[0.98] group"
             >
               <div className="flex items-center justify-between">
-                <span className="text-lg font-medium text-[#232220]">{opt.text}</span>
-                <ChevronRight className="w-5 h-5 opacity-0 group-hover:opacity-100 transition-opacity text-[#C6513A]" />
+                <span className="text-lg font-medium text-[#1E1B4B]">{opt.text}</span>
+                <ChevronRight className="w-5 h-5 opacity-0 group-hover:opacity-100 transition-opacity text-[#4F46E5]" />
               </div>
             </button>
           ))}
@@ -346,7 +400,7 @@ const ResultsSummary = () => {
   const navigate = useNavigate();
   return (
     <div className="max-w-2xl mx-auto px-6 py-20 text-center">
-      <div className="inline-flex items-center justify-center w-24 h-24 bg-[#2B4C3F] text-white rounded-full mb-8 shadow-2xl animate-bounce">
+      <div className="inline-flex items-center justify-center w-24 h-24 bg-[#312E81] text-white rounded-full mb-8 shadow-2xl animate-bounce">
         <CheckCircle2 className="w-12 h-12" />
       </div>
       <h2 className={`${TOKENS.fonts.serif} text-5xl mb-4`}>Teste Concluído!</h2>
@@ -395,8 +449,8 @@ export default function App() {
 
   return (
     <HashRouter>
-      <div className={`min-h-screen ${TOKENS.colors.bg} ${TOKENS.colors.ink} selection:bg-[#C6513A] selection:text-white`}>
-        <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+      <div className={`min-h-screen ${TOKENS.colors.bg} ${TOKENS.colors.ink} selection:bg-[#4F46E5] selection:text-white`}>
+        <link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@400;700&family=DM+Serif+Display&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
         
         <Routes>
           <Route path="/login" element={!user ? <LoginScreen /> : <Navigate to="/dashboard" />} />
