@@ -45,9 +45,21 @@ const LoginScreen = () => {
 
   return (
     <div className={`min-h-screen ${TOKENS.colors.bg} flex flex-col md:flex-row relative overflow-hidden`}>
+      <style>{`
+        @keyframes blob {
+          0% { transform: translate(0px, 0px) scale(1); }
+          33% { transform: translate(30px, -50px) scale(1.1); }
+          66% { transform: translate(-20px, 20px) scale(0.9); }
+          100% { transform: translate(0px, 0px) scale(1); }
+        }
+        .animate-blob { animation: blob 7s infinite; }
+        .animation-delay-2000 { animation-delay: 2s; }
+        .animation-delay-4000 { animation-delay: 4s; }
+      `}</style>
       {/* Elementos Decorativos de Fundo */}
-      <div className="absolute top-[-10%] right-[-5%] w-[300px] h-[300px] md:w-[600px] md:h-[600px] bg-[#4F46E5]/10 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute bottom-[-10%] left-[-10%] w-[400px] h-[400px] bg-[#312E81]/10 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute top-[-10%] right-[-5%] w-[300px] h-[300px] md:w-[600px] md:h-[600px] bg-[#4F46E5]/20 rounded-full blur-3xl pointer-events-none animate-blob" />
+      <div className="absolute bottom-[-10%] left-[-10%] w-[400px] h-[400px] bg-[#312E81]/20 rounded-full blur-3xl pointer-events-none animate-blob animation-delay-2000" />
+      <div className="absolute top-[40%] left-[20%] w-[250px] h-[250px] md:w-[400px] md:h-[400px] bg-[#C7D2FE]/30 rounded-full blur-3xl pointer-events-none animate-blob animation-delay-4000" />
 
       {/* Lado Esquerdo / Topo: Branding e Mensagem */}
       <div className="flex-1 p-8 md:p-16 lg:p-24 flex flex-col justify-between z-10">
