@@ -73,7 +73,7 @@ const LoginScreen = () => {
             <span className="text-[#4F46E5] italic">potencial</span><br/>
             & transformação.
           </h1>
-          <p className="mt-6 text-lg md:text-xl text-[#64748B] max-w-md leading-relaxed" style={{ paddingBottom: '2rem' }}>
+          <p className="mt-6 text-lg md:text-xl text-[#64748B] max-w-2x1 leading-relaxed" style={{ paddingBottom: '2rem' }}>
             Avaliações de conhecimentos, habilidades e atitudes. Contém o necessário para profissionais conscientes.
           </p>
         </div>
