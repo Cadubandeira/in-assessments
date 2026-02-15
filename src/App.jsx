@@ -21,6 +21,9 @@ import Button from './components/ui/Button';
 import LoginScreen from './pages/LoginScreen';
 import Assessment from './pages/Assessment';
 import Results from './pages/Results';
+import History from './pages/History';
+import { useUserRole } from './hooks/useUserRole';
+import { canUserTakeAssessment } from './utils/assessmentRules';
 
 
 // --- BASE DE DADOS MOCK (Simulando resposta do Back-end) ---
@@ -80,6 +83,12 @@ const Header = () => {
           >
             Testes
           </button>
+          <button 
+            onClick={() => navigate('/history')} 
+            className={`text-sm font-medium transition-colors ${isActive('/history') ? 'text-[#4F46E5]' : 'text-[#64748B] hover:text-[#1E1B4B]'}`}
+          >
+            Histórico
+          </button>
           <button onClick={() => supabase.auth.signOut()} className="text-[#64748B] hover:text-[#4F46E5]">
             <LogOut className="w-5 h-5" />
           </button>
@@ -91,7 +100,15 @@ const Header = () => {
 
 const Dashboard = ({ user }) => {
   const navigate = useNavigate();
-
+  const { role, loading: roleLoading } = useUserRole();
+  const handleStart = () => {
+    // Placeholder: pass empty history for now; can be extended to fetch recent history
+    if (!canUserTakeAssessment([], role)) {
+      alert('Você não pode iniciar um novo assessment no momento.');
+      return;
+    }
+    navigate('/assessment/active');
+  };
   return (
     <div className="max-w-6xl mx-auto p-6 py-12">
       <header className="mb-12">
@@ -109,9 +126,14 @@ const Dashboard = ({ user }) => {
             </div>
             <p className="text-[#64748B]">Responda ao questionário ativo para gerar novos indicadores de performance.</p>
           </div>
-          <Button onClick={() => navigate('/assessment/active')} icon={ArrowRight} className="whitespace-nowrap shadow-md">
-            Iniciar Agora
-          </Button>
+          <div className="flex gap-2">
+            <Button onClick={() => navigate('/history')} className="whitespace-nowrap shadow-md bg-gray-50 text-[#4F46E5] border border-[#4F46E5] hover:bg-[#4F46E5] hover:text-white">
+              Ver Histórico
+            </Button>
+            <Button onClick={handleStart} icon={ArrowRight} className="whitespace-nowrap shadow-md">
+              Iniciar Agora
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -323,6 +345,8 @@ export default function App() {
           <Route path="/assessment/active" element={<ProtectedLayout user={user}><Assessment /></ProtectedLayout>} />
           <Route path="/assessment/:id" element={<ProtectedLayout user={user}><AssessmentRunner user={user} /></ProtectedLayout>} />
           <Route path="/results" element={<ProtectedLayout user={user}><Results /></ProtectedLayout>} />
+          <Route path="/results/:id" element={<ProtectedLayout user={user}><Results /></ProtectedLayout>} />
+          <Route path="/history" element={<ProtectedLayout user={user}><History /></ProtectedLayout>} />
         </Routes>
       </div>
       </ErrorBoundary>

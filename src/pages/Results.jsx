@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../supabaseClient';
+import { useParams, useNavigate } from 'react-router-dom';
 
 function classify(percentage) {
   if (percentage <= 40) return 'Crítico';
@@ -16,13 +17,15 @@ const generateInterpretation = (name, percentage) => {
 };
 
 export default function Results() {
+  const { id } = useParams();
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [result, setResult] = useState(null);
 
   useEffect(() => {
     let mounted = true;
-    const fetchLast = async () => {
+    const fetchResult = async () => {
       setLoading(true);
       try {
         const { data: { user } } = await supabase.auth.getUser();
@@ -31,13 +34,16 @@ export default function Results() {
           return;
         }
 
-        const { data, error } = await supabase
-          .from('assessment_events')
-          .select('*')
-          .eq('user_id', user.id)
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .single();
+        let query = supabase.from('assessment_events').select('*');
+
+        // If id provided, fetch specific record; otherwise fetch last for current user
+        if (id) {
+          query = query.eq('id', id);
+        } else {
+          query = query.eq('user_id', user.id).order('created_at', { ascending: false }).limit(1);
+        }
+
+        const { data, error } = await query.single();
 
         if (error) {
           const msg = String(error.message || error);
@@ -56,9 +62,9 @@ export default function Results() {
       }
     };
 
-    fetchLast();
+    fetchResult();
     return () => { mounted = false; };
-  }, []);
+  }, [id]);
 
   if (loading) return <div className="p-12 text-center">Carregando...</div>;
   if (error) return <div className="p-12 text-center text-red-600">{error}</div>;
@@ -68,7 +74,7 @@ export default function Results() {
   const max = result.max_possible_score ?? 0;
   const percentage = max > 0 ? Math.round((total / max) * 100) : 0;
   const classification = classify(percentage);
-  const date = result.created_at ? new Date(result.created_at).toLocaleDateString() : '-';
+  const date = result.created_at ? new Date(result.created_at).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : '-';
 
   let indicatorScores = result.indicator_scores_snapshot || {};
   if (typeof indicatorScores === 'string') {
@@ -102,7 +108,14 @@ export default function Results() {
 
   return (
     <div className="max-w-4xl mx-auto px-6 py-12">
-      <h1 className="text-3xl font-semibold mb-8">Resultado do Assessment</h1>
+      <div className="flex items-center justify-between mb-8">
+        <h1 className="text-3xl font-semibold">Resultado do Assessment</h1>
+        {id && (
+          <button onClick={() => navigate('/history')} className="text-sm text-[#4F46E5] hover:underline">
+            ← Voltar ao Histórico
+          </button>
+        )}
+      </div>
 
       <div className="p-8 border rounded-2xl bg-white shadow-sm flex flex-col md:flex-row items-center gap-8">
         <div className="flex-0 text-center">
@@ -121,7 +134,7 @@ export default function Results() {
               <div className="text-lg font-medium">{max}</div>
             </div>
             <div className="p-4 border rounded-lg text-center">
-              <div className="text-xs text-gray-500">Data</div>
+              <div className="text-xs text-gray-500">Data e Hora</div>
               <div className="text-lg font-medium">{date}</div>
             </div>
           </div>

@@ -180,10 +180,14 @@ export const useAssessment = () => {
 
       const { totalScore, maxPossibleScore, indicatorResults } = calculateResults();
 
+      // Extract display name from user metadata or use email as fallback
+      const displayName = user.user_metadata?.name || user.user_metadata?.full_name || user.email || 'Usuário';
+
       const payload = {
         assessment_id: assessment.id,
         assessment_version: assessment.version,
         user_id: user.id,
+        user_display_name: displayName,
         total_score: totalScore,
         max_possible_score: maxPossibleScore,
         indicator_scores_snapshot: indicatorResults,
