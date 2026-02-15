@@ -121,24 +121,50 @@ export const useAssessment = () => {
     let totalScore = 0;
     let maxPossibleScore = 0;
     const indicatorScores = {};
+    const indicatorResults = {};
+
+    const classify = (percentage) => {
+      if (percentage <= 40) return 'Crítico';
+      if (percentage <= 70) return 'Moderado';
+      return 'Saudável';
+    };
+
+    const generateInterpretation = (name, percentage) => {
+      if (percentage <= 40)
+        return `O indicador ${name} apresenta nível crítico e requer atenção imediata.`;
+      if (percentage <= 70)
+        return `O indicador ${name} apresenta nível moderado, com oportunidades claras de melhoria.`;
+      return `O indicador ${name} apresenta nível saudável e consistente.`;
+    };
 
     assessment.indicators.forEach(indicator => {
       let indicatorScore = 0;
+      let indicatorMax = 0;
+
       indicator.questions.forEach(question => {
-        // Score obtido
         const score = answers[question.id] || 0;
         indicatorScore += score;
 
-        // Max score possível (maior valor entre as alternativas da pergunta)
-        const maxQuestionScore = question.alternatives.reduce((max, alt) => 
+        const maxQuestionScore = (question.alternatives || []).reduce((max, alt) =>
           Math.max(max, alt.score_value), 0);
+        indicatorMax += maxQuestionScore;
         maxPossibleScore += maxQuestionScore;
       });
+
+      const percentage = indicatorMax > 0 ? Math.round((indicatorScore / indicatorMax) * 100) : 0;
+      indicatorResults[indicator.name] = {
+        score: indicatorScore,
+        maxScore: indicatorMax,
+        percentage,
+        classification: classify(percentage),
+        interpretation: generateInterpretation(indicator.name, percentage)
+      };
+
       indicatorScores[indicator.name] = indicatorScore;
       totalScore += indicatorScore;
     });
 
-    return { totalScore, maxPossibleScore, indicatorScores };
+    return { totalScore, maxPossibleScore, indicatorResults };
   };
 
   const submitAssessment = async () => {
@@ -152,7 +178,7 @@ export const useAssessment = () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Usuário não autenticado.');
 
-      const { totalScore, maxPossibleScore, indicatorScores } = calculateResults();
+      const { totalScore, maxPossibleScore, indicatorResults } = calculateResults();
 
       const payload = {
         assessment_id: assessment.id,
@@ -160,10 +186,9 @@ export const useAssessment = () => {
         user_id: user.id,
         total_score: totalScore,
         max_possible_score: maxPossibleScore,
-        indicator_scores_snapshot: indicatorScores,
+        indicator_scores_snapshot: indicatorResults,
         answers_snapshot: answers,
-        classification_snapshot: null,
-        created_at: new Date().toISOString()
+        classification_snapshot: indicatorResults,
       };
 
       const { error: insertError } = await supabase

@@ -20,6 +20,7 @@ import Logo from './components/ui/Logo';
 import Button from './components/ui/Button';
 import LoginScreen from './pages/LoginScreen';
 import Assessment from './pages/Assessment';
+import Results from './pages/Results';
 
 
 // --- BASE DE DADOS MOCK (Simulando resposta do Back-end) ---
@@ -312,7 +313,6 @@ export default function App() {
     <HashRouter>
       <ErrorBoundary>
       <div className={`min-h-screen ${TOKENS.colors.bg} ${TOKENS.colors.ink} selection:bg-[#4F46E5] selection:text-white`}>
-        <link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@400;700&family=DM+Serif+Display&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
         
         <Routes>
           <Route path="/login" element={!user ? <LoginScreen /> : <Navigate to="/dashboard" />} />
@@ -322,7 +322,7 @@ export default function App() {
           <Route path="/assessments" element={<ProtectedLayout user={user}><AssessmentsList /></ProtectedLayout>} />
           <Route path="/assessment/active" element={<ProtectedLayout user={user}><Assessment /></ProtectedLayout>} />
           <Route path="/assessment/:id" element={<ProtectedLayout user={user}><AssessmentRunner user={user} /></ProtectedLayout>} />
-          <Route path="/results" element={<ProtectedLayout user={user}><ResultsSummary /></ProtectedLayout>} />
+          <Route path="/results" element={<ProtectedLayout user={user}><Results /></ProtectedLayout>} />
         </Routes>
       </div>
       </ErrorBoundary>
