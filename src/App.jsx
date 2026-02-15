@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import ErrorBoundary from './components/ErrorBoundary';
 import { HashRouter, Routes, Route, Navigate, useNavigate, useLocation, useParams } from 'react-router-dom';
 import { 
   BarChart3, 
@@ -18,6 +19,7 @@ import { TOKENS } from './config/tokens';
 import Logo from './components/ui/Logo';
 import Button from './components/ui/Button';
 import LoginScreen from './pages/LoginScreen';
+import Assessment from './pages/Assessment';
 
 
 // --- BASE DE DADOS MOCK (Simulando resposta do Back-end) ---
@@ -29,7 +31,7 @@ const AssessmentCard = ({ assessment, onStart }) => (
   <div className={`group p-8 border ${TOKENS.colors.border} ${TOKENS.colors.surface} rounded-2xl flex flex-col h-full transition-all hover:border-[#4F46E5] shadow-sm hover:shadow-md`}>
     <div className="flex-grow">
       <div className="flex flex-wrap gap-2 mb-6">
-        {assessment.indicators.map(ind => (
+        {assessment.indicators?.map(ind => (
           <span key={ind} className="px-2 py-0.5 bg-[#EEF2FF] text-[10px] font-bold uppercase tracking-widest text-[#64748B]">
             {ind}
           </span>
@@ -86,12 +88,32 @@ const Header = () => {
   );
 };
 
-const Dashboard = ({ user }) => (
+const Dashboard = ({ user }) => {
+  const navigate = useNavigate();
+
+  return (
     <div className="max-w-6xl mx-auto p-6 py-12">
       <header className="mb-12">
         <h1 className={`${TOKENS.fonts.serif} text-5xl mb-4`}>Olá, {user.email?.split('@')[0]}.</h1>
         <p className={TOKENS.colors.muted}>Seu progresso atualizado conforme suas últimas avaliações.</p>
       </header>
+
+      {/* Atalho para Assessment Ativo */}
+      <div className="mb-12 animate-in fade-in slide-in-from-bottom-4 duration-700">
+        <div className={`p-8 border ${TOKENS.colors.border} bg-gradient-to-r from-indigo-50 to-white rounded-2xl flex flex-col md:flex-row items-center justify-between shadow-sm gap-6`}>
+          <div>
+            <div className="flex items-center gap-3 mb-2">
+              <Sparkles className="w-5 h-5 text-[#4F46E5]" />
+              <h3 className={`${TOKENS.fonts.serif} text-2xl text-[#1E1B4B]`}>Assessment Disponível</h3>
+            </div>
+            <p className="text-[#64748B]">Responda ao questionário ativo para gerar novos indicadores de performance.</p>
+          </div>
+          <Button onClick={() => navigate('/assessment/active')} icon={ArrowRight} className="whitespace-nowrap shadow-md">
+            Iniciar Agora
+          </Button>
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
         <div className={`md:col-span-2 p-8 border ${TOKENS.colors.border} bg-white rounded-2xl h-80 flex flex-col justify-center items-center text-center shadow-sm`}>
           <BarChart3 className="w-12 h-12 text-[#C7D2FE] mb-4" />
@@ -116,6 +138,7 @@ const Dashboard = ({ user }) => (
       </div>
     </div>
   );
+};
 
 const AssessmentsList = () => {
   const [assessments, setAssessments] = useState([]);
@@ -179,6 +202,8 @@ const AssessmentRunner = ({ user }) => {
 
   if (loading) return <div className="p-20 text-center">Carregando teste...</div>;
   if (!assessment) return <div className="p-20 text-center">Teste não encontrado.</div>;
+  // Proteção contra estrutura de dados antiga ou incompleta
+  if (!assessment.questions || !assessment.questions.length) return <div className="p-20 text-center">Dados do assessment incompletos ou formato incompatível.</div>;
 
   const question = assessment.questions[currentQuestionIdx];
   const progress = ((currentQuestionIdx + 1) / assessment.questions.length) * 100;
@@ -193,7 +218,7 @@ const AssessmentRunner = ({ user }) => {
           <h2 className={`${TOKENS.fonts.serif} text-3xl md:text-4xl mt-4 leading-tight`}>{question.text}</h2>
         </div>
         <div className="space-y-4">
-          {question.options.map((opt, i) => (
+          {question.options?.map((opt, i) => (
             <button 
               key={i} 
               onClick={() => handleAnswer(opt.value)}
@@ -228,11 +253,13 @@ const ResultsSummary = () => {
 
 // --- LAYOUT PROTEGIDO ---
 const ProtectedLayout = ({ user, children }) => {
+  const location = useLocation();
+
   if (!user) return <Navigate to="/login" replace />;
   return (
     <>
       <Header />
-      <main className="animate-in fade-in slide-in-from-bottom-2 duration-700">
+      <main key={location.pathname}>
         {children}
       </main>
     </>
@@ -246,23 +273,44 @@ export default function App() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    let mounted = true;
+
+    supabase.auth.getSession()
+      .then(res => {
+        const session = res?.data?.session ?? null;
+        if (!mounted) return;
+        setUser(session?.user ?? null);
+        setLoading(false);
+      })
+      .catch(err => {
+        console.error('supabase.getSession error', err);
+        if (mounted) setLoading(false);
+      });
+
+    const listener = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null);
       setLoading(false);
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
-      setLoading(false);
-    });
-
-    return () => subscription.unsubscribe();
+    return () => {
+      mounted = false;
+      try {
+        // Compatibilidade com diferentes formatos de retorno do listener
+        const sub = listener?.data?.subscription ?? listener?.subscription ?? listener;
+        if (sub && typeof sub.unsubscribe === 'function') {
+          sub.unsubscribe();
+        }
+      } catch (e) {
+        console.warn('Erro ao limpar listener de auth:', e);
+      }
+    };
   }, []);
 
   if (loading) return <div className="min-h-screen flex items-center justify-center bg-[#F5F3EC]">Carregando...</div>;
 
   return (
     <HashRouter>
+      <ErrorBoundary>
       <div className={`min-h-screen ${TOKENS.colors.bg} ${TOKENS.colors.ink} selection:bg-[#4F46E5] selection:text-white`}>
         <link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@400;700&family=DM+Serif+Display&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
         
@@ -272,10 +320,12 @@ export default function App() {
           
           <Route path="/dashboard" element={<ProtectedLayout user={user}><Dashboard user={user} /></ProtectedLayout>} />
           <Route path="/assessments" element={<ProtectedLayout user={user}><AssessmentsList /></ProtectedLayout>} />
+          <Route path="/assessment/active" element={<ProtectedLayout user={user}><Assessment /></ProtectedLayout>} />
           <Route path="/assessment/:id" element={<ProtectedLayout user={user}><AssessmentRunner user={user} /></ProtectedLayout>} />
           <Route path="/results" element={<ProtectedLayout user={user}><ResultsSummary /></ProtectedLayout>} />
         </Routes>
       </div>
+      </ErrorBoundary>
     </HashRouter>
   );
 }

@@ -14,9 +14,13 @@ const LoginScreen = () => {
 
   const handleGoogleLogin = async () => {
     setLoading(true);
-    // Constrói a URL correta: Origem + Base do Projeto (ex: https://dominio.com/in-assessments/)
-    const redirectUrl = window.location.origin + import.meta.env.BASE_URL;
-    
+    // Constrói a URL de redirect.
+    // Durante o desenvolvimento local forçamos usar `window.location.origin` para
+    // evitar ser redirecionado para o domínio de produção caso o Supabase ignore
+    // o `redirectTo` (isso ocorre quando a URL não está registrada nos redirects do projeto).
+    const redirectBase = (typeof window !== 'undefined') ? window.location.origin : '';
+    const redirectUrl = import.meta.env.DEV ? redirectBase : (redirectBase + import.meta.env.BASE_URL);
+
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
