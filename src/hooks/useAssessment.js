@@ -31,7 +31,22 @@ export const useAssessment = () => {
       if (assessmentError) throw assessmentError;
       if (!assessmentData) throw new Error('Nenhum assessment ativo encontrado.');
 
-      // 2. Buscar indicators
+      // 2. Buscar assessment_indicators com indicadores relacionados
+      const { data: assessmentIndicators, error: aiError } = await supabase
+        .from('assessment_indicators')
+        .select(`
+          id,
+          indicator_master_id,
+          display_order,
+          indicators_master:indicator_master_id (id, name, description)
+        `)
+        .eq('assessment_id', assessmentData.id)
+        .order('display_order', { ascending: true });
+
+      console.log('useAssessment: Assessment Indicators:', assessmentIndicators, 'Error:', aiError);
+      if (aiError) throw aiError;
+
+      // 3. Buscar indicadores (antiga estrutura ainda usada para questions)
       const { data: indicatorsData, error: indicatorsError } = await supabase
         .from('indicators')
         .select('*')
@@ -42,7 +57,7 @@ export const useAssessment = () => {
       if (indicatorsError) throw indicatorsError;
       const indicators = indicatorsData || [];
 
-      // 3. Buscar questions
+      // 4. Buscar questions
       const indicatorIds = indicators.map(i => i.id);
       let questions = [];
 
@@ -57,7 +72,7 @@ export const useAssessment = () => {
         questions = questionsData || [];
       }
 
-      // 4. Buscar alternatives
+      // 5. Buscar alternatives
       const questionIds = questions.map(q => q.id);
       let alternatives = [];
 
@@ -72,7 +87,24 @@ export const useAssessment = () => {
         alternatives = alternativesData || [];
       }
 
-      // 5. Montar estrutura hierárquica
+      // 6. Buscar assessment_indicator_ranges para cada assessment_indicator
+      const rangesMap = {}; // { assessmentIndicatorId: [...ranges] }
+      if (assessmentIndicators && assessmentIndicators.length > 0) {
+        const { data: rangesData, error: rangesError } = await supabase
+          .from('assessment_indicator_ranges')
+          .select('*')
+          .in('assessment_indicator_id', assessmentIndicators.map(ai => ai.id));
+
+        if (rangesError) throw rangesError;
+        (rangesData || []).forEach(range => {
+          if (!rangesMap[range.assessment_indicator_id]) {
+            rangesMap[range.assessment_indicator_id] = [];
+          }
+          rangesMap[range.assessment_indicator_id].push(range);
+        });
+      }
+
+      // 7. Montar estrutura hierárquica com nova arquitetura
       const fullAssessment = {
         ...assessmentData,
         indicators: (indicators || []).map(indicator => ({
@@ -85,6 +117,13 @@ export const useAssessment = () => {
                 a => a.question_id === question.id
               )
             }))
+        })),
+        // Nova estrutura: assessment_indicators com ranges
+        assessmentIndicators: (assessmentIndicators || []).map(ai => ({
+          id: ai.id,
+          display_order: ai.display_order,
+          indicatorMaster: ai.indicators_master,
+          ranges: rangesMap[ai.id] || [] // Faixas de classificação
         }))
       };
 
@@ -123,13 +162,14 @@ export const useAssessment = () => {
     const indicatorScores = {};
     const indicatorResults = {};
 
-    const classify = (percentage) => {
+    // Fallback para classificação hardcoded (compatibilidade com dados antigos)
+    const classifyFallback = (percentage) => {
       if (percentage <= 40) return 'Crítico';
       if (percentage <= 70) return 'Moderado';
       return 'Saudável';
     };
 
-    const generateInterpretation = (name, percentage) => {
+    const generateInterpretationFallback = (name, percentage) => {
       if (percentage <= 40)
         return `O indicador ${name} apresenta nível crítico e requer atenção imediata.`;
       if (percentage <= 70)
@@ -137,6 +177,43 @@ export const useAssessment = () => {
       return `O indicador ${name} apresenta nível saudável e consistente.`;
     };
 
+    // Função para encontrar a faixa e classificação
+    const getClassificationFromRanges = (score, maxScore, ranges, indicatorName) => {
+      if (!ranges || ranges.length === 0) {
+        // Fallback se não houver ranges configuradas
+        const percentage = maxScore > 0 ? Math.round((score / maxScore) * 100) : 0;
+        return {
+          percentage,
+          classification: classifyFallback(percentage),
+          interpretation: generateInterpretationFallback(indicatorName, percentage)
+        };
+      }
+
+      // Ordenar ranges por min_score
+      const sortedRanges = [...ranges].sort((a, b) => a.min_score - b.min_score);
+      const percentage = maxScore > 0 ? Math.round((score / maxScore) * 100) : 0;
+
+      // Encontrar a faixa que contém o score
+      for (const range of sortedRanges) {
+        if (percentage >= range.min_score && percentage <= range.max_score) {
+          return {
+            percentage,
+            classification: range.label,
+            interpretation: range.interpretation || ''
+          };
+        }
+      }
+
+      // Se não encontrar faixa, usar a última
+      const lastRange = sortedRanges[sortedRanges.length - 1];
+      return {
+        percentage,
+        classification: lastRange.label,
+        interpretation: lastRange.interpretation || ''
+      };
+    };
+
+    // Processar indicadores antigos (compatibilidade)
     assessment.indicators.forEach(indicator => {
       let indicatorScore = 0;
       let indicatorMax = 0;
@@ -151,18 +228,57 @@ export const useAssessment = () => {
         maxPossibleScore += maxQuestionScore;
       });
 
-      const percentage = indicatorMax > 0 ? Math.round((indicatorScore / indicatorMax) * 100) : 0;
+      const classificationData = getClassificationFromRanges(indicatorScore, indicatorMax, [], indicator.name);
+
       indicatorResults[indicator.name] = {
         score: indicatorScore,
         maxScore: indicatorMax,
-        percentage,
-        classification: classify(percentage),
-        interpretation: generateInterpretation(indicator.name, percentage)
+        percentage: classificationData.percentage,
+        classification: classificationData.classification,
+        interpretation: classificationData.interpretation
       };
 
       indicatorScores[indicator.name] = indicatorScore;
       totalScore += indicatorScore;
     });
+
+    // Processar novos indicadores com ranges (se existirem)
+    if (assessment.assessmentIndicators && assessment.assessmentIndicators.length > 0) {
+      assessment.assessmentIndicators.forEach(ai => {
+        const indicator = ai.indicatorMaster;
+        if (!indicator) return;
+
+        // Encontrar as questions do indicador (usamos a estrutura antiga para pegar as perguntas)
+        const indicatorQuestions = assessment.indicators
+          .find(ind => ind.id === assessment.indicators[ai.display_order - 1]?.id)
+          ?.questions || [];
+
+        let indicatorScore = 0;
+        let indicatorMax = 0;
+
+        indicatorQuestions.forEach(question => {
+          const score = answers[question.id] || 0;
+          indicatorScore += score;
+
+          const maxQuestionScore = (question.alternatives || []).reduce((max, alt) =>
+            Math.max(max, alt.score_value), 0);
+          indicatorMax += maxQuestionScore;
+        });
+
+        const classificationData = getClassificationFromRanges(indicatorScore, indicatorMax, ai.ranges, indicator.name);
+
+        indicatorResults[indicator.name] = {
+          score: indicatorScore,
+          maxScore: indicatorMax,
+          percentage: classificationData.percentage,
+          classification: classificationData.classification,
+          interpretation: classificationData.interpretation
+        };
+
+        indicatorScores[indicator.name] = indicatorScore;
+        totalScore += indicatorScore;
+      });
+    }
 
     return { totalScore, maxPossibleScore, indicatorResults };
   };

@@ -22,6 +22,8 @@ import LoginScreen from './pages/LoginScreen';
 import Assessment from './pages/Assessment';
 import Results from './pages/Results';
 import History from './pages/History';
+import IndicatorsAdmin from './pages/admin/IndicatorsAdmin';
+import AssessmentBuilder from './pages/admin/AssessmentBuilder';
 import { useUserRole } from './hooks/useUserRole';
 import { canUserTakeAssessment } from './utils/assessmentRules';
 
@@ -115,6 +117,24 @@ const Dashboard = ({ user }) => {
         <h1 className={`${TOKENS.fonts.serif} text-5xl mb-4`}>Olá, {user.email?.split('@')[0]}.</h1>
         <p className={TOKENS.colors.muted}>Seu progresso atualizado conforme suas últimas avaliações.</p>
       </header>
+
+      {/* Admin Panel Link */}
+      {role === 'admin' && (
+        <div className="mb-8 flex gap-2">
+          <button 
+            onClick={() => navigate('/admin/indicators')}
+            className="px-4 py-2 bg-[#4F46E5] text-white text-sm rounded-lg font-medium hover:bg-[#312E81] transition"
+          >
+            Gerenciar Indicadores
+          </button>
+          <button 
+            onClick={() => navigate('/admin/assessments/builder')}
+            className="px-4 py-2 bg-[#4F46E5] text-white text-sm rounded-lg font-medium hover:bg-[#312E81] transition"
+          >
+            Configurar Assessment
+          </button>
+        </div>
+      )}
 
       {/* Atalho para Assessment Ativo */}
       <div className="mb-12 animate-in fade-in slide-in-from-bottom-4 duration-700">
@@ -347,6 +367,8 @@ export default function App() {
           <Route path="/results" element={<ProtectedLayout user={user}><Results /></ProtectedLayout>} />
           <Route path="/results/:id" element={<ProtectedLayout user={user}><Results /></ProtectedLayout>} />
           <Route path="/history" element={<ProtectedLayout user={user}><History /></ProtectedLayout>} />
+          <Route path="/admin/indicators" element={<ProtectedLayout user={user}><IndicatorsAdmin /></ProtectedLayout>} />
+          <Route path="/admin/assessments/builder" element={<ProtectedLayout user={user}><AssessmentBuilder /></ProtectedLayout>} />
         </Routes>
       </div>
       </ErrorBoundary>
