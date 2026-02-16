@@ -34,28 +34,19 @@ const INDICATORS = ["Liderança", "Comunicação", "Resiliência", "Foco", "Inte
 // --- COMPONENTES ATÔMICOS ---
 
 const AssessmentCard = ({ assessment, onStart }) => (
-  <div className={`group p-8 border ${TOKENS.colors.border} ${TOKENS.colors.surface} rounded-2xl flex flex-col h-full transition-all hover:border-[#4F46E5] shadow-sm hover:shadow-md`}>
+  <button
+    type="button"
+    onClick={() => onStart(assessment)}
+    className={`group p-8 border ${TOKENS.colors.border} ${TOKENS.colors.surface} rounded-2xl flex flex-col h-full text-left transition-all hover:border-[#4F46E5] shadow-sm hover:shadow-md`}
+  >
     <div className="flex-grow">
-      <div className="flex flex-wrap gap-2 mb-6">
-        {assessment.indicators?.map(ind => (
-          <span key={ind} className="px-2 py-0.5 bg-[#EEF2FF] text-[10px] font-bold uppercase tracking-widest text-[#64748B]">
-            {ind}
-          </span>
-        ))}
-      </div>
-      <h3 className={`${TOKENS.fonts.serif} text-2xl mb-3 leading-tight`}>{assessment.title}</h3>
+      <h3 className={`${TOKENS.fonts.serif} text-2xl mb-3 leading-tight`}>{assessment.name}</h3>
       <p className={`${TOKENS.colors.muted} text-sm mb-8 leading-relaxed`}>{assessment.description}</p>
     </div>
-    <div className="flex items-center justify-between mt-auto">
-      <span className="text-[10px] font-bold uppercase tracking-tighter text-[#A3A098]">{assessment.duration}</span>
-      <button 
-        onClick={() => onStart(assessment)}
-        className={`w-10 h-10 rounded-full ${TOKENS.colors.accentBg} text-white flex items-center justify-center transition-transform group-hover:scale-110 shadow-lg`}
-      >
-        <ArrowRight className="w-4 h-4" />
-      </button>
+    <div className="flex items-center justify-end mt-auto">
+      <span className={`inline-flex items-center gap-2 text-sm font-medium text-[#4F46E5]`}>Iniciar <ArrowRight className="w-4 h-4" /></span>
     </div>
-  </div>
+  </button>
 );
 
 // --- PÁGINAS E COMPONENTES ---
@@ -189,7 +180,10 @@ const AssessmentsList = () => {
 
   useEffect(() => {
     const fetch = async () => {
-      const { data } = await supabase.from('assessments').select('*');
+      const { data } = await supabase
+        .from('assessments')
+        .select('id, name, description, is_active')
+        .eq('is_active', true);
       if (data) setAssessments(data);
     };
     fetch();
