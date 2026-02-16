@@ -35,7 +35,6 @@ CREATE TABLE public.assessment_indicator_ranges (
   max_score numeric NOT NULL,
   label text NOT NULL,
   interpretation text NOT NULL,
-  display_order integer NOT NULL,
   created_at timestamp with time zone DEFAULT now(),
   CONSTRAINT assessment_indicator_ranges_pkey PRIMARY KEY (id),
   CONSTRAINT assessment_indicator_ranges_assessment_indicator_id_fkey FOREIGN KEY (assessment_indicator_id) REFERENCES public.assessment_indicators(id)

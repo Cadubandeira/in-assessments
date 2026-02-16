@@ -137,18 +137,25 @@ export const useAssessment = (options = {}) => {
       // 7. Buscar assessment_indicator_ranges para cada assessment_indicator
       const rangesMap = {}; // { assessmentIndicatorId: [...ranges] }
       if (assessmentIndicators && assessmentIndicators.length > 0) {
+        const aiIds = assessmentIndicators.map(ai => ai.id);
+        console.log('🔍 DEBUG useAssessment: Buscando ranges para assessment_indicators:', aiIds);
         const { data: rangesData, error: rangesError } = await supabase
           .from('assessment_indicator_ranges')
           .select('*')
-          .in('assessment_indicator_id', assessmentIndicators.map(ai => ai.id));
+          .in('assessment_indicator_id', aiIds);
 
-        if (rangesError) throw rangesError;
+        if (rangesError) {
+          console.error('❌ DEBUG useAssessment: Erro ao buscar ranges:', rangesError);
+          throw rangesError;
+        }
+        console.log('🔍 DEBUG useAssessment: Ranges carregadas do banco:', rangesData);
         (rangesData || []).forEach(range => {
           if (!rangesMap[range.assessment_indicator_id]) {
             rangesMap[range.assessment_indicator_id] = [];
           }
           rangesMap[range.assessment_indicator_id].push(range);
         });
+        console.log('📊 DEBUG useAssessment: rangesMap final:', rangesMap);
       }
 
       // 8. Montar estrutura hierárquica com nova arquitetura
@@ -168,12 +175,16 @@ export const useAssessment = (options = {}) => {
             }))
         })),
         // Nova estrutura: assessment_indicators com ranges
-        assessmentIndicators: (assessmentIndicators || []).map(ai => ({
-          id: ai.id,
-          display_order: ai.display_order,
-          indicatorMaster: ai.indicators_master,
-          ranges: rangesMap[ai.id] || [] // Faixas de classificação
-        }))
+        assessmentIndicators: (assessmentIndicators || []).map(ai => {
+          const ranges = rangesMap[ai.id] || [];
+          console.log(`📊 DEBUG useAssessment: Indicador ${ai.indicators_master?.name} (ID: ${ai.id}) tem ${ranges.length} ranges:`, ranges);
+          return {
+            id: ai.id,
+            display_order: ai.display_order,
+            indicatorMaster: ai.indicators_master,
+            ranges // Faixas de classificação
+          };
+        })
       };
 
       console.log('useAssessment: Full Structure:', fullAssessment);
@@ -206,6 +217,10 @@ export const useAssessment = (options = {}) => {
   };
 
   const calculateResults = () => {
+    console.log('📊 DEBUG calculateResults: Iniciando cálculo de resultados');
+    console.log('📊 DEBUG calculateResults: Assessment structure:', assessment);
+    console.log('📊 DEBUG calculateResults: Respostas:', answers);
+    
     let totalScore = 0;
     let maxPossibleScore = 0;
     const indicatorScores = {};
@@ -242,7 +257,7 @@ export const useAssessment = (options = {}) => {
       const sortedRanges = [...ranges].sort((a, b) => a.min_score - b.min_score);
       const percentage = maxScore > 0 ? Math.round((score / maxScore) * 100) : 0;
 
-      // Encontrar a faixa que contém o score
+      // Encontrar a faixa que contém o score baseado na PERCENTAGE
       for (const range of sortedRanges) {
         if (percentage >= range.min_score && percentage <= range.max_score) {
           return {
@@ -264,6 +279,8 @@ export const useAssessment = (options = {}) => {
 
     // Determinar se usamos a nova arquitetura (Assessment Indicators) ou fallback
     const useNewArchitecture = assessment.assessmentIndicators && assessment.assessmentIndicators.length > 0;
+    console.log(`📊 DEBUG calculateResults: Usando ${useNewArchitecture ? 'NOVA ARQUITETURA' : 'FALLBACK (antiga arquitetura)'}`);
+    console.log('📊 DEBUG calculateResults: Assessment Indicators:', assessment.assessmentIndicators);
 
     if (useNewArchitecture) {
       // NOVA ARQUITETURA: Usar assessment_indicators como fonte da verdade
@@ -295,6 +312,7 @@ export const useAssessment = (options = {}) => {
         });
 
         const classificationData = getClassificationFromRanges(indicatorScore, indicatorMax, ai.ranges, indicator.name);
+        console.log(`📊 DEBUG: ${indicator.name} - Score: ${indicatorScore}/${indicatorMax}, Ranges:`, ai.ranges, 'Resultado:', classificationData);
 
         indicatorResults[indicator.name] = {
           score: indicatorScore,
@@ -339,6 +357,12 @@ export const useAssessment = (options = {}) => {
       });
     }
 
+    console.log('📊 DEBUG calculateResults: Resultados finais calculados:', {
+      totalScore,
+      maxPossibleScore,
+      indicatorResults
+    });
+
     return { totalScore, maxPossibleScore, indicatorResults };
   };
 
@@ -370,6 +394,9 @@ export const useAssessment = (options = {}) => {
         answers_snapshot: answers,
         classification_snapshot: indicatorResults,
       };
+
+      console.log('💾 DEBUG submitAssessment: Salvando payload:', payload);
+      console.log('💾 DEBUG submitAssessment: classification_snapshot que será salvo:', indicatorResults);
 
       const { error: insertError } = await supabase
         .from('assessment_events')

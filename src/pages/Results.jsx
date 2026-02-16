@@ -2,18 +2,69 @@ import React, { useEffect, useState } from 'react';
 import { supabase } from '../supabaseClient';
 import { useParams, useNavigate } from 'react-router-dom';
 
-function classify(percentage) {
+// Fallback functions quando não há ranges configuradas
+function classifyFallback(percentage) {
   if (percentage <= 40) return 'Crítico';
   if (percentage <= 70) return 'Moderado';
   return 'Saudável';
 }
 
-const generateInterpretation = (name, percentage) => {
+const generateInterpretationFallback = (name, percentage) => {
   if (percentage <= 40)
     return `O indicador ${name} apresenta nível crítico e requer atenção imediata.`;
   if (percentage <= 70)
     return `O indicador ${name} apresenta nível moderado, com oportunidades claras de melhoria.`;
   return `O indicador ${name} apresenta nível saudável e consistente.`;
+};
+
+// Função para classificar com base nas ranges do banco
+const getClassificationFromRanges = (score, maxScore, ranges, indicatorName) => {
+  if (!ranges || ranges.length === 0) {
+    // Fallback se não houver ranges configuradas
+    const percentage = maxScore > 0 ? Math.round((score / maxScore) * 100) : 0;
+    return {
+      percentage,
+      classification: classifyFallback(percentage),
+      interpretation: generateInterpretationFallback(indicatorName, percentage)
+    };
+  }
+
+  // Ordenar ranges por min_score
+  const sortedRanges = [...ranges].sort((a, b) => a.min_score - b.min_score);
+  const percentage = maxScore > 0 ? Math.round((score / maxScore) * 100) : 0;
+
+  console.log(`� DEBUG getClassificationFromRanges:`, {
+    indicatorName,
+    score,
+    maxScore,
+    percentage,
+    ranges: sortedRanges
+  });
+
+  // Encontrar a faixa que contém o score baseado na PERCENTAGE, não no score bruto
+  for (let i = 0; i < sortedRanges.length; i++) {
+    const range = sortedRanges[i];
+    const inRange = percentage >= range.min_score && percentage <= range.max_score;
+    
+    console.log(`  Testando range "${range.label}" (${range.min_score}-${range.max_score}): ${percentage} >= ${range.min_score} && ${percentage} <= ${range.max_score} = ${inRange}`);
+    
+    if (inRange) {
+      console.log(`✅ Enquadrado em: ${range.label}`);
+      return {
+        percentage,
+        classification: range.label,
+        interpretation: range.interpretation || ''
+      };
+    }
+  }
+
+  // Se não encontrar faixa, usar a última
+  const lastRange = sortedRanges[sortedRanges.length - 1];
+  return {
+    percentage,
+    classification: lastRange.label,
+    interpretation: lastRange.interpretation || ''
+  };
 };
 
 export default function Results() {
@@ -22,6 +73,7 @@ export default function Results() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [result, setResult] = useState(null);
+  const [assessmentRanges, setAssessmentRanges] = useState({});
 
   useEffect(() => {
     let mounted = true;
@@ -42,7 +94,8 @@ export default function Results() {
               id,
               version_number,
               is_active,
-              created_at
+              created_at,
+              assessment_id
             )
           `);
 
@@ -64,6 +117,45 @@ export default function Results() {
           }
         } else {
           if (mounted) setResult(data);
+
+          // Buscar as ranges do assessment para classificação correta
+          if (data?.assessment_versions?.assessment_id) {
+            const { data: indicatorsData, error: indError } = await supabase
+              .from('assessment_indicators')
+              .select(`
+                id,
+                indicator_master_id,
+                indicators_master (
+                  id,
+                  name
+                ),
+                assessment_indicator_ranges (
+                  min_score,
+                  max_score,
+                  label,
+                  interpretation
+                )
+              `)
+              .eq('assessment_version_id', data.assessment_version_id)
+              .order('display_order', { ascending: true });
+
+            if (!indError && indicatorsData) {
+              // Mapear ranges por nome do indicador
+              const rangesMap = {};
+              console.log('🔍 DEBUG Results: Indicadores com ranges carregados:', indicatorsData);
+              indicatorsData.forEach(ind => {
+                const indicatorName = ind.indicators_master?.name;
+                if (indicatorName && ind.assessment_indicator_ranges) {
+                  rangesMap[indicatorName] = ind.assessment_indicator_ranges.sort(
+                    (a, b) => a.min_score - b.min_score
+                  );
+                  console.log(`📊 DEBUG Results: Ranges para "${indicatorName}":`, ind.assessment_indicator_ranges);
+                }
+              });
+              console.log('📊 DEBUG Results: Ranges mapeadas por indicador:', rangesMap);
+              if (mounted) setAssessmentRanges(rangesMap);
+            }
+          }
         }
       } catch (err) {
         if (mounted) setError(err.message || String(err));
@@ -80,10 +172,14 @@ export default function Results() {
   if (error) return <div className="p-12 text-center text-red-600">{error}</div>;
   if (!result) return <div className="p-12 text-center">Nenhum assessment encontrado.</div>;
 
+  console.log('📊 DEBUG Results: Dados do resultado:', result);
+  console.log('📊 DEBUG Results: Classification Snapshot:', result.classification_snapshot);
+  console.log('📊 DEBUG Results: Indicator Scores:', result.indicator_scores_snapshot);
+
   const total = result.total_score ?? 0;
   const max = result.max_possible_score ?? 0;
   const percentage = max > 0 ? Math.round((total / max) * 100) : 0;
-  const classification = classify(percentage);
+  const classification = classifyFallback(percentage);
   const date = result.created_at ? new Date(result.created_at).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : '-';
   const versionNumber = result.assessment_versions?.version_number || '—';
 
@@ -98,20 +194,25 @@ export default function Results() {
     try { classificationSnapshot = JSON.parse(classificationSnapshot); } catch (e) { classificationSnapshot = null; }
   }
 
-  // Build indicator results: prefer snapshot, otherwise fallback to best-effort calculation
+  // Build indicator results: prefer snapshot (dados no momento da resposta), otherwise fallback to calculation with DB ranges
   const indicatorResults = classificationSnapshot || (() => {
     const out = {};
     const totalOverall = Object.values(indicatorScores).reduce((s, v) => s + (Number(v) || 0), 0);
     Object.entries(indicatorScores).forEach(([k, v]) => {
       const score = Number(v) || 0;
-      const max = max > 0 && totalOverall > 0 ? Math.round((score / Math.max(1, totalOverall)) * max) : 0;
-      const percentage = max > 0 ? Math.round((score / max) * 100) : (max === 0 && score === 0 ? 0 : Math.round((score / Math.max(1, max)) * 100));
+      const maxForIndicator = max > 0 && totalOverall > 0 ? Math.round((score / Math.max(1, totalOverall)) * max) : 0;
+      
+      // Usar ranges do banco de dados para classificação
+      const ranges = assessmentRanges[k] || [];
+      const classificationData = getClassificationFromRanges(score, maxForIndicator, ranges, k);
+      console.log(`📊 DEBUG Results - ${k}: Score ${score}/${maxForIndicator}, Ranges:`, ranges, 'Classificação:', classificationData);
+      
       out[k] = {
         score,
-        maxScore: max,
-        percentage,
-        classification: classify(percentage),
-        interpretation: generateInterpretation(k, percentage)
+        maxScore: maxForIndicator,
+        percentage: classificationData.percentage,
+        classification: classificationData.classification,
+        interpretation: classificationData.interpretation
       };
     });
     return out;

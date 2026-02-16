@@ -167,7 +167,7 @@ export default function AssessmentBuilder() {
       .select(`
         *,
         indicators_master:indicator_master_id (id, name, description),
-        assessment_indicator_ranges (*, display_order)
+        assessment_indicator_ranges (*)
       `)
       .eq('assessment_version_id', versionId)
       .order('display_order', { ascending: true });
@@ -185,13 +185,12 @@ export default function AssessmentBuilder() {
     const rangesMap = {};
     (indicators || []).forEach(ind => {
       rangesMap[ind.indicator_master_id] = (ind.assessment_indicator_ranges || [])
-        .sort((a, b) => (a.display_order || 0) - (b.display_order || 0))
+        .sort((a, b) => a.min_score - b.min_score)
         .map(r => ({
           min: r.min_score,
           max: r.max_score,
           label: r.label,
-          interpretation: r.interpretation,
-          display_order: r.display_order
+          interpretation: r.interpretation
         }));
     });
     setRanges(rangesMap);
@@ -308,6 +307,29 @@ export default function AssessmentBuilder() {
     const question = updated[indicatorIndex].questions[questionIndex];
     question.alternatives = (question.alternatives || []).filter((_, idx) => idx !== altIndex);
     setQuestionsEdited(updated);
+  };
+
+  const handleAddRangeToIndicator = (indicatorIndex) => {
+    const updated = [...assessmentIndicatorsEdited];
+    const indicator = updated[indicatorIndex];
+    const newRange = {
+      id: makeTempId(),
+      min_score: 0,
+      max_score: 100,
+      label: '',
+      interpretation: ''
+    };
+    indicator.assessment_indicator_ranges = [...(indicator.assessment_indicator_ranges || []), newRange];
+    updated[indicatorIndex] = { ...indicator };
+    setAssessmentIndicatorsEdited(updated);
+  };
+
+  const handleRemoveRangeFromIndicator = (indicatorIndex, rangeIndex) => {
+    const updated = [...assessmentIndicatorsEdited];
+    const indicator = updated[indicatorIndex];
+    indicator.assessment_indicator_ranges = (indicator.assessment_indicator_ranges || []).filter((_, idx) => idx !== rangeIndex);
+    updated[indicatorIndex] = { ...indicator };
+    setAssessmentIndicatorsEdited(updated);
   };
 
   const validateBeforeSave = () => {
@@ -498,18 +520,22 @@ export default function AssessmentBuilder() {
         if (indicator.assessment_indicator_ranges && indicator.assessment_indicator_ranges.length > 0) {
           const rangeData = indicator.assessment_indicator_ranges.map(r => ({
             assessment_indicator_id: assessmentIndicatorId,
-            min_score: r.min_score,
-            max_score: r.max_score,
-            label: r.label,
-            interpretation: r.interpretation,
-            display_order: r.display_order || 0
+            min_score: parseFloat(r.min_score) || 0,
+            max_score: parseFloat(r.max_score) || 0,
+            label: r.label || '',
+            interpretation: r.interpretation || ''
           }));
+
+          console.log('💾 DEBUG handleConfirmSave: Ranges a serem salvas:', rangeData);
 
           const { error: rangeError } = await supabase
             .from('assessment_indicator_ranges')
             .insert(rangeData);
 
-          if (rangeError) throw rangeError;
+          if (rangeError) {
+            console.error('❌ Erro ao salvar ranges:', rangeError);
+            throw rangeError;
+          }
         }
       }
 
@@ -988,17 +1014,16 @@ Deseja continuar?`;
                   </div>
                 </div>
 
-                {assessmentDataEdited?.description && (
-                  <div className="mt-4 p-4 bg-gray-50 rounded">
-                    <label className="text-xs font-semibold text-gray-500 uppercase block mb-2">Descrição</label>
-                    <textarea
-                      value={assessmentDataEdited?.description || ''}
-                      onChange={(e) => setAssessmentDataEdited({ ...assessmentDataEdited, description: e.target.value })}
-                      rows={3}
-                      className="w-full p-2 border rounded bg-white text-gray-700"
-                    />
-                  </div>
-                )}
+                <div className="mt-4 p-4 bg-gray-50 rounded">
+                  <label className="text-xs font-semibold text-gray-500 uppercase block mb-2">Descrição</label>
+                  <textarea
+                    value={assessmentDataEdited?.description || ''}
+                    onChange={(e) => setAssessmentDataEdited({ ...assessmentDataEdited, description: e.target.value })}
+                    rows={3}
+                    placeholder="Adicione uma descrição para o assessment..."
+                    className="w-full p-2 border rounded bg-white text-gray-700"
+                  />
+                </div>
               </div>
 
               {/* 2. INFO DA VERSÃO ATUAL */}
@@ -1124,43 +1149,63 @@ Deseja continuar?`;
                         )}
 
                         {/* Ranges do Indicador */}
-                        {indicator.assessment_indicator_ranges && indicator.assessment_indicator_ranges.length > 0 && (
-                          <div className="mt-4">
-                            <h4 className="font-semibold text-gray-900 mb-3">Faixas de Classificação:</h4>
+                        <div className="mt-4">
+                          <div className="flex items-center justify-between mb-3">
+                            <div>
+                              <h4 className="font-semibold text-gray-900">Faixas de Classificação por Percentual</h4>
+                              <p className="text-xs text-gray-500 mt-1">Define faixas baseadas na porcentagem de acerto (0-100%)</p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => handleAddRangeToIndicator(idx)}
+                              className="inline-flex items-center gap-1 px-3 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700"
+                            >
+                              <Plus className="w-3 h-3" /> Adicionar Faixa
+                            </button>
+                          </div>
+                          {indicator.assessment_indicator_ranges && indicator.assessment_indicator_ranges.length > 0 ? (
                             <div className="space-y-3">
                               {indicator.assessment_indicator_ranges.map((range, rIdx) => (
-                                <div key={rIdx} className="p-3 bg-white rounded border border-gray-200">
-                                  <div className="grid grid-cols-5 gap-2 mb-2">
+                                <div key={range.id || rIdx} className="p-3 bg-white rounded border border-gray-200">
+                                  <div className="flex items-start justify-between mb-2">
+                                    <div className="grid grid-cols-4 gap-2 flex-1">
+                                      <div>
+                                        <label className="text-xs text-gray-500 block mb-1">Min % <span className="text-gray-400">(0-100)</span></label>
+                                        <input
+                                          type="number"
+                                          min="0"
+                                          max="100"
+                                          value={assessmentIndicatorsEdited[idx]?.assessment_indicator_ranges[rIdx]?.min_score || ''}
+                                          onChange={(e) => {
+                                            const updated = [...assessmentIndicatorsEdited];
+                                            const value = e.target.value === '' ? 0 : parseFloat(e.target.value);
+                                            updated[idx].assessment_indicator_ranges[rIdx].min_score = isNaN(value) ? 0 : value;
+                                            setAssessmentIndicatorsEdited(updated);
+                                          }}
+                                          className="w-full p-2 border rounded bg-white text-gray-900 font-semibold text-sm"
+                                        />
+                                      </div>
                                     <div>
-                                      <label className="text-xs text-gray-500 block mb-1">Min Score</label>
+                                      <label className="text-xs text-gray-500 block mb-1">Max % <span className="text-gray-400">(0-100)</span></label>
                                       <input
                                         type="number"
-                                        value={assessmentIndicatorsEdited[idx]?.assessment_indicator_ranges[rIdx]?.min_score || ''}
-                                        onChange={(e) => {
-                                          const updated = [...assessmentIndicatorsEdited];
-                                          updated[idx].assessment_indicator_ranges[rIdx].min_score = parseFloat(e.target.value) || 0;
-                                          setAssessmentIndicatorsEdited(updated);
-                                        }}
-                                        className="w-full p-2 border rounded bg-white text-gray-900 font-semibold text-sm"
-                                      />
-                                    </div>
-                                    <div>
-                                      <label className="text-xs text-gray-500 block mb-1">Max Score</label>
-                                      <input
-                                        type="number"
+                                        min="0"
+                                        max="100"
                                         value={assessmentIndicatorsEdited[idx]?.assessment_indicator_ranges[rIdx]?.max_score || ''}
                                         onChange={(e) => {
                                           const updated = [...assessmentIndicatorsEdited];
-                                          updated[idx].assessment_indicator_ranges[rIdx].max_score = parseFloat(e.target.value) || 0;
+                                          const value = e.target.value === '' ? 0 : parseFloat(e.target.value);
+                                          updated[idx].assessment_indicator_ranges[rIdx].max_score = isNaN(value) ? 0 : value;
                                           setAssessmentIndicatorsEdited(updated);
                                         }}
                                         className="w-full p-2 border rounded bg-white text-gray-900 font-semibold text-sm"
                                       />
                                     </div>
                                     <div className="col-span-2">
-                                      <label className="text-xs text-gray-500 block mb-1">Label</label>
+                                      <label className="text-xs text-gray-500 block mb-1">Classificação</label>
                                       <input
                                         type="text"
+                                        placeholder="Ex: Baixo, Médio, Alto"
                                         value={assessmentIndicatorsEdited[idx]?.assessment_indicator_ranges[rIdx]?.label || ''}
                                         onChange={(e) => {
                                           const updated = [...assessmentIndicatorsEdited];
@@ -1170,40 +1215,41 @@ Deseja continuar?`;
                                         className="w-full p-2 border rounded bg-white text-[#4F46E5] font-semibold text-sm"
                                       />
                                     </div>
-                                    <div>
-                                      <label className="text-xs text-gray-500 block mb-1">Ordem</label>
-                                      <input
-                                        type="number"
-                                        value={assessmentIndicatorsEdited[idx]?.assessment_indicator_ranges[rIdx]?.display_order || ''}
-                                        onChange={(e) => {
-                                          const updated = [...assessmentIndicatorsEdited];
-                                          updated[idx].assessment_indicator_ranges[rIdx].display_order = parseFloat(e.target.value) || 0;
-                                          setAssessmentIndicatorsEdited(updated);
-                                        }}
-                                        className="w-full p-2 border rounded bg-white text-gray-900 font-semibold text-sm"
-                                      />
                                     </div>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleRemoveRangeFromIndicator(idx, rIdx)}
+                                      className="ml-2 p-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded"
+                                      title="Remover faixa"
+                                    >
+                                      <Trash2 className="w-4 h-4" />
+                                    </button>
                                   </div>
-                                  {range.interpretation && (
-                                    <div className="text-sm p-2 bg-gray-50 rounded border-t border-gray-200">
-                                      <label className="text-xs text-gray-500 block mb-1">Interpretação</label>
-                                      <textarea
-                                        value={assessmentIndicatorsEdited[idx]?.assessment_indicator_ranges[rIdx]?.interpretation || ''}
-                                        onChange={(e) => {
-                                          const updated = [...assessmentIndicatorsEdited];
-                                          updated[idx].assessment_indicator_ranges[rIdx].interpretation = e.target.value;
-                                          setAssessmentIndicatorsEdited(updated);
-                                        }}
-                                        rows={2}
-                                        className="w-full p-2 border rounded bg-white text-gray-700 text-xs"
-                                      />
-                                    </div>
-                                  )}
+                                  <div className="text-sm p-2 bg-gray-50 rounded border-t border-gray-200">
+                                    <label className="text-xs text-gray-500 block mb-1">Interpretação</label>
+                                    <textarea
+                                      value={assessmentIndicatorsEdited[idx]?.assessment_indicator_ranges[rIdx]?.interpretation || ''}
+                                      onChange={(e) => {
+                                        const updated = [...assessmentIndicatorsEdited];
+                                        updated[idx].assessment_indicator_ranges[rIdx].interpretation = e.target.value;
+                                        setAssessmentIndicatorsEdited(updated);
+                                      }}
+                                      rows={2}
+                                      placeholder="Descreva a interpretação para scores nesta faixa..."
+                                      className="w-full p-2 border rounded bg-white text-gray-700 text-xs"
+                                    />
+                                  </div>
                                 </div>
                               ))}
                             </div>
-                          </div>
-                        )}
+                          ) : (
+                            <div className="p-4 bg-gray-50 rounded border border-dashed border-gray-300 text-center text-sm text-gray-500">
+                              <p>Nenhuma faixa de classificação definida.</p>
+                              <p className="text-xs mt-1">As faixas classificam o resultado baseado na porcentagem de acerto (0-100%).</p>
+                              <p className="text-xs">Exemplo: 0-40% = Baixo, 41-70% = Médio, 71-100% = Alto</p>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     ))}
                   </div>
