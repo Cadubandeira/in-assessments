@@ -20,6 +20,8 @@ export const useAssessment = (options = {}) => {
   const [error, setError] = useState(null);
   const [answers, setAnswers] = useState({}); // { [questionId]: score_value }
   const [submitting, setSubmitting] = useState(false);
+  const [introductionHtml, setIntroductionHtml] = useState('');
+  const [overallRanges, setOverallRanges] = useState([]);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -71,8 +73,31 @@ export const useAssessment = (options = {}) => {
       if (assessmentError) throw assessmentError;
       if (!assessmentData) throw new Error('Nenhum assessment ativo encontrado.');
 
-      // 2. Buscar versão ativa do assessment
+      // 2. Buscar versão ativa do assessment E carregar introduction_html + overall_ranges
       const activeVersion = await getActiveAssessmentVersion(assessmentData.id);
+
+      // Buscar introduction_html e overall_ranges
+      const { data: versionData, error: versionError } = await supabase
+        .from('assessment_versions')
+        .select('introduction_html')
+        .eq('id', activeVersion.id)
+        .single();
+
+      if (versionError) console.warn('Erro ao carregar introduction_html:', versionError);
+      if (versionData?.introduction_html) {
+        setIntroductionHtml(versionData.introduction_html);
+      }
+
+      const { data: overallRangesData, error: overallRangesError } = await supabase
+        .from('assessment_overall_ranges')
+        .select('*')
+        .eq('assessment_version_id', activeVersion.id)
+        .order('min_score', { ascending: true });
+
+      if (overallRangesError) console.warn('Erro ao carregar overall_ranges:', overallRangesError);
+      if (overallRangesData) {
+        setOverallRanges(overallRangesData);
+      }
       console.log('useAssessment: Active Version:', activeVersion);
       
       setAssessmentVersionId(activeVersion.id);
@@ -422,6 +447,8 @@ export const useAssessment = (options = {}) => {
     answers,
     handleAnswerChange,
     submitAssessment,
-    submitting
+    submitting,
+    introductionHtml,
+    overallRanges
   };
 };

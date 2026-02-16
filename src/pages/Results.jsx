@@ -78,6 +78,7 @@ export default function Results() {
   const [assessmentRanges, setAssessmentRanges] = useState({});
   const [assessmentData, setAssessmentData] = useState(null);
   const [indicatorsMeta, setIndicatorsMeta] = useState({});
+  const [overallRanges, setOverallRanges] = useState([]);
 
   useEffect(() => {
     let mounted = true;
@@ -194,6 +195,20 @@ export default function Results() {
                 setIndicatorsMeta(metaMap);
               }
             }
+
+            // Buscar overall_ranges para interpretação do resultado geral
+            const { data: overallRangesData, error: overallError } = await supabase
+              .from('assessment_overall_ranges')
+              .select('*')
+              .eq('assessment_version_id', data.assessment_version_id)
+              .order('min_score', { ascending: true });
+
+            if (!overallError && overallRangesData) {
+              console.log('📊 DEBUG Results: Overall ranges carregados:', overallRangesData);
+              if (mounted) setOverallRanges(overallRangesData);
+            } else if (overallError) {
+              console.warn('⚠️ Aviso ao carregar overall_ranges:', overallError);
+            }
           }
         }
       } catch (err) {
@@ -218,7 +233,19 @@ export default function Results() {
   const total = result.total_score ?? 0;
   const max = result.max_possible_score ?? 0;
   const percentage = max > 0 ? Math.round((total / max) * 100) : 0;
-  const classification = classifyFallback(percentage);
+  
+  // Calcular interpretação geral usar as overall_ranges
+  let overallInterpretation = '';
+  let overallLabel = classifyFallback(percentage);
+  if (overallRanges.length > 0) {
+    const range = overallRanges.find(r => percentage >= r.min_score && percentage <= r.max_score);
+    if (range) {
+      overallLabel = range.label;
+      overallInterpretation = range.interpretation || '';
+    }
+  }
+  
+  const classification = overallLabel;
   const date = result.created_at ? new Date(result.created_at).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : '-';
   const versionNumber = result.assessment_versions?.version_number || '—';
 
@@ -269,7 +296,7 @@ export default function Results() {
       </div>
 
       {/* Resumo */}
-      <div className="p-6 md:p-8 border rounded-2xl bg-white shadow-sm flex flex-col md:flex-row items-center gap-8 mb-8">
+      <div className="p-6 md:p-8 border rounded-2xl bg-white shadow-sm flex flex-col md:flex-row items-start gap-8 mb-8">
         <div className="flex-0 text-center">
           <div className="text-5xl md:text-6xl font-extrabold text-[#4F46E5]">{percentage}%</div>
           <div className="mt-2 text-sm text-gray-500">{classification}</div>
@@ -291,10 +318,22 @@ export default function Results() {
             </div>
           </div>
 
-          <div className="p-3 bg-gray-50 rounded text-center">
+          <div className="p-3 bg-gray-50 rounded text-center mb-4">
             <span className="text-xs text-gray-500 mr-2">Versão:</span>
             <span className="text-sm font-semibold text-gray-700">v{versionNumber}</span>
           </div>
+
+          {overallInterpretation && (
+            <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+              <div className="flex items-center gap-2 mb-3">
+                <span className="font-semibold text-blue-900">Classificação:</span>
+                <span className="px-3 py-1 text-sm font-medium rounded-full bg-blue-100 text-blue-700">{overallLabel}</span>
+              </div>
+              <p className="text-sm text-gray-700 leading-relaxed">
+                <span className="font-semibold text-blue-900">Interpretação:</span> {overallInterpretation}
+              </p>
+            </div>
+          )}
         </div>
       </div>
 

@@ -70,7 +70,7 @@ export async function createNewAssessmentVersion(assessmentId, previousVersionId
 
   if (versionError) throw versionError;
 
-  // 3. Se há versão anterior, copiar indicadores e ranges
+  // 3. Se há versão anterior, copiar indicadores, ranges e overall_ranges
   if (previousVersionId) {
     // Buscar indicadores da versão anterior
     const { data: oldIndicators, error: indicatorsError } = await supabase
@@ -112,6 +112,37 @@ export async function createNewAssessmentVersion(assessmentId, previousVersionId
           if (rangesError) throw rangesError;
         }
       }
+    }
+
+    // Copiar overall_ranges da versão anterior (Novo - Retrocompatível)
+    const { data: oldOverallRanges, error: overallRangesError } = await supabase
+      .from('assessment_overall_ranges')
+      .select('*')
+      .eq('assessment_version_id', previousVersionId);
+
+    if (overallRangesError) {
+      console.warn('⚠️ Aviso ao copiar overall_ranges:', overallRangesError);
+      // Não lançar erro aqui - é retrocompatível, versões antigas podem não ter overall_ranges
+    }
+
+    if (oldOverallRanges && oldOverallRanges.length > 0) {
+      const overallRangesToInsert = oldOverallRanges.map(range => ({
+        assessment_version_id: newVersion.id,
+        min_score: range.min_score,
+        max_score: range.max_score,
+        label: range.label,
+        interpretation: range.interpretation
+      }));
+
+      const { error: insertOvError } = await supabase
+        .from('assessment_overall_ranges')
+        .insert(overallRangesToInsert);
+
+      if (insertOvError) {
+        console.error('❌ Erro ao copiar overall_ranges:', insertOvError);
+        throw insertOvError;
+      }
+      console.log(`✅ ${overallRangesToInsert.length} overall_range(s) copiada(s) da versão anterior`);
     }
   }
 

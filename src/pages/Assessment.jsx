@@ -1,12 +1,14 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useAssessment } from '../hooks/useAssessment';
 import QuestionBlock from '../components/ui/QuestionBlock';
+import IntroductionDisplay from '../components/IntroductionDisplay';
 import { TOKENS } from '../config/tokens';
 import Button from '../components/ui/Button';
 
 const Assessment = () => {
   const { id } = useParams();
+  const [showIntroduction, setShowIntroduction] = useState(true);
   const { 
     assessment, 
     loading, 
@@ -14,7 +16,8 @@ const Assessment = () => {
     answers, 
     handleAnswerChange, 
     submitAssessment, 
-    submitting 
+    submitting,
+    introductionHtml
   } = useAssessment({ assessmentIdOrSlug: id });
 
   console.log('Assessment Page Debug:', { loading, error, assessment });
@@ -58,6 +61,14 @@ const Assessment = () => {
 
   return (
     <div className={`min-h-screen ${TOKENS.colors.bg} py-12 px-4 sm:px-6 lg:px-8`}>
+      {/* Modal de Introdução */}
+      {introductionHtml && showIntroduction && (
+        <IntroductionDisplay 
+          html={introductionHtml}
+          onClose={() => setShowIntroduction(false)}
+        />
+      )}
+
       <div className="max-w-3xl mx-auto">
         {/* Cabeçalho */}
         <div className="mb-12 text-center">

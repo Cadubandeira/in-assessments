@@ -3,6 +3,8 @@ import { supabase } from '../../supabaseClient';
 import { useUserRole } from '../../hooks/useUserRole';
 import { useNavigate } from 'react-router-dom';
 import { Plus, Trash2, ArrowLeft, Save, GitBranch } from 'lucide-react';
+import IntroductionEditor from '../../components/IntroductionEditor';
+import OverallRangesEditor from '../../components/OverallRangesEditor';
 import { 
   getActiveAssessmentVersion, 
   createNewAssessmentVersion, 
@@ -23,6 +25,8 @@ export default function AssessmentBuilder() {
   const [versions, setVersions] = useState([]);
   const [selectedIndicators, setSelectedIndicators] = useState([]);
   const [ranges, setRanges] = useState({}); // { indicatorId: [{ min, max, label, interpretation }] }
+  const [overallRanges, setOverallRanges] = useState([]); // Faixas globais do assessment
+  const [introductionHtml, setIntroductionHtml] = useState(''); // Conteúdo introdutório
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [showVersionModal, setShowVersionModal] = useState(false);
@@ -35,6 +39,7 @@ export default function AssessmentBuilder() {
   const [assessmentIndicatorsEdited, setAssessmentIndicatorsEdited] = useState([]);
   const [questionsEdited, setQuestionsEdited] = useState([]);
   const [indicatorToAdd, setIndicatorToAdd] = useState('');
+
 
 
   useEffect(() => {
@@ -140,6 +145,8 @@ export default function AssessmentBuilder() {
     setVersions([]);
     setSelectedIndicators([]);
     setRanges({});
+    setOverallRanges([]);
+    setIntroductionHtml('');
     setAssessmentIndicatorsData([]);
     setQuestionsData([]);
   };
@@ -158,6 +165,28 @@ export default function AssessmentBuilder() {
     if (assIndError) {
       console.error('Erro ao carregar assessment indicators:', assIndError);
       return;
+    }
+
+    // Buscar introduction_html e overall_ranges da versão
+    const { data: versionData, error: versionError } = await supabase
+      .from('assessment_versions')
+      .select('introduction_html')
+      .eq('id', versionId)
+      .single();
+
+    if (!versionError && versionData) {
+      setIntroductionHtml(versionData.introduction_html || '');
+    }
+
+    // Buscar overall_ranges
+    const { data: overallRangesData, error: overallRangesError } = await supabase
+      .from('assessment_overall_ranges')
+      .select('*')
+      .eq('assessment_version_id', versionId)
+      .order('min_score', { ascending: true });
+
+    if (!overallRangesError && overallRangesData) {
+      setOverallRanges(overallRangesData);
     }
 
     // Buscar questions associadas aos indicadores
@@ -498,7 +527,8 @@ export default function AssessmentBuilder() {
           .insert([{
             assessment_id: targetAssessmentId,
             version_number: 1,
-            is_active: true
+            is_active: true,
+            introduction_html: introductionHtml
           }])
           .select()
           .single();
@@ -578,6 +608,89 @@ export default function AssessmentBuilder() {
           if (rangeError) {
             console.error('❌ Erro ao salvar ranges:', rangeError);
             throw rangeError;
+          }
+        }
+      }
+
+      // 3.5. Salvar overall_ranges (faixas globais do assessment)
+      if (targetVersionId) {
+        console.log(`🔄 Iniciando salvamento de overall_ranges para versão ${targetVersionId}`);
+        
+        // Deletar overall_ranges antigos da versão específica
+        const { error: deleteError } = await supabase
+          .from('assessment_overall_ranges')
+          .delete()
+          .eq('assessment_version_id', targetVersionId);
+
+        if (deleteError) {
+          console.error('❌ Erro ao deletar overall_ranges antigos:', deleteError);
+          throw deleteError;
+        }
+        console.log(`✅ Ranges antigos deletados`);
+
+        // Inserir novos overall_ranges
+        if (overallRanges && overallRanges.length > 0) {
+          // Validar e preparar ranges com rigor: cada range deve ter label, min_score e max_score válidos
+          const overallRangesData = overallRanges
+            .filter(r => {
+              // Validação rigorosa: garantir que todos os campos obrigatórios estão preenchidos
+              const label = String(r.label || '').trim();
+              const minScore = r.min_score !== undefined && r.min_score !== null && r.min_score !== '' 
+                ? Number(r.min_score) 
+                : null;
+              const maxScore = r.max_score !== undefined && r.max_score !== null && r.max_score !== '' 
+                ? Number(r.max_score) 
+                : null;
+              
+              // Validações
+              const hasLabel = label.length > 0;
+              const hasValidMinScore = !isNaN(minScore) && minScore !== null;
+              const hasValidMaxScore = !isNaN(maxScore) && maxScore !== null;
+              const isValidRange = hasValidMinScore && hasValidMaxScore && minScore <= maxScore;
+              
+              console.log(`🔍 Validando range:`, { label, minScore, maxScore, hasLabel, isValidRange });
+              
+              return hasLabel && isValidRange;
+            })
+            .map(r => {
+              // Converter com type-safety após validação
+              const minScore = Number(r.min_score);
+              const maxScore = Number(r.max_score);
+              
+              return {
+                assessment_version_id: targetVersionId,
+                min_score: minScore,
+                max_score: maxScore,
+                label: String(r.label || '').trim(),
+                interpretation: String(r.interpretation || '').trim()
+              };
+            });
+
+          console.log(`💾 Overall Ranges a salvar: ${overallRangesData.length} faixas`, overallRangesData);
+
+          if (overallRangesData.length > 0) {
+            const { error: overallRangesError } = await supabase
+              .from('assessment_overall_ranges')
+              .insert(overallRangesData);
+
+            if (overallRangesError) {
+              console.error('❌ Erro ao salvar overall_ranges:', overallRangesError);
+              throw overallRangesError;
+            }
+            console.log(`✅ ${overallRangesData.length} faixa(s) global(is) salva(s) com sucesso`);
+          }
+        }
+
+        // Atualizar introduction_html na versão
+        if (introductionHtml !== undefined) {
+          const { error: updateVersionError } = await supabase
+            .from('assessment_versions')
+            .update({ introduction_html: introductionHtml })
+            .eq('id', targetVersionId);
+
+          if (updateVersionError) {
+            console.error('❌ Erro ao salvar introduction_html:', updateVersionError);
+            throw updateVersionError;
           }
         }
       }
@@ -1137,6 +1250,14 @@ Deseja continuar?`;
                     className="w-full p-2 border rounded bg-white text-gray-700"
                   />
                 </div>
+
+                {/* Editor de Introdução */}
+                <div className="mt-4 p-4 bg-gray-50 rounded">
+                  <IntroductionEditor 
+                    value={introductionHtml}
+                    onChange={setIntroductionHtml}
+                  />
+                </div>
               </div>
 
               {/* 2. INFO DA VERSÃO ATUAL */}
@@ -1364,7 +1485,15 @@ Deseja continuar?`;
                 </div>
               )}
 
-              {/* 4. QUESTIONS E ALTERNATIVES AGRUPADAS POR INDICADORES */}
+              {/* 4. OVERALL RANGES (Faixas de Interpretação Global) */}
+              <div className="bg-white border rounded-lg p-6">
+                <OverallRangesEditor 
+                  ranges={overallRanges}
+                  onChange={setOverallRanges}
+                />
+              </div>
+
+              {/* 5. QUESTIONS E ALTERNATIVES AGRUPADAS POR INDICADORES */}
               {questionsEdited.length > 0 && (
                 <div className="bg-white border rounded-lg p-6">
                   <h2 className="text-2xl font-bold mb-6 text-[#4F46E5]">Estrutura de Questões por Indicador</h2>
