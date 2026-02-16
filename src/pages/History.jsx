@@ -44,7 +44,22 @@ export default function History() {
 
         let query = supabase
           .from('assessment_events')
-          .select('*')
+          .select(`
+            id,
+            assessment_id,
+            assessment_version,
+            total_score,
+            max_possible_score,
+            classification_snapshot,
+            indicator_scores_snapshot,
+            user_display_name,
+            created_at,
+            assessment_versions!assessment_events_assessment_version_id_fkey (
+              id,
+              version_number,
+              is_active
+            )
+          `)
           .order('created_at', { ascending: false });
 
         // Filter by role
@@ -161,6 +176,9 @@ export default function History() {
             ? new Date(item.created_at).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })
             : '-';
 
+          // Extract version number from join
+          const versionNumber = item.assessment_versions?.version_number || '—';
+
           // For admins viewing all results, display email or user display name if available
           const performedBy = item.user_email || item.user_display_name || item.user_id || '—';
 
@@ -170,10 +188,11 @@ export default function History() {
                 <div className="flex-1">
                   <div className="flex items-center gap-4 mb-2">
                     <span className="text-sm text-gray-500">{date}</span>
+                    <span className="text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded">v{versionNumber}</span>
                     <div className={`px-3 py-1 text-xs font-medium rounded-full ${getClassificationColor(classification)}`}>
                       {classification}
-                                        {isAdmin && <div className="text-sm text-gray-500 ml-4">Usuário: <span className="font-medium text-gray-700">{performedBy}</span></div>}
                     </div>
+                    {isAdmin && <div className="text-sm text-gray-500">Usuário: <span className="font-medium text-gray-700">{performedBy}</span></div>}
                   </div>
                   <div className="text-lg font-semibold text-gray-800 mb-2">
                     {percentage}% · {total} de {max} pontos

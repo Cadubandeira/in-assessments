@@ -1,9 +1,12 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 import { useNavigate } from 'react-router-dom';
+import { getActiveAssessmentVersion } from '../utils/assessmentVersions';
 
 export const useAssessment = () => {
   const [assessment, setAssessment] = useState(null);
+  const [assessmentVersionId, setAssessmentVersionId] = useState(null);
+  const [versionNumber, setVersionNumber] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [answers, setAnswers] = useState({}); // { [questionId]: score_value }
@@ -31,7 +34,14 @@ export const useAssessment = () => {
       if (assessmentError) throw assessmentError;
       if (!assessmentData) throw new Error('Nenhum assessment ativo encontrado.');
 
-      // 2. Buscar assessment_indicators com indicadores relacionados
+      // 2. Buscar versão ativa do assessment
+      const activeVersion = await getActiveAssessmentVersion(assessmentData.id);
+      console.log('useAssessment: Active Version:', activeVersion);
+      
+      setAssessmentVersionId(activeVersion.id);
+      setVersionNumber(activeVersion.version_number);
+
+      // 3. Buscar assessment_indicators com indicadores relacionados (usando assessment_version_id)
       const { data: assessmentIndicators, error: aiError } = await supabase
         .from('assessment_indicators')
         .select(`
@@ -40,13 +50,13 @@ export const useAssessment = () => {
           display_order,
           indicators_master:indicator_master_id (id, name, description)
         `)
-        .eq('assessment_id', assessmentData.id)
+        .eq('assessment_version_id', activeVersion.id)
         .order('display_order', { ascending: true });
 
       console.log('useAssessment: Assessment Indicators:', assessmentIndicators, 'Error:', aiError);
       if (aiError) throw aiError;
 
-      // 3. Buscar indicadores (antiga estrutura ainda usada para questions)
+      // 4. Buscar indicadores (antiga estrutura ainda usada para questions)
       const { data: indicatorsData, error: indicatorsError } = await supabase
         .from('indicators')
         .select('*')
@@ -57,7 +67,7 @@ export const useAssessment = () => {
       if (indicatorsError) throw indicatorsError;
       const indicators = indicatorsData || [];
 
-      // 4. Buscar questions
+      // 5. Buscar questions
       const indicatorIds = indicators.map(i => i.id);
       let questions = [];
 
@@ -72,7 +82,7 @@ export const useAssessment = () => {
         questions = questionsData || [];
       }
 
-      // 5. Buscar alternatives
+      // 6. Buscar alternatives
       const questionIds = questions.map(q => q.id);
       let alternatives = [];
 
@@ -87,7 +97,7 @@ export const useAssessment = () => {
         alternatives = alternativesData || [];
       }
 
-      // 6. Buscar assessment_indicator_ranges para cada assessment_indicator
+      // 7. Buscar assessment_indicator_ranges para cada assessment_indicator
       const rangesMap = {}; // { assessmentIndicatorId: [...ranges] }
       if (assessmentIndicators && assessmentIndicators.length > 0) {
         const { data: rangesData, error: rangesError } = await supabase
@@ -104,9 +114,11 @@ export const useAssessment = () => {
         });
       }
 
-      // 7. Montar estrutura hierárquica com nova arquitetura
+      // 8. Montar estrutura hierárquica com nova arquitetura
       const fullAssessment = {
         ...assessmentData,
+        versionId: activeVersion.id,
+        versionNumber: activeVersion.version_number,
         indicators: (indicators || []).map(indicator => ({
           ...indicator,
           questions: (questions || [])
@@ -301,7 +313,8 @@ export const useAssessment = () => {
 
       const payload = {
         assessment_id: assessment.id,
-        assessment_version: assessment.version,
+        assessment_version: versionNumber, // INTEGER: número da versão (1, 2, 3, etc)
+        assessment_version_id: assessmentVersionId, // UUID: referência para assessment_versions.id
         user_id: user.id,
         user_display_name: displayName,
         total_score: totalScore,
@@ -328,6 +341,8 @@ export const useAssessment = () => {
 
   return {
     assessment,
+    assessmentVersionId,
+    versionNumber,
     loading,
     error,
     answers,

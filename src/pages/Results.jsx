@@ -34,7 +34,17 @@ export default function Results() {
           return;
         }
 
-        let query = supabase.from('assessment_events').select('*');
+        let query = supabase
+          .from('assessment_events')
+          .select(`
+            *,
+            assessment_versions!assessment_events_assessment_version_id_fkey (
+              id,
+              version_number,
+              is_active,
+              created_at
+            )
+          `);
 
         // If id provided, fetch specific record; otherwise fetch last for current user
         if (id) {
@@ -75,6 +85,7 @@ export default function Results() {
   const percentage = max > 0 ? Math.round((total / max) * 100) : 0;
   const classification = classify(percentage);
   const date = result.created_at ? new Date(result.created_at).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : '-';
+  const versionNumber = result.assessment_versions?.version_number || '—';
 
   let indicatorScores = result.indicator_scores_snapshot || {};
   if (typeof indicatorScores === 'string') {
@@ -137,6 +148,11 @@ export default function Results() {
               <div className="text-xs text-gray-500">Data e Hora</div>
               <div className="text-lg font-medium">{date}</div>
             </div>
+          </div>
+
+          <div className="mb-4 p-3 bg-gray-50 rounded text-center">
+            <span className="text-xs text-gray-500 mr-2">Versão do Assessment:</span>
+            <span className="text-sm font-semibold text-gray-700">v{versionNumber}</span>
           </div>
 
           <div>
