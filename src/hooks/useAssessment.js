@@ -262,45 +262,25 @@ export const useAssessment = (options = {}) => {
       };
     };
 
-    // Processar indicadores antigos (compatibilidade)
-    assessment.indicators.forEach(indicator => {
-      let indicatorScore = 0;
-      let indicatorMax = 0;
+    // Determinar se usamos a nova arquitetura (Assessment Indicators) ou fallback
+    const useNewArchitecture = assessment.assessmentIndicators && assessment.assessmentIndicators.length > 0;
 
-      indicator.questions.forEach(question => {
-        const score = answers[question.id] || 0;
-        indicatorScore += score;
-
-        const maxQuestionScore = (question.alternatives || []).reduce((max, alt) =>
-          Math.max(max, alt.score_value), 0);
-        indicatorMax += maxQuestionScore;
-        maxPossibleScore += maxQuestionScore;
-      });
-
-      const classificationData = getClassificationFromRanges(indicatorScore, indicatorMax, [], indicator.name);
-
-      indicatorResults[indicator.name] = {
-        score: indicatorScore,
-        maxScore: indicatorMax,
-        percentage: classificationData.percentage,
-        classification: classificationData.classification,
-        interpretation: classificationData.interpretation
-      };
-
-      indicatorScores[indicator.name] = indicatorScore;
-      totalScore += indicatorScore;
-    });
-
-    // Processar novos indicadores com ranges (se existirem)
-    if (assessment.assessmentIndicators && assessment.assessmentIndicators.length > 0) {
+    if (useNewArchitecture) {
+      // NOVA ARQUITETURA: Usar assessment_indicators como fonte da verdade
       assessment.assessmentIndicators.forEach(ai => {
         const indicator = ai.indicatorMaster;
         if (!indicator) return;
 
-        // Encontrar as questions do indicador (usamos a estrutura antiga para pegar as perguntas)
-        const indicatorQuestions = assessment.indicators
-          .find(ind => ind.id === assessment.indicators[ai.display_order - 1]?.id)
-          ?.questions || [];
+        // Encontrar as questions do indicador.
+        // Tentamos vincular pelo indicator_master_id (mais seguro) ou fallback para ordem
+        let linkedOldIndicator = assessment.indicators.find(ind => ind.indicator_master_id === indicator.id);
+        
+        // Fallback para display_order se não encontrar pelo ID (compatibilidade com dados migrados parcialmente)
+        if (!linkedOldIndicator) {
+           linkedOldIndicator = assessment.indicators.find(ind => ind.id === assessment.indicators[ai.display_order - 1]?.id);
+        }
+
+        const indicatorQuestions = linkedOldIndicator?.questions || [];
 
         let indicatorScore = 0;
         let indicatorMax = 0;
@@ -326,6 +306,36 @@ export const useAssessment = (options = {}) => {
 
         indicatorScores[indicator.name] = indicatorScore;
         totalScore += indicatorScore;
+        maxPossibleScore += indicatorMax;
+      });
+    } else {
+      // ANTIGA ARQUITETURA (Fallback): Usar indicators diretos
+      assessment.indicators.forEach(indicator => {
+        let indicatorScore = 0;
+        let indicatorMax = 0;
+
+        indicator.questions.forEach(question => {
+          const score = answers[question.id] || 0;
+          indicatorScore += score;
+
+          const maxQuestionScore = (question.alternatives || []).reduce((max, alt) =>
+            Math.max(max, alt.score_value), 0);
+          indicatorMax += maxQuestionScore;
+        });
+
+        const classificationData = getClassificationFromRanges(indicatorScore, indicatorMax, [], indicator.name);
+
+        indicatorResults[indicator.name] = {
+          score: indicatorScore,
+          maxScore: indicatorMax,
+          percentage: classificationData.percentage,
+          classification: classificationData.classification,
+          interpretation: classificationData.interpretation
+        };
+
+        indicatorScores[indicator.name] = indicatorScore;
+        totalScore += indicatorScore;
+        maxPossibleScore += indicatorMax;
       });
     }
 

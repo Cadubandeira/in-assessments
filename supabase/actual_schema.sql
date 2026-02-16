@@ -82,8 +82,10 @@ CREATE TABLE public.indicators (
   display_order integer NOT NULL,
   weight numeric DEFAULT 1.0,
   created_at timestamp without time zone DEFAULT now(),
+  indicator_master_id uuid,
   CONSTRAINT indicators_pkey PRIMARY KEY (id),
-  CONSTRAINT indicators_assessment_id_fkey FOREIGN KEY (assessment_id) REFERENCES public.assessments(id)
+  CONSTRAINT indicators_assessment_id_fkey FOREIGN KEY (assessment_id) REFERENCES public.assessments(id),
+  CONSTRAINT indicators_indicator_master_id_fkey FOREIGN KEY (indicator_master_id) REFERENCES public.indicators_master(id)
 );
 CREATE TABLE public.indicators_master (
   id uuid NOT NULL DEFAULT gen_random_uuid(),

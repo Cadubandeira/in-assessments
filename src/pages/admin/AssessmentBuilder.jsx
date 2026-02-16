@@ -10,6 +10,9 @@ import {
   listAssessmentVersions 
 } from '../../utils/assessmentVersions';
 
+const isUuid = (value) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+const makeTempId = () => `tmp-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+
 export default function AssessmentBuilder() {
   const navigate = useNavigate();
   const { role, loading: roleLoading } = useUserRole();
@@ -30,6 +33,7 @@ export default function AssessmentBuilder() {
   const [assessmentDataEdited, setAssessmentDataEdited] = useState(null);
   const [assessmentIndicatorsEdited, setAssessmentIndicatorsEdited] = useState([]);
   const [questionsEdited, setQuestionsEdited] = useState([]);
+  const [indicatorToAdd, setIndicatorToAdd] = useState('');
 
 
   useEffect(() => {
@@ -95,7 +99,7 @@ export default function AssessmentBuilder() {
       setVersions(allVersions);
 
       // 4. Buscar indicadores antigos (para questions) com suas relações
-      const { data: indicators, error: indError } = await supabase
+      const { data: assessmentIndicatorsRaw, error: indError } = await supabase
         .from('indicators')
         .select(`
           *,
@@ -110,8 +114,11 @@ export default function AssessmentBuilder() {
       if (indError) throw indError;
       
       // Armazenar indicadores com suas questões
-      const indicatorsWithQuestions = (indicators || []).map(ind => ({
+      const masterByName = new Map((indicators || []).map(item => [item.name?.toLowerCase?.() || '', item]));
+      const indicatorsWithQuestions = (assessmentIndicatorsRaw || []).map(ind => ({
         ...ind,
+        master_indicator_id: ind.indicator_master_id || masterByName.get(ind.name?.toLowerCase?.() || '')?.id || null,
+        description: ind.description || ind.conceptual_description || '',
         questions: (ind.questions || []).sort((a, b) => (a.display_order || 0) - (b.display_order || 0))
           .map(q => ({
             ...q,
@@ -130,6 +137,28 @@ export default function AssessmentBuilder() {
       console.error('Erro ao carregar assessment:', err);
       alert('Erro ao carregar assessment: ' + err.message);
     }
+  };
+
+  const handleInitNewAssessment = () => {
+    setSelectedAssessment('new');
+    setAssessmentData({}); // Objeto vazio para passar nas verificações de renderização
+    setAssessmentDataEdited({
+      name: '',
+      description: '',
+      type: 'default',
+      aggregation_type: 'sum',
+      visualization_type: 'radar',
+      availability_type: 'public',
+      is_active: true
+    });
+    setAssessmentIndicatorsEdited([]);
+    setQuestionsEdited([]);
+    setCurrentVersion({ id: 'temp-new', version_number: 1, is_active: true });
+    setVersions([]);
+    setSelectedIndicators([]);
+    setRanges({});
+    setAssessmentIndicatorsData([]);
+    setQuestionsData([]);
   };
 
   const loadVersionIndicators = async (versionId) => {
@@ -200,41 +229,252 @@ export default function AssessmentBuilder() {
     setRanges({ ...ranges });
   };
 
+  const handleAddIndicatorFromMaster = () => {
+    if (!indicatorToAdd) return;
+    const master = indicators.find(item => item.id === indicatorToAdd);
+    if (!master) return;
+
+    const newIndicator = {
+      id: makeTempId(),
+      indicator_master_id: master.id,
+      indicators_master: { id: master.id, name: master.name, description: master.description || '' },
+      display_order: assessmentIndicatorsEdited.length + 1,
+      weight: 1,
+      assessment_indicator_ranges: []
+    };
+
+    const newIndicatorQuestions = {
+      id: makeTempId(),
+      master_indicator_id: master.id,
+      name: master.name,
+      description: master.description || '',
+      display_order: questionsEdited.length + 1,
+      questions: []
+    };
+
+    setAssessmentIndicatorsEdited([...assessmentIndicatorsEdited, newIndicator]);
+    setQuestionsEdited([...questionsEdited, newIndicatorQuestions]);
+    setIndicatorToAdd('');
+  };
+
+  const handleRemoveIndicatorFromAssessment = (indicatorMasterId, indicatorName) => {
+    setAssessmentIndicatorsEdited(prev => prev.filter(ind => ind.indicator_master_id !== indicatorMasterId));
+    setQuestionsEdited(prev => prev.filter(ind => {
+      const masterMatch = ind.master_indicator_id && ind.master_indicator_id === indicatorMasterId;
+      const nameMatch = indicatorName && ind.name === indicatorName;
+      return !masterMatch && !nameMatch;
+    }));
+  };
+
+  const handleAddQuestion = (indicatorIndex) => {
+    const updated = [...questionsEdited];
+    const indicator = updated[indicatorIndex];
+    const newQuestion = {
+      id: makeTempId(),
+      text: '',
+      response_type: 'single_choice',
+      is_required: true,
+      display_order: (indicator.questions?.length || 0) + 1,
+      alternatives: []
+    };
+    indicator.questions = [...(indicator.questions || []), newQuestion];
+    updated[indicatorIndex] = { ...indicator };
+    setQuestionsEdited(updated);
+  };
+
+  const handleRemoveQuestion = (indicatorIndex, questionIndex) => {
+    const updated = [...questionsEdited];
+    const indicator = updated[indicatorIndex];
+    indicator.questions = (indicator.questions || []).filter((_, idx) => idx !== questionIndex);
+    updated[indicatorIndex] = { ...indicator };
+    setQuestionsEdited(updated);
+  };
+
+  const handleAddAlternative = (indicatorIndex, questionIndex) => {
+    const updated = [...questionsEdited];
+    const question = updated[indicatorIndex].questions[questionIndex];
+    const newAlt = {
+      id: makeTempId(),
+      text: '',
+      score_value: 0,
+      display_order: (question.alternatives?.length || 0) + 1
+    };
+    question.alternatives = [...(question.alternatives || []), newAlt];
+    setQuestionsEdited(updated);
+  };
+
+  const handleRemoveAlternative = (indicatorIndex, questionIndex, altIndex) => {
+    const updated = [...questionsEdited];
+    const question = updated[indicatorIndex].questions[questionIndex];
+    question.alternatives = (question.alternatives || []).filter((_, idx) => idx !== altIndex);
+    setQuestionsEdited(updated);
+  };
+
+  const validateBeforeSave = () => {
+    const issues = [];
+
+    if (!assessmentIndicatorsEdited.length) {
+      issues.push('Adicione pelo menos um indicador.');
+    }
+
+    if (!questionsEdited.length) {
+      issues.push('Adicione pelo menos um indicador com questoes.');
+    }
+
+    questionsEdited.forEach((indicator, indIdx) => {
+      const indicatorLabel = indicator.name || `Indicador ${indIdx + 1}`;
+      const displayOrder = Number(indicator.display_order || 0);
+      const hasMatchingIndicator = assessmentIndicatorsEdited.some(ai =>
+        ai.indicator_master_id === indicator.master_indicator_id ||
+        ai.indicators_master?.name === indicator.name
+      );
+
+      if (!indicator.name || !indicator.name.trim()) {
+        issues.push(`Indicador ${indIdx + 1}: nome obrigatorio.`);
+      }
+
+      if (!hasMatchingIndicator) {
+        issues.push(`${indicatorLabel}: nao esta vinculado aos indicadores do assessment.`);
+      }
+
+      if (!Number.isFinite(displayOrder) || displayOrder <= 0) {
+        issues.push(`${indicatorLabel}: ordem do indicador deve ser maior que 0.`);
+      }
+
+      const questions = indicator.questions || [];
+      if (!questions.length) {
+        issues.push(`${indicatorLabel}: adicione pelo menos uma questao.`);
+      }
+
+      questions.forEach((question, qIdx) => {
+        const questionLabel = `${indicatorLabel} - Questao ${qIdx + 1}`;
+        const questionOrder = Number(question.display_order || 0);
+
+        if (!question.text || !question.text.trim()) {
+          issues.push(`${questionLabel}: texto obrigatorio.`);
+        }
+
+        if (!Number.isFinite(questionOrder) || questionOrder <= 0) {
+          issues.push(`${questionLabel}: ordem da questao deve ser maior que 0.`);
+        }
+
+        const alternatives = question.alternatives || [];
+        if (!alternatives.length) {
+          issues.push(`${questionLabel}: adicione pelo menos uma alternativa.`);
+        }
+
+        alternatives.forEach((alt, aIdx) => {
+          const altLabel = `${questionLabel} - Alternativa ${aIdx + 1}`;
+          const altOrder = Number(alt.display_order || 0);
+          const altScore = Number(alt.score_value);
+
+          if (!alt.text || !alt.text.trim()) {
+            issues.push(`${altLabel}: texto obrigatorio.`);
+          }
+
+          if (!Number.isFinite(altOrder) || altOrder <= 0) {
+            issues.push(`${altLabel}: ordem da alternativa deve ser maior que 0.`);
+          }
+
+          if (!Number.isFinite(altScore)) {
+            issues.push(`${altLabel}: score deve ser numerico.`);
+          }
+        });
+      });
+    });
+
+    if (issues.length > 0) {
+      alert(`Corrija os seguintes itens antes de salvar:\n\n- ${issues.join('\n- ')}`);
+      return false;
+    }
+
+    return true;
+  };
+
   const handleConfirmSave = async () => {
-    if (!selectedAssessment || !currentVersion) {
+    if ((!selectedAssessment && selectedAssessment !== 'new') || !currentVersion) {
       alert('Nenhuma versão selecionada.');
       return;
     }
 
+    if (!validateBeforeSave()) {
+      return;
+    }
+
     try {
-      // Criar nova versão do assessment
-      const newVersion = await createNewAssessmentVersion(selectedAssessment, currentVersion.id);
-      
-      // 1. Atualizar dados do assessment se mudou algo
-      if (assessmentDataEdited && assessmentData) {
-        const changeFields = {};
-        ['name', 'type', 'aggregation_type', 'visualization_type', 'availability_type', 'is_active', 'description'].forEach(field => {
-          if (assessmentDataEdited[field] !== assessmentData[field]) {
-            changeFields[field] = assessmentDataEdited[field];
-          }
-        });
+      let targetAssessmentId = selectedAssessment;
+      let targetVersionId = null;
+      let newVersionObj = null;
+
+      // CENÁRIO 1: CRIAR NOVO ASSESSMENT
+      if (selectedAssessment === 'new') {
+        // 1. Inserir Assessment
+        const { data: newAssData, error: newAssError } = await supabase
+          .from('assessments')
+          .insert([{
+            name: assessmentDataEdited.name,
+            description: assessmentDataEdited.description,
+            type: assessmentDataEdited.type,
+            aggregation_type: assessmentDataEdited.aggregation_type,
+            visualization_type: assessmentDataEdited.visualization_type,
+            availability_type: assessmentDataEdited.availability_type,
+            is_active: assessmentDataEdited.is_active,
+            version: '1'
+          }])
+          .select()
+          .single();
+
+        if (newAssError) throw newAssError;
+        targetAssessmentId = newAssData.id;
+
+        // 2. Inserir Versão 1
+        const { data: newVerData, error: newVerError } = await supabase
+          .from('assessment_versions')
+          .insert([{
+            assessment_id: targetAssessmentId,
+            version_number: 1,
+            is_active: true
+          }])
+          .select()
+          .single();
+
+        if (newVerError) throw newVerError;
+        targetVersionId = newVerData.id;
+        newVersionObj = newVerData;
+
+      } else {
+        // CENÁRIO 2: ATUALIZAR EXISTENTE (CRIAR NOVA VERSÃO)
         
-        if (Object.keys(changeFields).length > 0) {
-          const { error: updateError } = await supabase
-            .from('assessments')
-            .update(changeFields)
-            .eq('id', selectedAssessment);
-          if (updateError) throw updateError;
+        // 1. Criar nova versão copiando a anterior (mas vamos sobrescrever os indicadores depois)
+        newVersionObj = await createNewAssessmentVersion(selectedAssessment, currentVersion.id);
+        targetVersionId = newVersionObj.id;
+
+        // 2. Atualizar dados do assessment se mudou algo
+        if (assessmentDataEdited && assessmentData) {
+          const changeFields = {};
+          ['name', 'type', 'aggregation_type', 'visualization_type', 'availability_type', 'is_active', 'description'].forEach(field => {
+            if (assessmentDataEdited[field] !== assessmentData[field]) {
+              changeFields[field] = assessmentDataEdited[field];
+            }
+          });
+          
+          if (Object.keys(changeFields).length > 0) {
+            const { error: updateError } = await supabase
+              .from('assessments')
+              .update(changeFields)
+              .eq('id', selectedAssessment);
+            if (updateError) throw updateError;
+          }
         }
+
+        // 3. Limpar indicadores copiados automaticamente (pois vamos salvar o estado atual do editor)
+        const { error: deleteError } = await supabase
+          .from('assessment_indicators')
+          .delete()
+          .eq('assessment_version_id', targetVersionId);
+
+        if (deleteError) throw deleteError;
       }
-
-      // 2. Deletar indicadores e ranges da nova versão (que foram copiados)
-      const { error: deleteError } = await supabase
-        .from('assessment_indicators')
-        .delete()
-        .eq('assessment_version_id', newVersion.id);
-
-      if (deleteError) throw deleteError;
 
       // 3. Salvar assessment_indicators e assessment_indicator_ranges na NOVA versão
       for (let i = 0; i < assessmentIndicatorsEdited.length; i++) {
@@ -244,7 +484,7 @@ export default function AssessmentBuilder() {
         const { data: aiData, error: aiError } = await supabase
           .from('assessment_indicators')
           .insert([{ 
-            assessment_version_id: newVersion.id,
+            assessment_version_id: targetVersionId,
             indicator_master_id: indicator.indicator_master_id, 
             display_order: displayOrder,
             weight: indicator.weight || 0
@@ -273,92 +513,231 @@ export default function AssessmentBuilder() {
         }
       }
 
-      // 4. Atualizar descrição dos indicadores e questões se mudou
-      for (let i = 0; i < questionsEdited.length; i++) {
-        const indicatorEdited = questionsEdited[i];
-        const indicatorOriginal = questionsData[i];
-        
-        if (indicatorEdited.description !== indicatorOriginal.description) {
-          const { error: updateError } = await supabase
-            .from('indicators')
-            .update({ description: indicatorEdited.description })
-            .eq('id', indicatorEdited.id);
-          if (updateError) throw updateError;
+      // 4. Remover indicadores que foram deletados (com perguntas e alternativas)
+      const originalIndicators = (questionsData || []).filter(ind => isUuid(ind.id));
+      const editedIndicators = questionsEdited || [];
+      const editedIndicatorIds = new Set(editedIndicators.filter(ind => isUuid(ind.id)).map(ind => ind.id));
+      const removedIndicatorIds = originalIndicators
+        .map(ind => ind.id)
+        .filter(id => !editedIndicatorIds.has(id));
+
+      if (removedIndicatorIds.length > 0) {
+        const removedQuestions = originalIndicators
+          .filter(ind => removedIndicatorIds.includes(ind.id))
+          .flatMap(ind => ind.questions || []);
+        const removedQuestionIds = removedQuestions.filter(q => isUuid(q.id)).map(q => q.id);
+
+        if (removedQuestionIds.length > 0) {
+          const { error: deleteAltsError } = await supabase
+            .from('alternatives')
+            .delete()
+            .in('question_id', removedQuestionIds);
+          if (deleteAltsError) throw deleteAltsError;
+
+          const { error: deleteQuestionsError } = await supabase
+            .from('questions')
+            .delete()
+            .in('id', removedQuestionIds);
+          if (deleteQuestionsError) throw deleteQuestionsError;
         }
 
-        // 5. Atualizar questões
-        for (let qIdx = 0; qIdx < indicatorEdited.questions.length; qIdx++) {
-          const questionEdited = indicatorEdited.questions[qIdx];
-          const questionOriginal = indicatorOriginal.questions[qIdx];
+        const { error: deleteIndicatorsError } = await supabase
+          .from('indicators')
+          .delete()
+          .in('id', removedIndicatorIds);
+        if (deleteIndicatorsError) throw deleteIndicatorsError;
+      }
 
-          const questionChanges = {};
-          ['text', 'response_type', 'is_required'].forEach(field => {
-            if (questionEdited[field] !== questionOriginal[field]) {
-              questionChanges[field] = questionEdited[field];
-            }
-          });
+      const getWeightForIndicator = (indicator) => {
+        if (indicator.master_indicator_id) {
+          const match = assessmentIndicatorsEdited.find(item => item.indicator_master_id === indicator.master_indicator_id);
+          return match?.weight ?? 1;
+        }
+        const matchByName = assessmentIndicatorsEdited.find(item => item.indicators_master?.name === indicator.name);
+        return matchByName?.weight ?? indicator.weight ?? 1;
+      };
 
-          if (Object.keys(questionChanges).length > 0) {
-            const { error: updateError } = await supabase
+      // 5. Criar/atualizar indicadores, perguntas e alternativas
+      for (let i = 0; i < editedIndicators.length; i++) {
+        const indicatorEdited = editedIndicators[i];
+        const indicatorOriginal = originalIndicators.find(ind => ind.id === indicatorEdited.id) || null;
+        const indicatorDisplayOrder = indicatorEdited.display_order || (i + 1);
+        const indicatorWeight = getWeightForIndicator(indicatorEdited);
+
+        let indicatorId = indicatorEdited.id;
+
+        if (isUuid(indicatorEdited.id)) {
+          const { error: updateIndicatorError } = await supabase
+            .from('indicators')
+            .update({
+              name: indicatorEdited.name,
+              conceptual_description: indicatorEdited.description || '',
+              display_order: indicatorDisplayOrder,
+              weight: indicatorWeight,
+              indicator_master_id: indicatorEdited.master_indicator_id || null
+            })
+            .eq('id', indicatorEdited.id);
+          if (updateIndicatorError) throw updateIndicatorError;
+        } else {
+          const { data: newIndicatorData, error: newIndicatorError } = await supabase
+            .from('indicators')
+            .insert([
+              {
+                assessment_id: targetAssessmentId,
+                indicator_master_id: indicatorEdited.master_indicator_id || null,
+                name: indicatorEdited.name,
+                conceptual_description: indicatorEdited.description || '',
+                display_order: indicatorDisplayOrder,
+                weight: indicatorWeight
+              }
+            ])
+            .select();
+          if (newIndicatorError) throw newIndicatorError;
+          indicatorId = newIndicatorData?.[0]?.id;
+        }
+
+        const originalQuestions = indicatorOriginal?.questions || [];
+        const editedQuestions = indicatorEdited.questions || [];
+        const editedQuestionIds = new Set(editedQuestions.filter(q => isUuid(q.id)).map(q => q.id));
+        const removedQuestionIds = originalQuestions
+          .filter(q => isUuid(q.id))
+          .map(q => q.id)
+          .filter(id => !editedQuestionIds.has(id));
+
+        if (removedQuestionIds.length > 0) {
+          const { error: deleteAltsError } = await supabase
+            .from('alternatives')
+            .delete()
+            .in('question_id', removedQuestionIds);
+          if (deleteAltsError) throw deleteAltsError;
+
+          const { error: deleteQuestionsError } = await supabase
+            .from('questions')
+            .delete()
+            .in('id', removedQuestionIds);
+          if (deleteQuestionsError) throw deleteQuestionsError;
+        }
+
+        for (let qIdx = 0; qIdx < editedQuestions.length; qIdx++) {
+          const questionEdited = editedQuestions[qIdx];
+          const questionOriginal = originalQuestions.find(q => q.id === questionEdited.id) || null;
+          const questionDisplayOrder = questionEdited.display_order || (qIdx + 1);
+          let questionId = questionEdited.id;
+
+          if (isUuid(questionEdited.id)) {
+            const { error: updateQuestionError } = await supabase
               .from('questions')
-              .update(questionChanges)
+              .update({
+                text: questionEdited.text,
+                response_type: questionEdited.response_type,
+                is_required: questionEdited.is_required,
+                display_order: questionDisplayOrder
+              })
               .eq('id', questionEdited.id);
-            if (updateError) throw updateError;
+            if (updateQuestionError) throw updateQuestionError;
+          } else {
+            const { data: newQuestionData, error: newQuestionError } = await supabase
+              .from('questions')
+              .insert([
+                {
+                  indicator_id: indicatorId,
+                  text: questionEdited.text,
+                  response_type: questionEdited.response_type,
+                  is_required: questionEdited.is_required,
+                  display_order: questionDisplayOrder
+                }
+              ])
+              .select();
+            if (newQuestionError) throw newQuestionError;
+            questionId = newQuestionData?.[0]?.id;
           }
 
-          // 6. Atualizar alternativas
-          for (let aIdx = 0; aIdx < questionEdited.alternatives.length; aIdx++) {
-            const altEdited = questionEdited.alternatives[aIdx];
-            const altOriginal = questionOriginal.alternatives[aIdx];
+          const originalAlternatives = questionOriginal?.alternatives || [];
+          const editedAlternatives = questionEdited.alternatives || [];
+          const editedAltIds = new Set(editedAlternatives.filter(a => isUuid(a.id)).map(a => a.id));
+          const removedAltIds = originalAlternatives
+            .filter(a => isUuid(a.id))
+            .map(a => a.id)
+            .filter(id => !editedAltIds.has(id));
 
-            const altChanges = {};
-            ['text', 'score_value'].forEach(field => {
-              if (altEdited[field] !== altOriginal[field]) {
-                altChanges[field] = altEdited[field];
-              }
-            });
+          if (removedAltIds.length > 0) {
+            const { error: deleteAltError } = await supabase
+              .from('alternatives')
+              .delete()
+              .in('id', removedAltIds);
+            if (deleteAltError) throw deleteAltError;
+          }
 
-            if (Object.keys(altChanges).length > 0) {
-              const { error: updateError } = await supabase
+          for (let aIdx = 0; aIdx < editedAlternatives.length; aIdx++) {
+            const altEdited = editedAlternatives[aIdx];
+            const altDisplayOrder = altEdited.display_order || (aIdx + 1);
+
+            if (isUuid(altEdited.id)) {
+              const { error: updateAltError } = await supabase
                 .from('alternatives')
-                .update(altChanges)
+                .update({
+                  text: altEdited.text,
+                  score_value: altEdited.score_value,
+                  display_order: altDisplayOrder
+                })
                 .eq('id', altEdited.id);
-              if (updateError) throw updateError;
+              if (updateAltError) throw updateAltError;
+            } else {
+              const { error: insertAltError } = await supabase
+                .from('alternatives')
+                .insert([
+                  {
+                    question_id: questionId,
+                    text: altEdited.text,
+                    score_value: altEdited.score_value,
+                    display_order: altDisplayOrder
+                  }
+                ]);
+              if (insertAltError) throw insertAltError;
             }
           }
         }
       }
 
       // Atualizar estado
-      setCurrentVersion(newVersion);
+      setCurrentVersion(newVersionObj);
       setShowVersionModal(false);
       
+      // Se foi criação, atualizar lista de assessments e selecionar o novo
+      if (selectedAssessment === 'new') {
+        const { data: allAssessments } = await supabase.from('assessments').select('id, name, description');
+        setAssessments(allAssessments || []);
+        await handleSelectAssessment(targetAssessmentId);
+        alert('Assessment criado com sucesso!');
+        return;
+      }
+
       // Recarregar lista de versões
-      const allVersions = await listAssessmentVersions(selectedAssessment);
+      const allVersions = await listAssessmentVersions(targetAssessmentId);
       setVersions(allVersions);
       
       // Carregar indicadores da nova versão
-      await loadVersionIndicators(newVersion.id);
+      await loadVersionIndicators(targetVersionId);
 
       // Perguntar se deseja publicar a nova versão
       const shouldPublish = confirm(
-        `✓ Nova versão v${newVersion.version_number} criada com sucesso!\n\nDeseja publicar esta versão agora? Ela se tornará a versão ativa do assessment.`
+        `✓ Nova versão v${newVersionObj.version_number} criada com sucesso!\n\nDeseja publicar esta versão agora? Ela se tornará a versão ativa do assessment.`
       );
 
       if (shouldPublish) {
-        await activateAssessmentVersion(selectedAssessment, newVersion.id);
+        await activateAssessmentVersion(targetAssessmentId, targetVersionId);
         
         // Atualizar estado da versão atual
-        const activeVer = await getActiveAssessmentVersion(selectedAssessment);
+        const activeVer = await getActiveAssessmentVersion(targetAssessmentId);
         setCurrentVersion(activeVer);
         
         // Recarregar versões novamente
-        const updatedVersions = await listAssessmentVersions(selectedAssessment);
+        const updatedVersions = await listAssessmentVersions(targetAssessmentId);
         setVersions(updatedVersions);
         
-        alert(`✓ Versão v${newVersion.version_number} publicada com sucesso!\nEla agora é a versão ativa do assessment.`);
+        alert(`✓ Versão v${newVersionObj.version_number} publicada com sucesso!\nEla agora é a versão ativa do assessment.`);
       } else {
-        alert(`✓ Versão v${newVersion.version_number} criada com sucesso!\nVocê pode publicá-la mais tarde clicando em "Publicar".`);
+        alert(`✓ Versão v${newVersionObj.version_number} criada com sucesso!\nVocê pode publicá-la mais tarde clicando em "Publicar".`);
       }
     } catch (err) {
       alert('Erro ao salvar: ' + (err.message || String(err)));
@@ -460,7 +839,16 @@ Deseja continuar?`;
         {/* Coluna Esquerda: Seleção de Assessment */}
         <div className="lg:col-span-1 space-y-4">
           <div className="p-6 border rounded-lg bg-white">
-            <h2 className="text-lg font-semibold mb-4">Selecionar Assessment</h2>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold">Selecionar Assessment</h2>
+              <button
+                onClick={handleInitNewAssessment}
+                className="p-2 bg-[#4F46E5] text-white rounded hover:bg-[#312E81] transition-colors"
+                title="Criar Novo Assessment"
+              >
+                <Plus className="w-4 h-4" />
+              </button>
+            </div>
             <div className="space-y-2">
               {assessments.map((a) => (
                 <button
@@ -479,7 +867,7 @@ Deseja continuar?`;
           </div>
 
           {/* Versões do Assessment */}
-          {selectedAssessment && currentVersion && (
+          {selectedAssessment && selectedAssessment !== 'new' && currentVersion && (
             <div className="p-6 border rounded-lg bg-white">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-lg font-semibold flex items-center gap-2">
@@ -529,13 +917,13 @@ Deseja continuar?`;
 
         {/* Coluna Direita: Informações Completas do Assessment */}
         <div className="lg:col-span-2 space-y-6">
-          {!selectedAssessment && (
+          {(!selectedAssessment && selectedAssessment !== 'new') && (
             <div className="p-12 text-center text-gray-500">
               Selecione um assessment para visualizar todas suas configurações
             </div>
           )}
 
-          {selectedAssessment && assessmentData && currentVersion && (
+          {(selectedAssessment || selectedAssessment === 'new') && assessmentDataEdited && currentVersion && (
             <>
               {/* 1. INFORMAÇÕES BÁSICAS DO ASSESSMENT */}
               <div className="bg-white border rounded-lg p-6">
@@ -627,6 +1015,40 @@ Deseja continuar?`;
                 )}
               </div>
 
+              {/* ADICIONAR INDICADOR */}
+              <div className="bg-white border rounded-lg p-6">
+                <h2 className="text-lg font-semibold mb-4">Adicionar Indicador</h2>
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                  <select
+                    value={indicatorToAdd}
+                    onChange={(e) => setIndicatorToAdd(e.target.value)}
+                    className="flex-1 p-2 border rounded bg-white"
+                  >
+                    <option value="">Selecione um indicador</option>
+                    {indicators.map(item => {
+                      const isApplied = assessmentIndicatorsEdited.some(ind => ind.indicator_master_id === item.id);
+                      return (
+                        <option 
+                          key={item.id} 
+                          value={item.id}
+                          disabled={isApplied}
+                        >
+                          {item.name}{isApplied ? ' (Aplicado)' : ''}
+                        </option>
+                      );
+                    })}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={handleAddIndicatorFromMaster}
+                    disabled={!indicatorToAdd}
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-[#4F46E5] text-white rounded hover:bg-[#312E81] disabled:opacity-50"
+                  >
+                    <Plus className="w-4 h-4" /> Adicionar
+                  </button>
+                </div>
+              </div>
+
               {/* 3. ASSESSMENT INDICATORS COM RANGES */}
               {assessmentIndicatorsData.length > 0 && (
                 <div className="bg-white border rounded-lg p-6">
@@ -635,9 +1057,19 @@ Deseja continuar?`;
                   <div className="space-y-6">
                     {assessmentIndicatorsEdited.map((indicator, idx) => (
                       <div key={indicator.id} className="border rounded-lg p-4 bg-gray-50">
-                        <div className="grid grid-cols-2 gap-4 mb-4">
+                        <div className="flex items-start justify-between mb-3">
+                          <h3 className="text-sm font-semibold text-gray-600">Indicador #{indicator.display_order}</h3>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveIndicatorFromAssessment(indicator.indicator_master_id, indicator.indicators_master?.name)}
+                            className="inline-flex items-center gap-1 text-xs text-red-600 hover:text-red-700"
+                          >
+                            <Trash2 className="w-4 h-4" /> Remover
+                          </button>
+                        </div>
+                        <div className="grid grid-cols-3 gap-4 mb-4">
                           <div>
-                            <label className="text-xs font-semibold text-gray-500 uppercase block mb-2">Indicador #{indicator.display_order}</label>
+                            <label className="text-xs font-semibold text-gray-500 uppercase block mb-2">Indicador</label>
                             <input
                               type="text"
                               value={indicator.indicators_master?.name || ''}
@@ -654,6 +1086,25 @@ Deseja continuar?`;
                                 const updated = [...assessmentIndicatorsEdited];
                                 updated[idx].weight = parseFloat(e.target.value) || 0;
                                 setAssessmentIndicatorsEdited(updated);
+                              }}
+                              className="w-full p-2 border rounded bg-white text-gray-900 font-semibold"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-xs font-semibold text-gray-500 uppercase block mb-2">Ordem</label>
+                            <input
+                              type="number"
+                              value={assessmentIndicatorsEdited[idx]?.display_order || ''}
+                              onChange={(e) => {
+                                const updated = [...assessmentIndicatorsEdited];
+                                const newOrder = parseInt(e.target.value, 10) || 0;
+                                updated[idx].display_order = newOrder;
+                                setAssessmentIndicatorsEdited(updated);
+                                setQuestionsEdited(prev => prev.map(ind => {
+                                  const matchesMaster = ind.master_indicator_id && ind.master_indicator_id === indicator.indicator_master_id;
+                                  const matchesName = ind.name === indicator.indicators_master?.name;
+                                  return matchesMaster || matchesName ? { ...ind, display_order: newOrder } : ind;
+                                }));
                               }}
                               className="w-full p-2 border rounded bg-white text-gray-900 font-semibold"
                             />
@@ -767,9 +1218,33 @@ Deseja continuar?`;
                   <div className="space-y-8">
                     {questionsEdited.map((indicator, indIdx) => (
                       <div key={indicator.id} className="border-2 border-[#4F46E5] rounded-lg p-6 bg-blue-50">
-                        <h3 className="text-xl font-bold text-[#4F46E5] mb-4">
-                          Indicador #{indicator.display_order}: {indicator.name}
-                        </h3>
+                        <div className="flex items-center justify-between mb-4">
+                          <h3 className="text-xl font-bold text-[#4F46E5]">
+                            Indicador #{indicator.display_order}: {indicator.name}
+                          </h3>
+                          <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2">
+                              <label className="text-xs font-semibold text-gray-500 uppercase">Ordem</label>
+                              <input
+                                type="number"
+                                value={questionsEdited[indIdx]?.display_order || ''}
+                                onChange={(e) => {
+                                  const updated = [...questionsEdited];
+                                  updated[indIdx].display_order = parseInt(e.target.value, 10) || 0;
+                                  setQuestionsEdited(updated);
+                                }}
+                                className="w-20 p-2 border rounded bg-white text-gray-900 font-semibold"
+                              />
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveIndicatorFromAssessment(indicator.master_indicator_id, indicator.name)}
+                              className="inline-flex items-center gap-1 text-xs text-red-600 hover:text-red-700"
+                            >
+                              <Trash2 className="w-4 h-4" /> Remover
+                            </button>
+                          </div>
+                        </div>
 
                         {indicator.description && (
                           <div className="mb-4 p-3 bg-white rounded border-l-4 border-blue-400">
@@ -788,12 +1263,23 @@ Deseja continuar?`;
                         )}
 
                         {/* Questões do Indicador */}
+                        <div className="flex items-center justify-between mb-4">
+                          <h4 className="text-sm font-semibold text-gray-600">Questoes</h4>
+                          <button
+                            type="button"
+                            onClick={() => handleAddQuestion(indIdx)}
+                            className="inline-flex items-center gap-1 text-xs text-[#4F46E5] hover:text-[#312E81]"
+                          >
+                            <Plus className="w-4 h-4" /> Adicionar questao
+                          </button>
+                        </div>
+
                         {indicator.questions && indicator.questions.length > 0 ? (
                           <div className="space-y-6">
                             {indicator.questions.map((question, qIdx) => (
                               <div key={question.id} className="border rounded-lg p-4 bg-white">
                                 <div className="bg-gray-50 p-4 rounded mb-4 border border-gray-200">
-                                  <div className="grid grid-cols-3 gap-4 mb-4">
+                                  <div className="grid grid-cols-4 gap-4 mb-4">
                                     <div className="col-span-2">
                                       <label className="text-xs font-semibold text-gray-500 uppercase block mb-2">Questão #{question.display_order}</label>
                                       <textarea
@@ -820,6 +1306,19 @@ Deseja continuar?`;
                                         className="w-full p-2 border rounded bg-white text-[#4F46E5] font-semibold"
                                       />
                                     </div>
+                                    <div>
+                                      <label className="text-xs font-semibold text-gray-500 uppercase block mb-2">Ordem</label>
+                                      <input
+                                        type="number"
+                                        value={questionsEdited[indIdx]?.questions[qIdx]?.display_order || ''}
+                                        onChange={(e) => {
+                                          const updated = [...questionsEdited];
+                                          updated[indIdx].questions[qIdx].display_order = parseInt(e.target.value, 10) || 0;
+                                          setQuestionsEdited(updated);
+                                        }}
+                                        className="w-full p-2 border rounded bg-white text-gray-900 font-semibold"
+                                      />
+                                    </div>
                                   </div>
 
                                   <div className="grid grid-cols-2 gap-4">
@@ -835,6 +1334,15 @@ Deseja continuar?`;
                                         }}
                                         className="mt-2 w-5 h-5 text-red-600 rounded cursor-pointer"
                                       />
+                                    </div>
+                                    <div className="flex items-end justify-end">
+                                      <button
+                                        type="button"
+                                        onClick={() => handleRemoveQuestion(indIdx, qIdx)}
+                                        className="inline-flex items-center gap-1 text-xs text-red-600 hover:text-red-700"
+                                      >
+                                        <Trash2 className="w-4 h-4" /> Remover questao
+                                      </button>
                                     </div>
                                   </div>
                                 </div>
@@ -872,11 +1380,47 @@ Deseja continuar?`;
                                               className="w-full p-2 border rounded bg-white text-[#4F46E5] font-bold text-center"
                                             />
                                           </div>
+                                          <div className="w-24">
+                                            <label className="text-xs font-semibold text-gray-500 uppercase block mb-1">Ordem</label>
+                                            <input
+                                              type="number"
+                                              value={questionsEdited[indIdx]?.questions[qIdx]?.alternatives[aIdx]?.display_order || ''}
+                                              onChange={(e) => {
+                                                const updated = [...questionsEdited];
+                                                updated[indIdx].questions[qIdx].alternatives[aIdx].display_order = parseInt(e.target.value, 10) || 0;
+                                                setQuestionsEdited(updated);
+                                              }}
+                                              className="w-full p-2 border rounded bg-white text-gray-900 font-semibold text-center"
+                                            />
+                                          </div>
+                                          <button
+                                            type="button"
+                                            onClick={() => handleRemoveAlternative(indIdx, qIdx, aIdx)}
+                                            className="inline-flex items-center gap-1 text-xs text-red-600 hover:text-red-700"
+                                          >
+                                            <Trash2 className="w-4 h-4" />
+                                          </button>
                                         </div>
                                       ))}
+                                      <button
+                                        type="button"
+                                        onClick={() => handleAddAlternative(indIdx, qIdx)}
+                                        className="inline-flex items-center gap-1 text-xs text-[#4F46E5] hover:text-[#312E81]"
+                                      >
+                                        <Plus className="w-4 h-4" /> Adicionar alternativa
+                                      </button>
                                     </div>
                                   </div>
                                 )}
+                                {!question.alternatives || question.alternatives.length === 0 ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleAddAlternative(indIdx, qIdx)}
+                                    className="inline-flex items-center gap-1 text-xs text-[#4F46E5] hover:text-[#312E81]"
+                                  >
+                                    <Plus className="w-4 h-4" /> Adicionar alternativa
+                                  </button>
+                                ) : null}
                               </div>
                             ))}
                           </div>
@@ -895,7 +1439,7 @@ Deseja continuar?`;
                   onClick={() => setShowVersionModal(true)}
                   className="flex items-center gap-2 px-6 py-3 bg-[#4F46E5] text-white rounded-lg font-semibold hover:bg-[#312E81] w-full justify-center sticky bottom-6"
                 >
-                  <Save className="w-4 h-4" /> Salvar e Criar Nova Versão
+                  <Save className="w-4 h-4" /> {selectedAssessment === 'new' ? 'Criar Assessment' : 'Salvar e Criar Nova Versão'}
                 </button>
               )}
             </>
@@ -909,7 +1453,11 @@ Deseja continuar?`;
           <div className="bg-white rounded-lg shadow-2xl max-w-md w-full p-6">
             <div className="mb-6">
               <h2 className="text-2xl font-bold text-gray-900 mb-4">
-                {isDeactivatingAssessment ? '⚠️ Desativar Assessment' : '⚠️ Criar Nova Versão do Assessment'}
+                {selectedAssessment === 'new' 
+                  ? '✨ Criar Novo Assessment' 
+                  : isDeactivatingAssessment 
+                    ? '⚠️ Desativar Assessment' 
+                    : '⚠️ Criar Nova Versão do Assessment'}
               </h2>
               
               <div className="space-y-3 text-gray-700">
@@ -925,6 +1473,14 @@ Deseja continuar?`;
                         <span className="text-red-600 font-bold">!</span>
                         <span>As versões existentes permanecem no histórico, mas o assessment não poderá ser iniciado.</span>
                       </div>
+                    </div>
+                  </>
+                ) : selectedAssessment === 'new' ? (
+                  <>
+                    <p className="font-semibold">Você está prestes a criar um novo assessment.</p>
+                    <div className="bg-green-50 border-l-4 border-green-500 p-3 space-y-2">
+                      <p>Uma versão inicial (v1) será criada automaticamente com os indicadores e perguntas configurados.</p>
+                      <p>Certifique-se de que todos os dados estão corretos antes de confirmar.</p>
                     </div>
                   </>
                 ) : (
