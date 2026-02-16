@@ -90,8 +90,8 @@ const Assessment = () => {
                 <h2 className={`${TOKENS.fonts.serif} text-2xl font-semibold text-indigo-900`}>
                   {indicator.name}
                 </h2>
-                {indicator.description && (
-                  <p className="text-sm text-gray-500 mt-1">{indicator.description}</p>
+                {indicator.conceptual_description && (
+                  <p className="text-sm text-gray-600 mt-2 leading-relaxed">{indicator.conceptual_description}</p>
                 )}
               </div>
 

@@ -78,6 +78,7 @@ export default function Results() {
   const [assessmentRanges, setAssessmentRanges] = useState({});
   const [assessmentData, setAssessmentData] = useState(null);
   const [indicatorsMeta, setIndicatorsMeta] = useState({});
+  const [expandedIndicators, setExpandedIndicators] = useState({});
   const [overallRanges, setOverallRanges] = useState([]);
 
   useEffect(() => {
@@ -169,6 +170,20 @@ export default function Results() {
               .order('display_order', { ascending: true });
 
             if (!indError && indicatorsData) {
+              // Buscar conceptual_description dos indicators
+              const { data: fullIndicators, error: fullIndError } = await supabase
+                .from('indicators')
+                .select('id, indicator_master_id, name, conceptual_description')
+                .eq('assessment_id', data.assessment_versions.assessment_id);
+
+              const conceptualDescMap = {};
+              if (!fullIndError && fullIndicators) {
+                fullIndicators.forEach(ind => {
+                  const key = ind.name || ind.indicator_master_id;
+                  if (key) conceptualDescMap[key] = ind.conceptual_description || '';
+                });
+              }
+
               // Mapear ranges por nome do indicador
               const rangesMap = {};
               const metaMap = {};
@@ -182,10 +197,11 @@ export default function Results() {
                     );
                     console.log(`📊 DEBUG Results: Ranges para "${indicatorName}":`, ind.assessment_indicator_ranges);
                   }
-                  // Armazenar metadados do indicador (cor e ícone)
+                  // Armazenar metadados do indicador (cor, ícone e conceptual_description)
                   metaMap[indicatorName] = {
                     color: ind.indicators_master?.color || '#6366F1',
-                    icon: ind.indicators_master?.icon || 'circle'
+                    icon: ind.indicators_master?.icon || 'circle',
+                    conceptual_description: conceptualDescMap[indicatorName] || ''
                   };
                 }
               });
@@ -359,6 +375,7 @@ export default function Results() {
         <div className="space-y-4">
           {Object.entries(indicatorResults).map(([k, v]) => {
             const meta = indicatorsMeta[k] || {};
+            const isExpanded = expandedIndicators[k];
             return (
               <div key={k} className="p-4 border rounded-lg hover:bg-gray-50 transition">
                 <div className="flex items-start gap-3 mb-2">
@@ -381,6 +398,23 @@ export default function Results() {
                       </div>
                     </div>
                     {v.interpretation && <p className="mt-2 text-sm text-gray-600 leading-relaxed">{v.interpretation}</p>}
+                    
+                    {/* Conceptual Description - Expansível */}
+                    {meta.conceptual_description && (
+                      <div className="mt-3">
+                        <button
+                          onClick={() => setExpandedIndicators(prev => ({ ...prev, [k]: !prev[k] }))}
+                          className="text-xs text-indigo-600 hover:text-indigo-800 font-medium flex items-center gap-1"
+                        >
+                          {isExpanded ? '▼' : '▶'} {isExpanded ? 'Ocultar' : 'Saiba mais sobre este indicador'}
+                        </button>
+                        {isExpanded && (
+                          <div className="mt-2 pl-4 border-l-2 border-indigo-200 text-sm text-gray-700 leading-relaxed">
+                            {meta.conceptual_description}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
