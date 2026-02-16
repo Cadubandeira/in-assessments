@@ -50,12 +50,23 @@ CREATE TABLE public.assessment_indicators (
   CONSTRAINT assessment_indicators_indicator_master_id_fkey FOREIGN KEY (indicator_master_id) REFERENCES public.indicators_master(id),
   CONSTRAINT assessment_indicators_assessment_version_id_fkey FOREIGN KEY (assessment_version_id) REFERENCES public.assessment_versions(id)
 );
+CREATE TABLE public.assessment_overall_ranges (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  assessment_version_id uuid NOT NULL,
+  min_score numeric NOT NULL,
+  max_score numeric NOT NULL,
+  label text NOT NULL,
+  interpretation text NOT NULL,
+  CONSTRAINT assessment_overall_ranges_pkey PRIMARY KEY (id),
+  CONSTRAINT assessment_overall_ranges_version_fkey FOREIGN KEY (assessment_version_id) REFERENCES public.assessment_versions(id)
+);
 CREATE TABLE public.assessment_versions (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   assessment_id uuid NOT NULL,
   version_number integer NOT NULL,
   is_active boolean NOT NULL DEFAULT false,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
+  introduction_html text,
   CONSTRAINT assessment_versions_pkey PRIMARY KEY (id),
   CONSTRAINT assessment_versions_assessment_id_fkey FOREIGN KEY (assessment_id) REFERENCES public.assessments(id)
 );

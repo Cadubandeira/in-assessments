@@ -46,6 +46,7 @@ export default function History() {
           .from('assessment_events')
           .select(`
             id,
+            user_id,
             assessment_id,
             assessment_version,
             total_score,
@@ -54,6 +55,9 @@ export default function History() {
             indicator_scores_snapshot,
             user_display_name,
             created_at,
+            assessments (
+              name
+            ),
             assessment_versions!assessment_events_assessment_version_id_fkey (
               id,
               version_number,
@@ -64,7 +68,7 @@ export default function History() {
 
         // Filter by role
         if (role !== 'admin') {
-          query = query.eq('user_id', user.id).limit(1);
+          query = query.eq('user_id', user.id);
         }
 
         const { data, error: fetchError } = await query;
@@ -77,7 +81,20 @@ export default function History() {
             throw fetchError;
           }
         } else {
-          if (mounted) setHistory(data || []);
+          if (mounted) {
+            if (role !== 'admin' && data) {
+              // Agrupar por assessment_id e pegar apenas o primeiro (mais recente)
+              const latestAssessmentsMap = new Map();
+              data.forEach((event) => {
+                if (!latestAssessmentsMap.has(event.assessment_id)) {
+                  latestAssessmentsMap.set(event.assessment_id, event);
+                }
+              });
+              setHistory(Array.from(latestAssessmentsMap.values()));
+            } else {
+              setHistory(data || []);
+            }
+          }
         }
       } catch (err) {
         if (mounted) setError(err.message || String(err));
@@ -115,15 +132,28 @@ export default function History() {
 
   const isAdmin = role === 'admin';
   const isUserWithOneResult = role !== 'admin' && history.length === 1;
+  const isUserWithMultipleResults = role !== 'admin' && history.length > 1;
   // Build a list of unique user ids from history (for admin filter)
-  const uniqueUserIds = Array.from(new Set(history.map(h => h.user_id))).filter(Boolean);
+  const uniqueUsers = Array.from(
+    new Map(
+      history
+        .filter(h => h.user_id)
+        .map(h => [h.user_id, { id: h.user_id, label: h.user_display_name || h.user_id }])
+    ).values()
+  );
 
   // Determine which items to show based on viewMode and selectedUser
   let visibleItems = history;
   if (isAdmin) {
     if (viewMode === 'latest') {
       // latest for admin defaults to the most recent overall
-      visibleItems = history.slice(0, 1);
+      const latestMap = new Map();
+      history.forEach((item) => {
+        if (!latestMap.has(item.assessment_id)) {
+          latestMap.set(item.assessment_id, item);
+        }
+      });
+      visibleItems = Array.from(latestMap.values());
     } else if (viewMode === 'user' && selectedUser) {
       visibleItems = history.filter(h => h.user_id === selectedUser);
     } else if (viewMode === 'all') {
@@ -140,6 +170,8 @@ export default function History() {
         <p className="text-gray-600">
           {isUserWithOneResult
             ? 'Seu resultado mais recente'
+            : isUserWithMultipleResults
+            ? 'Seus resultados mais recentes por assessment'
             : isAdmin
             ? 'Visualizando histórico'
             : ''}
@@ -157,8 +189,8 @@ export default function History() {
             {viewMode === 'user' && (
               <select className="border rounded px-2 py-1" value={selectedUser || ''} onChange={(e) => setSelectedUser(e.target.value)}>
                 <option value="">Selecione usuário</option>
-                {uniqueUserIds.map(uid => (
-                  <option key={uid} value={uid}>{uid}</option>
+                {uniqueUsers.map(u => (
+                  <option key={u.id} value={u.id}>{u.label}</option>
                 ))}
               </select>
             )}
@@ -178,14 +210,18 @@ export default function History() {
 
           // Extract version number from join
           const versionNumber = item.assessment_versions?.version_number || '—';
+          const assessmentName = item.assessments?.name || 'Assessment';
 
           // For admins viewing all results, display email or user display name if available
-          const performedBy = item.user_email || item.user_display_name || item.user_id || '—';
+          const performedBy = item.user_display_name || item.user_id || '—';
 
           return (
             <div key={item.id} className="p-6 border rounded-lg bg-white shadow-sm hover:shadow-md transition-shadow">
               <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                 <div className="flex-1">
+                  <h3 className="text-xl font-bold text-gray-900 mb-2">
+                    {assessmentName}
+                  </h3>
                   <div className="flex items-center gap-4 mb-2">
                     <span className="text-sm text-gray-500">{date}</span>
                     <span className="text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded">v{versionNumber}</span>
