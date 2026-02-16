@@ -3,7 +3,16 @@ import { supabase } from '../supabaseClient';
 import { useNavigate } from 'react-router-dom';
 import { getActiveAssessmentVersion } from '../utils/assessmentVersions';
 
-export const useAssessment = () => {
+const isUuid = (value) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+const slugify = (value) => value
+  .toLowerCase()
+  .normalize('NFD')
+  .replace(/[\u0300-\u036f]/g, '')
+  .replace(/[^a-z0-9]+/g, '-')
+  .replace(/(^-|-$)+/g, '');
+
+export const useAssessment = (options = {}) => {
+  const { assessmentIdOrSlug } = options;
   const [assessment, setAssessment] = useState(null);
   const [assessmentVersionId, setAssessmentVersionId] = useState(null);
   const [versionNumber, setVersionNumber] = useState(null);
@@ -15,20 +24,48 @@ export const useAssessment = () => {
 
   useEffect(() => {
     fetchAssessment();
-  }, []);
+  }, [assessmentIdOrSlug]);
 
   const fetchAssessment = async () => {
     try {
       setLoading(true);
       console.log('useAssessment: Iniciando busca...');
       
-      // 1. Buscar assessment ativo
-      const { data: assessmentData, error: assessmentError } = await supabase
-        .from('assessments')
-        .select('*')
-        .eq('is_active', true)
-        .limit(1)
-        .single();
+      // 1. Buscar assessment ativo (por slug/id ou default)
+      let assessmentData = null;
+      let assessmentError = null;
+
+      if (assessmentIdOrSlug) {
+        if (isUuid(assessmentIdOrSlug)) {
+          const { data, error } = await supabase
+            .from('assessments')
+            .select('*')
+            .eq('id', assessmentIdOrSlug)
+            .eq('is_active', true)
+            .single();
+          assessmentData = data;
+          assessmentError = error;
+        } else {
+          const { data, error } = await supabase
+            .from('assessments')
+            .select('*')
+            .eq('is_active', true);
+          if (error) throw error;
+
+          const match = (data || []).find(item => slugify(item.name || '') === assessmentIdOrSlug);
+          if (!match) throw new Error('Assessment nao encontrado ou desativado.');
+          assessmentData = match;
+        }
+      } else {
+        const { data, error } = await supabase
+          .from('assessments')
+          .select('*')
+          .eq('is_active', true)
+          .limit(1)
+          .single();
+        assessmentData = data;
+        assessmentError = error;
+      }
 
       console.log('useAssessment: Assessment Data:', assessmentData, 'Error:', assessmentError);
       if (assessmentError) throw assessmentError;

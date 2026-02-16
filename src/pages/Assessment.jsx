@@ -1,10 +1,12 @@
 import React from 'react';
+import { useParams } from 'react-router-dom';
 import { useAssessment } from '../hooks/useAssessment';
 import QuestionBlock from '../components/ui/QuestionBlock';
 import { TOKENS } from '../config/tokens';
 import Button from '../components/ui/Button';
 
 const Assessment = () => {
+  const { id } = useParams();
   const { 
     assessment, 
     loading, 
@@ -13,7 +15,7 @@ const Assessment = () => {
     handleAnswerChange, 
     submitAssessment, 
     submitting 
-  } = useAssessment();
+  } = useAssessment({ assessmentIdOrSlug: id });
 
   console.log('Assessment Page Debug:', { loading, error, assessment });
 

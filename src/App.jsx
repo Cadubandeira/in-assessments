@@ -31,6 +31,13 @@ import { canUserTakeAssessment } from './utils/assessmentRules';
 // --- BASE DE DADOS MOCK (Simulando resposta do Back-end) ---
 const INDICATORS = ["Liderança", "Comunicação", "Resiliência", "Foco", "Inteligência Emocional"];
 
+const slugify = (value) => value
+  .toLowerCase()
+  .normalize('NFD')
+  .replace(/[\u0300-\u036f]/g, '')
+  .replace(/[^a-z0-9]+/g, '-')
+  .replace(/(^-|-$)+/g, '');
+
 // --- COMPONENTES ATÔMICOS ---
 
 const AssessmentCard = ({ assessment, onStart }) => (
@@ -194,7 +201,7 @@ const AssessmentsList = () => {
       <h2 className={`${TOKENS.fonts.serif} text-4xl mb-8`}>Assessments Disponíveis</h2>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
         {assessments.map(a => (
-          <AssessmentCard key={a.id} assessment={a} onStart={() => navigate(`/assessment/${a.id}`)} />
+          <AssessmentCard key={a.id} assessment={a} onStart={() => navigate(`/assessment/${slugify(a.name || '')}`)} />
         ))}
       </div>
     </div>
@@ -357,7 +364,7 @@ export default function App() {
           <Route path="/dashboard" element={<ProtectedLayout user={user}><Dashboard user={user} /></ProtectedLayout>} />
           <Route path="/assessments" element={<ProtectedLayout user={user}><AssessmentsList /></ProtectedLayout>} />
           <Route path="/assessment/active" element={<ProtectedLayout user={user}><Assessment /></ProtectedLayout>} />
-          <Route path="/assessment/:id" element={<ProtectedLayout user={user}><AssessmentRunner user={user} /></ProtectedLayout>} />
+          <Route path="/assessment/:id" element={<ProtectedLayout user={user}><Assessment /></ProtectedLayout>} />
           <Route path="/results" element={<ProtectedLayout user={user}><Results /></ProtectedLayout>} />
           <Route path="/results/:id" element={<ProtectedLayout user={user}><Results /></ProtectedLayout>} />
           <Route path="/history" element={<ProtectedLayout user={user}><History /></ProtectedLayout>} />
