@@ -1175,7 +1175,7 @@ Deseja continuar?`;
                                           type="number"
                                           min="0"
                                           max="100"
-                                          value={assessmentIndicatorsEdited[idx]?.assessment_indicator_ranges[rIdx]?.min_score || ''}
+                                          value={assessmentIndicatorsEdited[idx]?.assessment_indicator_ranges[rIdx]?.min_score ?? ''}
                                           onChange={(e) => {
                                             const updated = [...assessmentIndicatorsEdited];
                                             const value = e.target.value === '' ? 0 : parseFloat(e.target.value);
@@ -1191,7 +1191,7 @@ Deseja continuar?`;
                                         type="number"
                                         min="0"
                                         max="100"
-                                        value={assessmentIndicatorsEdited[idx]?.assessment_indicator_ranges[rIdx]?.max_score || ''}
+                                        value={assessmentIndicatorsEdited[idx]?.assessment_indicator_ranges[rIdx]?.max_score ?? ''}
                                         onChange={(e) => {
                                           const updated = [...assessmentIndicatorsEdited];
                                           const value = e.target.value === '' ? 0 : parseFloat(e.target.value);
@@ -1417,10 +1417,11 @@ Deseja continuar?`;
                                             <label className="text-xs font-semibold text-gray-500 uppercase block mb-1">Score</label>
                                             <input
                                               type="number"
-                                              value={questionsEdited[indIdx]?.questions[qIdx]?.alternatives[aIdx]?.score_value || ''}
+                                              value={questionsEdited[indIdx]?.questions[qIdx]?.alternatives[aIdx]?.score_value ?? ''}
                                               onChange={(e) => {
                                                 const updated = [...questionsEdited];
-                                                updated[indIdx].questions[qIdx].alternatives[aIdx].score_value = parseFloat(e.target.value) || 0;
+                                                const value = e.target.value === '' ? 0 : parseFloat(e.target.value);
+                                                updated[indIdx].questions[qIdx].alternatives[aIdx].score_value = isNaN(value) ? 0 : value;
                                                 setQuestionsEdited(updated);
                                               }}
                                               className="w-full p-2 border rounded bg-white text-[#4F46E5] font-bold text-center"
