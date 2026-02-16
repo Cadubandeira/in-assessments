@@ -25,7 +25,8 @@ CREATE TABLE public.assessment_events (
   user_display_name text,
   assessment_version_id uuid NOT NULL,
   CONSTRAINT assessment_events_pkey PRIMARY KEY (id),
-  CONSTRAINT assessment_events_assessment_id_fkey FOREIGN KEY (assessment_id) REFERENCES public.assessments(id)
+  CONSTRAINT assessment_events_assessment_id_fkey FOREIGN KEY (assessment_id) REFERENCES public.assessments(id),
+  CONSTRAINT assessment_events_assessment_version_id_fkey FOREIGN KEY (assessment_version_id) REFERENCES public.assessment_versions(id)
 );
 CREATE TABLE public.assessment_indicator_ranges (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -47,7 +48,8 @@ CREATE TABLE public.assessment_indicators (
   created_at timestamp with time zone DEFAULT now(),
   assessment_version_id uuid NOT NULL,
   CONSTRAINT assessment_indicators_pkey PRIMARY KEY (id),
-  CONSTRAINT assessment_indicators_indicator_master_id_fkey FOREIGN KEY (indicator_master_id) REFERENCES public.indicators_master(id)
+  CONSTRAINT assessment_indicators_indicator_master_id_fkey FOREIGN KEY (indicator_master_id) REFERENCES public.indicators_master(id),
+  CONSTRAINT assessment_indicators_assessment_version_id_fkey FOREIGN KEY (assessment_version_id) REFERENCES public.assessment_versions(id)
 );
 CREATE TABLE public.assessment_versions (
   id uuid NOT NULL DEFAULT gen_random_uuid(),

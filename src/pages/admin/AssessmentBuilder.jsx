@@ -26,6 +26,10 @@ export default function AssessmentBuilder() {
   const [assessmentData, setAssessmentData] = useState(null);
   const [assessmentIndicatorsData, setAssessmentIndicatorsData] = useState([]);
   const [questionsData, setQuestionsData] = useState([]);
+  // Estados para edição
+  const [assessmentDataEdited, setAssessmentDataEdited] = useState(null);
+  const [assessmentIndicatorsEdited, setAssessmentIndicatorsEdited] = useState([]);
+  const [questionsEdited, setQuestionsEdited] = useState([]);
 
 
   useEffect(() => {
@@ -79,6 +83,8 @@ export default function AssessmentBuilder() {
       
       if (assError) throw assError;
       setAssessmentData(assData);
+      // Inicializar cópia para edição
+      setAssessmentDataEdited(JSON.parse(JSON.stringify(assData)));
 
       // 2. Buscar versão ativa
       const activeVer = await getActiveAssessmentVersion(assessmentId);
@@ -117,6 +123,9 @@ export default function AssessmentBuilder() {
 
       // 5. Carregar indicadores e ranges da versão ativa
       await loadVersionIndicators(activeVer.id);
+      
+      // Inicializar cópias para edição
+      setQuestionsEdited(JSON.parse(JSON.stringify(indicatorsWithQuestions)));
     } catch (err) {
       console.error('Erro ao carregar assessment:', err);
       alert('Erro ao carregar assessment: ' + err.message);
@@ -157,6 +166,8 @@ export default function AssessmentBuilder() {
         }));
     });
     setRanges(rangesMap);
+    // Inicializar cópia para edição
+    setAssessmentIndicatorsEdited(JSON.parse(JSON.stringify(indicators || [])));
   };
 
   const handleAddIndicator = (indicatorId) => {
@@ -190,30 +201,8 @@ export default function AssessmentBuilder() {
   };
 
   const handleConfirmSave = async () => {
-    if (!selectedAssessment || selectedIndicators.length === 0) {
-      alert('Selecione um assessment e pelo menos um indicador.');
-      return;
-    }
-
-    if (!currentVersion) {
+    if (!selectedAssessment || !currentVersion) {
       alert('Nenhuma versão selecionada.');
-      return;
-    }
-
-    // Modal de confirmação
-    const confirmMessage = `⚠️ IMPORTANTE: CRIAÇÃO DE NOVA VERSÃO
-
-Ao salvar estas alterações, uma NOVA VERSÃO do assessment será criada automaticamente.
-
-✓ A versão atual (v${currentVersion.version_number}) permanecerá INTACTA para fins históricos
-✓ Uma nova versão (v${(currentVersion.version_number || 0) + 1}) será criada com suas alterações
-✓ Resultados já registrados continuarão vinculados à versão original
-
-⚠️ Esta ação NÃO PODERÁ SER DESFEITA.
-
-Deseja continuar e criar a nova versão?`;
-
-    if (!confirm(confirmMessage)) {
       return;
     }
 
@@ -221,8 +210,25 @@ Deseja continuar e criar a nova versão?`;
       // Criar nova versão do assessment
       const newVersion = await createNewAssessmentVersion(selectedAssessment, currentVersion.id);
       
-      // Deletar indicadores e ranges da nova versão (que foram copiados)
-      // para inserir os novos dados editados
+      // 1. Atualizar dados do assessment se mudou algo
+      if (assessmentDataEdited && assessmentData) {
+        const changeFields = {};
+        ['name', 'type', 'aggregation_type', 'visualization_type', 'availability_type', 'is_active', 'description'].forEach(field => {
+          if (assessmentDataEdited[field] !== assessmentData[field]) {
+            changeFields[field] = assessmentDataEdited[field];
+          }
+        });
+        
+        if (Object.keys(changeFields).length > 0) {
+          const { error: updateError } = await supabase
+            .from('assessments')
+            .update(changeFields)
+            .eq('id', selectedAssessment);
+          if (updateError) throw updateError;
+        }
+      }
+
+      // 2. Deletar indicadores e ranges da nova versão (que foram copiados)
       const { error: deleteError } = await supabase
         .from('assessment_indicators')
         .delete()
@@ -230,16 +236,18 @@ Deseja continuar e criar a nova versão?`;
 
       if (deleteError) throw deleteError;
 
-      // Salvar assessment_indicators e assessment_indicator_ranges na NOVA versão
-      for (const indicatorId of selectedIndicators) {
-        const displayOrder = selectedIndicators.indexOf(indicatorId) + 1;
+      // 3. Salvar assessment_indicators e assessment_indicator_ranges na NOVA versão
+      for (let i = 0; i < assessmentIndicatorsEdited.length; i++) {
+        const indicator = assessmentIndicatorsEdited[i];
+        const displayOrder = indicator.display_order || (i + 1);
         
         const { data: aiData, error: aiError } = await supabase
           .from('assessment_indicators')
           .insert([{ 
             assessment_version_id: newVersion.id,
-            indicator_master_id: indicatorId, 
-            display_order: displayOrder 
+            indicator_master_id: indicator.indicator_master_id, 
+            display_order: displayOrder,
+            weight: indicator.weight || 0
           }])
           .select();
 
@@ -247,13 +255,14 @@ Deseja continuar e criar a nova versão?`;
         const assessmentIndicatorId = aiData?.[0]?.id;
 
         // Salvar ranges
-        if (ranges[indicatorId] && ranges[indicatorId].length > 0) {
-          const rangeData = ranges[indicatorId].map(r => ({
+        if (indicator.assessment_indicator_ranges && indicator.assessment_indicator_ranges.length > 0) {
+          const rangeData = indicator.assessment_indicator_ranges.map(r => ({
             assessment_indicator_id: assessmentIndicatorId,
-            min_score: r.min,
-            max_score: r.max,
+            min_score: r.min_score,
+            max_score: r.max_score,
             label: r.label,
             interpretation: r.interpretation,
+            display_order: r.display_order || 0
           }));
 
           const { error: rangeError } = await supabase
@@ -261,6 +270,62 @@ Deseja continuar e criar a nova versão?`;
             .insert(rangeData);
 
           if (rangeError) throw rangeError;
+        }
+      }
+
+      // 4. Atualizar descrição dos indicadores e questões se mudou
+      for (let i = 0; i < questionsEdited.length; i++) {
+        const indicatorEdited = questionsEdited[i];
+        const indicatorOriginal = questionsData[i];
+        
+        if (indicatorEdited.description !== indicatorOriginal.description) {
+          const { error: updateError } = await supabase
+            .from('indicators')
+            .update({ description: indicatorEdited.description })
+            .eq('id', indicatorEdited.id);
+          if (updateError) throw updateError;
+        }
+
+        // 5. Atualizar questões
+        for (let qIdx = 0; qIdx < indicatorEdited.questions.length; qIdx++) {
+          const questionEdited = indicatorEdited.questions[qIdx];
+          const questionOriginal = indicatorOriginal.questions[qIdx];
+
+          const questionChanges = {};
+          ['text', 'response_type', 'is_required'].forEach(field => {
+            if (questionEdited[field] !== questionOriginal[field]) {
+              questionChanges[field] = questionEdited[field];
+            }
+          });
+
+          if (Object.keys(questionChanges).length > 0) {
+            const { error: updateError } = await supabase
+              .from('questions')
+              .update(questionChanges)
+              .eq('id', questionEdited.id);
+            if (updateError) throw updateError;
+          }
+
+          // 6. Atualizar alternativas
+          for (let aIdx = 0; aIdx < questionEdited.alternatives.length; aIdx++) {
+            const altEdited = questionEdited.alternatives[aIdx];
+            const altOriginal = questionOriginal.alternatives[aIdx];
+
+            const altChanges = {};
+            ['text', 'score_value'].forEach(field => {
+              if (altEdited[field] !== altOriginal[field]) {
+                altChanges[field] = altEdited[field];
+              }
+            });
+
+            if (Object.keys(altChanges).length > 0) {
+              const { error: updateError } = await supabase
+                .from('alternatives')
+                .update(altChanges)
+                .eq('id', altEdited.id);
+              if (updateError) throw updateError;
+            }
+          }
         }
       }
 
@@ -475,64 +540,66 @@ Deseja continuar?`;
                     <label className="text-xs font-semibold text-gray-500 uppercase block mb-2">Nome</label>
                     <input
                       type="text"
-                      value={assessmentData?.name || ''}
-                      readOnly
-                      className="w-full p-2 border rounded bg-gray-50 text-gray-900 font-semibold"
+                      value={assessmentDataEdited?.name || ''}
+                      onChange={(e) => setAssessmentDataEdited({ ...assessmentDataEdited, name: e.target.value })}
+                      className="w-full p-2 border rounded bg-white text-gray-900 font-semibold"
                     />
                   </div>
                   <div>
                     <label className="text-xs font-semibold text-gray-500 uppercase block mb-2">Tipo</label>
                     <input
                       type="text"
-                      value={assessmentData?.type || ''}
-                      readOnly
-                      className="w-full p-2 border rounded bg-gray-50 text-gray-900 font-semibold"
+                      value={assessmentDataEdited?.type || ''}
+                      onChange={(e) => setAssessmentDataEdited({ ...assessmentDataEdited, type: e.target.value })}
+                      className="w-full p-2 border rounded bg-white text-gray-900 font-semibold"
                     />
                   </div>
                   <div>
                     <label className="text-xs font-semibold text-gray-500 uppercase block mb-2">Tipo de Agregação</label>
                     <input
                       type="text"
-                      value={assessmentData?.aggregation_type || ''}
-                      readOnly
-                      className="w-full p-2 border rounded bg-gray-50 text-gray-900 font-semibold"
+                      value={assessmentDataEdited?.aggregation_type || ''}
+                      onChange={(e) => setAssessmentDataEdited({ ...assessmentDataEdited, aggregation_type: e.target.value })}
+                      className="w-full p-2 border rounded bg-white text-gray-900 font-semibold"
                     />
                   </div>
                   <div>
                     <label className="text-xs font-semibold text-gray-500 uppercase block mb-2">Tipo de Visualização</label>
                     <input
                       type="text"
-                      value={assessmentData?.visualization_type || ''}
-                      readOnly
-                      className="w-full p-2 border rounded bg-gray-50 text-gray-900 font-semibold"
+                      value={assessmentDataEdited?.visualization_type || ''}
+                      onChange={(e) => setAssessmentDataEdited({ ...assessmentDataEdited, visualization_type: e.target.value })}
+                      className="w-full p-2 border rounded bg-white text-gray-900 font-semibold"
                     />
                   </div>
                   <div>
                     <label className="text-xs font-semibold text-gray-500 uppercase block mb-2">Tipo de Disponibilidade</label>
                     <input
                       type="text"
-                      value={assessmentData?.availability_type || ''}
-                      readOnly
-                      className="w-full p-2 border rounded bg-gray-50 text-gray-900 font-semibold"
+                      value={assessmentDataEdited?.availability_type || ''}
+                      onChange={(e) => setAssessmentDataEdited({ ...assessmentDataEdited, availability_type: e.target.value })}
+                      className="w-full p-2 border rounded bg-white text-gray-900 font-semibold"
                     />
                   </div>
                   <div>
                     <label className="text-xs font-semibold text-gray-500 uppercase block mb-2">Status</label>
-                    <input
-                      type="text"
-                      value={assessmentData?.is_active ? '✓ Ativo' : '✗ Inativo'}
-                      readOnly
-                      className={`w-full p-2 border rounded bg-gray-50 font-semibold ${assessmentData?.is_active ? 'text-green-600' : 'text-gray-500'}`}
-                    />
+                    <select
+                      value={assessmentDataEdited?.is_active ? 'ativo' : 'inativo'}
+                      onChange={(e) => setAssessmentDataEdited({ ...assessmentDataEdited, is_active: e.target.value === 'ativo' })}
+                      className={`w-full p-2 border rounded bg-white font-semibold ${assessmentDataEdited?.is_active ? 'text-green-600' : 'text-gray-500'}`}
+                    >
+                      <option value="ativo">✓ Ativo</option>
+                      <option value="inativo">✗ Inativo</option>
+                    </select>
                   </div>
                 </div>
 
-                {assessmentData?.description && (
+                {assessmentDataEdited?.description && (
                   <div className="mt-4 p-4 bg-gray-50 rounded">
                     <label className="text-xs font-semibold text-gray-500 uppercase block mb-2">Descrição</label>
                     <textarea
-                      value={assessmentData.description}
-                      readOnly
+                      value={assessmentDataEdited?.description || ''}
+                      onChange={(e) => setAssessmentDataEdited({ ...assessmentDataEdited, description: e.target.value })}
                       rows={3}
                       className="w-full p-2 border rounded bg-white text-gray-700"
                     />
@@ -556,7 +623,7 @@ Deseja continuar?`;
                   <h2 className="text-2xl font-bold mb-6 text-[#4F46E5]">Indicadores do Assessment</h2>
                   
                   <div className="space-y-6">
-                    {assessmentIndicatorsData.map((indicator) => (
+                    {assessmentIndicatorsEdited.map((indicator, idx) => (
                       <div key={indicator.id} className="border rounded-lg p-4 bg-gray-50">
                         <div className="grid grid-cols-2 gap-4 mb-4">
                           <div>
@@ -572,8 +639,12 @@ Deseja continuar?`;
                             <label className="text-xs font-semibold text-gray-500 uppercase block mb-2">Peso</label>
                             <input
                               type="number"
-                              value={indicator.weight || '0'}
-                              readOnly
+                              value={assessmentIndicatorsEdited[idx]?.weight || '0'}
+                              onChange={(e) => {
+                                const updated = [...assessmentIndicatorsEdited];
+                                updated[idx].weight = parseFloat(e.target.value) || 0;
+                                setAssessmentIndicatorsEdited(updated);
+                              }}
                               className="w-full p-2 border rounded bg-white text-gray-900 font-semibold"
                             />
                           </div>
@@ -603,36 +674,52 @@ Deseja continuar?`;
                                       <label className="text-xs text-gray-500 block mb-1">Min Score</label>
                                       <input
                                         type="number"
-                                        value={range.min_score}
-                                        readOnly
-                                        className="w-full p-2 border rounded bg-gray-50 text-gray-900 font-semibold text-sm"
+                                        value={assessmentIndicatorsEdited[idx]?.assessment_indicator_ranges[rIdx]?.min_score || ''}
+                                        onChange={(e) => {
+                                          const updated = [...assessmentIndicatorsEdited];
+                                          updated[idx].assessment_indicator_ranges[rIdx].min_score = parseFloat(e.target.value) || 0;
+                                          setAssessmentIndicatorsEdited(updated);
+                                        }}
+                                        className="w-full p-2 border rounded bg-white text-gray-900 font-semibold text-sm"
                                       />
                                     </div>
                                     <div>
                                       <label className="text-xs text-gray-500 block mb-1">Max Score</label>
                                       <input
                                         type="number"
-                                        value={range.max_score}
-                                        readOnly
-                                        className="w-full p-2 border rounded bg-gray-50 text-gray-900 font-semibold text-sm"
+                                        value={assessmentIndicatorsEdited[idx]?.assessment_indicator_ranges[rIdx]?.max_score || ''}
+                                        onChange={(e) => {
+                                          const updated = [...assessmentIndicatorsEdited];
+                                          updated[idx].assessment_indicator_ranges[rIdx].max_score = parseFloat(e.target.value) || 0;
+                                          setAssessmentIndicatorsEdited(updated);
+                                        }}
+                                        className="w-full p-2 border rounded bg-white text-gray-900 font-semibold text-sm"
                                       />
                                     </div>
                                     <div className="col-span-2">
                                       <label className="text-xs text-gray-500 block mb-1">Label</label>
                                       <input
                                         type="text"
-                                        value={range.label}
-                                        readOnly
-                                        className="w-full p-2 border rounded bg-gray-50 text-[#4F46E5] font-semibold text-sm"
+                                        value={assessmentIndicatorsEdited[idx]?.assessment_indicator_ranges[rIdx]?.label || ''}
+                                        onChange={(e) => {
+                                          const updated = [...assessmentIndicatorsEdited];
+                                          updated[idx].assessment_indicator_ranges[rIdx].label = e.target.value;
+                                          setAssessmentIndicatorsEdited(updated);
+                                        }}
+                                        className="w-full p-2 border rounded bg-white text-[#4F46E5] font-semibold text-sm"
                                       />
                                     </div>
                                     <div>
                                       <label className="text-xs text-gray-500 block mb-1">Ordem</label>
                                       <input
                                         type="number"
-                                        value={range.display_order || '-'}
-                                        readOnly
-                                        className="w-full p-2 border rounded bg-gray-50 text-gray-900 font-semibold text-sm"
+                                        value={assessmentIndicatorsEdited[idx]?.assessment_indicator_ranges[rIdx]?.display_order || ''}
+                                        onChange={(e) => {
+                                          const updated = [...assessmentIndicatorsEdited];
+                                          updated[idx].assessment_indicator_ranges[rIdx].display_order = parseFloat(e.target.value) || 0;
+                                          setAssessmentIndicatorsEdited(updated);
+                                        }}
+                                        className="w-full p-2 border rounded bg-white text-gray-900 font-semibold text-sm"
                                       />
                                     </div>
                                   </div>
@@ -640,8 +727,12 @@ Deseja continuar?`;
                                     <div className="text-sm p-2 bg-gray-50 rounded border-t border-gray-200">
                                       <label className="text-xs text-gray-500 block mb-1">Interpretação</label>
                                       <textarea
-                                        value={range.interpretation}
-                                        readOnly
+                                        value={assessmentIndicatorsEdited[idx]?.assessment_indicator_ranges[rIdx]?.interpretation || ''}
+                                        onChange={(e) => {
+                                          const updated = [...assessmentIndicatorsEdited];
+                                          updated[idx].assessment_indicator_ranges[rIdx].interpretation = e.target.value;
+                                          setAssessmentIndicatorsEdited(updated);
+                                        }}
                                         rows={2}
                                         className="w-full p-2 border rounded bg-white text-gray-700 text-xs"
                                       />
@@ -659,12 +750,12 @@ Deseja continuar?`;
               )}
 
               {/* 4. QUESTIONS E ALTERNATIVES AGRUPADAS POR INDICADORES */}
-              {questionsData.length > 0 && (
+              {questionsEdited.length > 0 && (
                 <div className="bg-white border rounded-lg p-6">
                   <h2 className="text-2xl font-bold mb-6 text-[#4F46E5]">Estrutura de Questões por Indicador</h2>
                   
                   <div className="space-y-8">
-                    {questionsData.map((indicator, indIdx) => (
+                    {questionsEdited.map((indicator, indIdx) => (
                       <div key={indicator.id} className="border-2 border-[#4F46E5] rounded-lg p-6 bg-blue-50">
                         <h3 className="text-xl font-bold text-[#4F46E5] mb-4">
                           Indicador #{indicator.display_order}: {indicator.name}
@@ -672,8 +763,17 @@ Deseja continuar?`;
 
                         {indicator.description && (
                           <div className="mb-4 p-3 bg-white rounded border-l-4 border-blue-400">
-                            <label className="text-xs font-semibold text-gray-500 uppercase">Descrição</label>
-                            <p className="text-sm text-gray-700 mt-1">{indicator.description}</p>
+                            <label className="text-xs font-semibold text-gray-500 uppercase block mb-2">Descrição</label>
+                            <textarea
+                              value={questionsEdited[indIdx]?.description || ''}
+                              onChange={(e) => {
+                                const updated = [...questionsEdited];
+                                updated[indIdx].description = e.target.value;
+                                setQuestionsEdited(updated);
+                              }}
+                              rows={2}
+                              className="w-full p-2 border rounded bg-white text-gray-700 text-sm"
+                            />
                           </div>
                         )}
 
@@ -685,33 +785,45 @@ Deseja continuar?`;
                                 <div className="bg-gray-50 p-4 rounded mb-4 border border-gray-200">
                                   <div className="grid grid-cols-3 gap-4 mb-4">
                                     <div className="col-span-2">
-                                      <label className="text-xs font-semibold text-gray-500 uppercase">Questão #{question.display_order}</label>
+                                      <label className="text-xs font-semibold text-gray-500 uppercase block mb-2">Questão #{question.display_order}</label>
                                       <textarea
-                                        value={question.text}
-                                        readOnly
+                                        value={questionsEdited[indIdx]?.questions[qIdx]?.text || ''}
+                                        onChange={(e) => {
+                                          const updated = [...questionsEdited];
+                                          updated[indIdx].questions[qIdx].text = e.target.value;
+                                          setQuestionsEdited(updated);
+                                        }}
                                         rows={2}
-                                        className="w-full mt-2 p-2 border rounded bg-white text-gray-900 font-semibold"
+                                        className="w-full p-2 border rounded bg-white text-gray-900 font-semibold"
                                       />
                                     </div>
                                     <div>
-                                      <label className="text-xs font-semibold text-gray-500 uppercase">Tipo de Resposta</label>
+                                      <label className="text-xs font-semibold text-gray-500 uppercase block mb-2">Tipo de Resposta</label>
                                       <input
                                         type="text"
-                                        value={question.response_type || ''}
-                                        readOnly
-                                        className="w-full mt-2 p-2 border rounded bg-white text-[#4F46E5] font-semibold"
+                                        value={questionsEdited[indIdx]?.questions[qIdx]?.response_type || ''}
+                                        onChange={(e) => {
+                                          const updated = [...questionsEdited];
+                                          updated[indIdx].questions[qIdx].response_type = e.target.value;
+                                          setQuestionsEdited(updated);
+                                        }}
+                                        className="w-full p-2 border rounded bg-white text-[#4F46E5] font-semibold"
                                       />
                                     </div>
                                   </div>
 
                                   <div className="grid grid-cols-2 gap-4">
                                     <div>
-                                      <label className="text-xs font-semibold text-gray-500 uppercase">Obrigatória?</label>
+                                      <label className="text-xs font-semibold text-gray-500 uppercase block mb-2">Obrigatória?</label>
                                       <input
                                         type="checkbox"
-                                        checked={question.is_required || false}
-                                        readOnly
-                                        className="mt-2 w-5 h-5 text-red-600 rounded"
+                                        checked={questionsEdited[indIdx]?.questions[qIdx]?.is_required || false}
+                                        onChange={(e) => {
+                                          const updated = [...questionsEdited];
+                                          updated[indIdx].questions[qIdx].is_required = e.target.checked;
+                                          setQuestionsEdited(updated);
+                                        }}
+                                        className="mt-2 w-5 h-5 text-red-600 rounded cursor-pointer"
                                       />
                                     </div>
                                   </div>
@@ -725,21 +837,29 @@ Deseja continuar?`;
                                       {question.alternatives.map((alt, aIdx) => (
                                         <div key={alt.id} className="p-3 bg-white rounded border border-gray-200 flex gap-4 items-end">
                                           <div className="flex-1">
-                                            <label className="text-xs font-semibold text-gray-500 uppercase">Alternativa #{alt.display_order}</label>
+                                            <label className="text-xs font-semibold text-gray-500 uppercase block mb-1">Alternativa #{alt.display_order}</label>
                                             <input
                                               type="text"
-                                              value={alt.text}
-                                              readOnly
-                                              className="w-full p-2 border rounded bg-white text-gray-900 text-sm mt-1"
+                                              value={questionsEdited[indIdx]?.questions[qIdx]?.alternatives[aIdx]?.text || ''}
+                                              onChange={(e) => {
+                                                const updated = [...questionsEdited];
+                                                updated[indIdx].questions[qIdx].alternatives[aIdx].text = e.target.value;
+                                                setQuestionsEdited(updated);
+                                              }}
+                                              className="w-full p-2 border rounded bg-white text-gray-900 text-sm"
                                             />
                                           </div>
                                           <div className="w-24">
-                                            <label className="text-xs font-semibold text-gray-500 uppercase">Score</label>
+                                            <label className="text-xs font-semibold text-gray-500 uppercase block mb-1">Score</label>
                                             <input
                                               type="number"
-                                              value={alt.score_value}
-                                              readOnly
-                                              className="w-full p-2 border rounded bg-white text-[#4F46E5] font-bold text-center mt-1"
+                                              value={questionsEdited[indIdx]?.questions[qIdx]?.alternatives[aIdx]?.score_value || ''}
+                                              onChange={(e) => {
+                                                const updated = [...questionsEdited];
+                                                updated[indIdx].questions[qIdx].alternatives[aIdx].score_value = parseFloat(e.target.value) || 0;
+                                                setQuestionsEdited(updated);
+                                              }}
+                                              className="w-full p-2 border rounded bg-white text-[#4F46E5] font-bold text-center"
                                             />
                                           </div>
                                         </div>
@@ -760,7 +880,7 @@ Deseja continuar?`;
               )}
 
               {/* BOTÃO SALVAR */}
-              {assessmentIndicatorsData.length > 0 || questionsData.length > 0 && (
+              {(assessmentIndicatorsEdited.length > 0 || questionsEdited.length > 0) && (
                 <button
                   onClick={() => setShowVersionModal(true)}
                   className="flex items-center gap-2 px-6 py-3 bg-[#4F46E5] text-white rounded-lg font-semibold hover:bg-[#312E81] w-full justify-center sticky bottom-6"
