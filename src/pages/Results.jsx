@@ -156,6 +156,7 @@ export default function Results() {
                 indicators_master (
                   id,
                   name,
+                  description,
                   color,
                   icon
                 ),
@@ -176,36 +177,72 @@ export default function Results() {
                 .select('id, indicator_master_id, name, conceptual_description')
                 .eq('assessment_id', data.assessment_versions.assessment_id);
 
-              const conceptualDescMap = {};
+              console.log('📊 DEBUG Results: fullIndicators carregados:', fullIndicators);
+
+              // Criar múltiplos índices para garantir match
+              const conceptualDescByMasterId = {};
+              const conceptualDescByName = {};
               if (!fullIndError && fullIndicators) {
                 fullIndicators.forEach(ind => {
-                  const key = ind.name || ind.indicator_master_id;
-                  if (key) conceptualDescMap[key] = ind.conceptual_description || '';
+                  const desc = ind.conceptual_description || '';
+                  // Índice por indicator_master_id
+                  if (ind.indicator_master_id) {
+                    conceptualDescByMasterId[ind.indicator_master_id] = desc;
+                  }
+                  // Índice por name (fallback)
+                  if (ind.name) {
+                    conceptualDescByName[ind.name] = desc;
+                  }
+                  console.log(`  - Indicador "${ind.name}": master_id=${ind.indicator_master_id}, desc="${desc.substring(0, 50)}..."`);
                 });
               }
 
               // Mapear ranges por nome do indicador
               const rangesMap = {};
               const metaMap = {};
-              console.log('🔍 DEBUG Results: Indicadores com ranges carregados:', indicatorsData);
+              console.log('🔍 DEBUG Results: Indicadores com ranges (indicatorsData):', indicatorsData);
               indicatorsData.forEach(ind => {
                 const indicatorName = ind.indicators_master?.name;
+                const indicatorMasterId = ind.indicator_master_id;
+                const masterDescription = ind.indicators_master?.description || '';
+                
+                console.log(`\n  Processando: "${indicatorName}" (master_id: ${indicatorMasterId})`);
+                console.log(`    Master description: "${masterDescription.substring(0, 50)}..."`);
+                
                 if (indicatorName) {
                   if (ind.assessment_indicator_ranges) {
                     rangesMap[indicatorName] = ind.assessment_indicator_ranges.sort(
                       (a, b) => a.min_score - b.min_score
                     );
-                    console.log(`📊 DEBUG Results: Ranges para "${indicatorName}":`, ind.assessment_indicator_ranges);
                   }
-                  // Armazenar metadados do indicador (cor, ícone e conceptual_description)
+                  
+                  // FALLBACK CASCATEADO:
+                  // 1. Tentar conceptual_description de indicators (customização)
+                  // 2. Se vazio, usar description de indicators_master (padrão)
+                  let conceptualDesc = '';
+                  
+                  if (indicatorMasterId && conceptualDescByMasterId[indicatorMasterId]) {
+                    conceptualDesc = conceptualDescByMasterId[indicatorMasterId];
+                    console.log(`    ✅ Usando conceptual_description: "${conceptualDesc.substring(0, 50)}..."`);
+                  } else if (masterDescription) {
+                    conceptualDesc = masterDescription;
+                    console.log(`    ✅ FALLBACK para master description: "${conceptualDesc.substring(0, 50)}..."`);
+                  } else if (conceptualDescByName[indicatorName]) {
+                    conceptualDesc = conceptualDescByName[indicatorName];
+                    console.log(`    ✅ Match por name: "${conceptualDesc.substring(0, 50)}..."`);
+                  } else {
+                    console.log(`    ❌ NENHUMA descrição encontrada!`);
+                  }
+                  
                   metaMap[indicatorName] = {
                     color: ind.indicators_master?.color || '#6366F1',
                     icon: ind.indicators_master?.icon || 'circle',
-                    conceptual_description: conceptualDescMap[indicatorName] || ''
+                    conceptual_description: conceptualDesc
                   };
                 }
               });
-              console.log('📊 DEBUG Results: Ranges mapeadas por indicador:', rangesMap);
+              
+              console.log('📊 DEBUG Results: metaMap final:', metaMap);
               if (mounted) {
                 setAssessmentRanges(rangesMap);
                 setIndicatorsMeta(metaMap);

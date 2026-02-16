@@ -110,7 +110,7 @@ export const useAssessment = (options = {}) => {
           id,
           indicator_master_id,
           display_order,
-          indicators_master:indicator_master_id (id, name, description)
+          indicators_master:indicator_master_id (id, name, description, color, icon)
         `)
         .eq('assessment_version_id', activeVersion.id)
         .order('display_order', { ascending: true });
@@ -118,16 +118,24 @@ export const useAssessment = (options = {}) => {
       console.log('useAssessment: Assessment Indicators:', assessmentIndicators, 'Error:', aiError);
       if (aiError) throw aiError;
 
-      // 4. Buscar indicadores (antiga estrutura ainda usada para questions)
+      // 4. Buscar indicadores (antiga estrutura ainda usada para questions) COM conceptual_description
       const { data: indicatorsData, error: indicatorsError } = await supabase
         .from('indicators')
-        .select('*')
+        .select('id, assessment_id, name, conceptual_description, indicator_master_id, display_order, weight')
         .eq('assessment_id', assessmentData.id)
         .order('display_order', { ascending: true });
 
       console.log('useAssessment: Indicators:', indicatorsData, 'Error:', indicatorsError);
       if (indicatorsError) throw indicatorsError;
       const indicators = indicatorsData || [];
+
+      // Criar mapa de conceptual_description por indicator_master_id
+      const conceptualDescMap = {};
+      indicators.forEach(ind => {
+        if (ind.indicator_master_id) {
+          conceptualDescMap[ind.indicator_master_id] = ind.conceptual_description || '';
+        }
+      });
 
       // 5. Buscar questions
       const indicatorIds = indicators.map(i => i.id);
@@ -188,17 +196,25 @@ export const useAssessment = (options = {}) => {
         ...assessmentData,
         versionId: activeVersion.id,
         versionNumber: activeVersion.version_number,
-        indicators: (indicators || []).map(indicator => ({
-          ...indicator,
-          questions: (questions || [])
-            .filter(q => q.indicator_id === indicator.id)
-            .map(question => ({
-              ...question,
-              alternatives: (alternatives || []).filter(
-                a => a.question_id === question.id
-              )
-            }))
-        })),
+        indicators: (indicators || []).map(indicator => {
+          // Fallback: conceptual_description (indicators) -> description (indicators_master)
+          const masterId = indicator.indicator_master_id;
+          const masterData = (assessmentIndicators || []).find(ai => ai.indicator_master_id === masterId);
+          const masterDescription = masterData?.indicators_master?.description || '';
+          
+          return {
+            ...indicator,
+            conceptual_description: indicator.conceptual_description || masterDescription,
+            questions: (questions || [])
+              .filter(q => q.indicator_id === indicator.id)
+              .map(question => ({
+                ...question,
+                alternatives: (alternatives || []).filter(
+                  a => a.question_id === question.id
+                )
+              }))
+          };
+        }),
         // Nova estrutura: assessment_indicators com ranges
         assessmentIndicators: (assessmentIndicators || []).map(ai => {
           const ranges = rangesMap[ai.id] || [];
