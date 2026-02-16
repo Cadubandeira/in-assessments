@@ -429,6 +429,8 @@ Deseja continuar?`;
     }
   };
 
+  const isDeactivatingAssessment = assessmentDataEdited?.is_active === false;
+
   if (roleLoading || loading) {
     return <div className="p-12 text-center">Carregando...</div>;
   }
@@ -498,8 +500,12 @@ Deseja continuar?`;
                   >
                     <div className="flex items-center justify-between">
                       <span className="font-medium">v{v.version_number}</span>
-                      {v.is_active && (
+                      {isDeactivatingAssessment && v.id === currentVersion.id ? (
+                        <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded">Desativado</span>
+                      ) : v.is_active ? (
                         <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded">Ativa</span>
+                      ) : (
+                        <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded">Desativada</span>
                       )}
                     </div>
                     <div className="text-xs text-gray-500 mt-1">
@@ -584,12 +590,12 @@ Deseja continuar?`;
                   <div>
                     <label className="text-xs font-semibold text-gray-500 uppercase block mb-2">Status</label>
                     <select
-                      value={assessmentDataEdited?.is_active ? 'ativo' : 'inativo'}
+                      value={assessmentDataEdited?.is_active ? 'ativo' : 'desativado'}
                       onChange={(e) => setAssessmentDataEdited({ ...assessmentDataEdited, is_active: e.target.value === 'ativo' })}
                       className={`w-full p-2 border rounded bg-white font-semibold ${assessmentDataEdited?.is_active ? 'text-green-600' : 'text-gray-500'}`}
                     >
                       <option value="ativo">✓ Ativo</option>
-                      <option value="inativo">✗ Inativo</option>
+                      <option value="desativado">✗ Desativado</option>
                     </select>
                   </div>
                 </div>
@@ -612,8 +618,12 @@ Deseja continuar?`;
                 <span className="text-sm font-medium text-blue-900">
                   Versão Atual: v{currentVersion.version_number}
                 </span>
-                {currentVersion.is_active && (
+                {isDeactivatingAssessment ? (
+                  <span className="ml-2 text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded">Desativado</span>
+                ) : currentVersion.is_active ? (
                   <span className="ml-2 text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded">Ativa</span>
+                ) : (
+                  <span className="ml-2 text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded">Desativada</span>
                 )}
               </div>
 
@@ -899,33 +909,50 @@ Deseja continuar?`;
           <div className="bg-white rounded-lg shadow-2xl max-w-md w-full p-6">
             <div className="mb-6">
               <h2 className="text-2xl font-bold text-gray-900 mb-4">
-                ⚠️ Criar Nova Versão do Assessment
+                {isDeactivatingAssessment ? '⚠️ Desativar Assessment' : '⚠️ Criar Nova Versão do Assessment'}
               </h2>
               
               <div className="space-y-3 text-gray-700">
-                <p className="font-semibold">Ao continuar, uma <span className="text-[#4F46E5]">NOVA VERSÃO</span> será criada:</p>
-                
-                <div className="bg-blue-50 border-l-4 border-blue-500 p-3 space-y-2">
-                  <div className="flex gap-2">
-                    <span className="text-green-600 font-bold">✓</span>
-                    <span>A versão atual (v{currentVersion?.version_number}) permanecerá <strong>intacta</strong> para fins históricos</span>
-                  </div>
-                  <div className="flex gap-2">
-                    <span className="text-green-600 font-bold">✓</span>
-                    <span>Uma nova versão (v{(currentVersion?.version_number || 0) + 1}) será criada com suas alterações</span>
-                  </div>
-                  <div className="flex gap-2">
-                    <span className="text-green-600 font-bold">✓</span>
-                    <span>Resultados já registrados continuarão vinculados à versão original</span>
-                  </div>
-                </div>
+                {isDeactivatingAssessment ? (
+                  <>
+                    <p className="font-semibold">Você está prestes a <span className="text-red-600">desativar</span> este assessment.</p>
+                    <div className="bg-red-50 border-l-4 border-red-500 p-3 space-y-2">
+                      <div className="flex gap-2">
+                        <span className="text-red-600 font-bold">!</span>
+                        <span>Este assessment ficará <strong>indisponível</strong> para usuários na lista de assessments.</span>
+                      </div>
+                      <div className="flex gap-2">
+                        <span className="text-red-600 font-bold">!</span>
+                        <span>As versões existentes permanecem no histórico, mas o assessment não poderá ser iniciado.</span>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <p className="font-semibold">Ao continuar, uma <span className="text-[#4F46E5]">NOVA VERSÃO</span> será criada:</p>
+                    <div className="bg-blue-50 border-l-4 border-blue-500 p-3 space-y-2">
+                      <div className="flex gap-2">
+                        <span className="text-green-600 font-bold">✓</span>
+                        <span>A versão atual (v{currentVersion?.version_number}) permanecerá <strong>intacta</strong> para fins históricos</span>
+                      </div>
+                      <div className="flex gap-2">
+                        <span className="text-green-600 font-bold">✓</span>
+                        <span>Uma nova versão (v{(currentVersion?.version_number || 0) + 1}) será criada com suas alterações</span>
+                      </div>
+                      <div className="flex gap-2">
+                        <span className="text-green-600 font-bold">✓</span>
+                        <span>Resultados já registrados continuarão vinculados à versão original</span>
+                      </div>
+                    </div>
 
-                <div className="bg-red-50 border-l-4 border-red-500 p-3">
-                  <div className="flex gap-2">
-                    <span className="text-red-600 font-bold text-lg">⚠️</span>
-                    <span className="font-semibold text-red-700">Esta ação <strong>NÃO PODERÁ SER DESFEITA</strong></span>
-                  </div>
-                </div>
+                    <div className="bg-red-50 border-l-4 border-red-500 p-3">
+                      <div className="flex gap-2">
+                        <span className="text-red-600 font-bold text-lg">⚠️</span>
+                        <span className="font-semibold text-red-700">Esta ação <strong>NÃO PODERÁ SER DESFEITA</strong></span>
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
 
