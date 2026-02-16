@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../supabaseClient';
 import { useParams, useNavigate } from 'react-router-dom';
+import RadarChart from '../components/charts/RadarChart';
+import HorizontalBarChart from '../components/charts/HorizontalBarChart';
 
 // Fallback functions quando não há ranges configuradas
 function classifyFallback(percentage) {
@@ -74,6 +76,8 @@ export default function Results() {
   const [error, setError] = useState(null);
   const [result, setResult] = useState(null);
   const [assessmentRanges, setAssessmentRanges] = useState({});
+  const [assessmentData, setAssessmentData] = useState(null);
+  const [indicatorsMeta, setIndicatorsMeta] = useState({});
 
   useEffect(() => {
     let mounted = true;
@@ -118,8 +122,30 @@ export default function Results() {
         } else {
           if (mounted) setResult(data);
 
-          // Buscar as ranges do assessment para classificação correta
+          // Buscar dados do assessment com visualization_type
           if (data?.assessment_versions?.assessment_id) {
+            const { data: assData, error: assError } = await supabase
+              .from('assessments')
+              .select('*')
+              .eq('id', data.assessment_versions.assessment_id)
+              .single();
+
+            if (!assError && assData) {
+              // Normalizar visualization_type para array
+              let normalized = assData;
+              if (normalized.visualization_type) {
+                if (typeof normalized.visualization_type === 'string') {
+                  normalized.visualization_type = [normalized.visualization_type];
+                } else if (!Array.isArray(normalized.visualization_type)) {
+                  normalized.visualization_type = normalized.visualization_type || ['radar'];
+                }
+              } else {
+                normalized.visualization_type = ['radar'];
+              }
+              if (mounted) setAssessmentData(normalized);
+            }
+
+            // Buscar as ranges e metadados dos indicadores
             const { data: indicatorsData, error: indError } = await supabase
               .from('assessment_indicators')
               .select(`
@@ -127,7 +153,9 @@ export default function Results() {
                 indicator_master_id,
                 indicators_master (
                   id,
-                  name
+                  name,
+                  color,
+                  icon
                 ),
                 assessment_indicator_ranges (
                   min_score,
@@ -142,18 +170,29 @@ export default function Results() {
             if (!indError && indicatorsData) {
               // Mapear ranges por nome do indicador
               const rangesMap = {};
+              const metaMap = {};
               console.log('🔍 DEBUG Results: Indicadores com ranges carregados:', indicatorsData);
               indicatorsData.forEach(ind => {
                 const indicatorName = ind.indicators_master?.name;
-                if (indicatorName && ind.assessment_indicator_ranges) {
-                  rangesMap[indicatorName] = ind.assessment_indicator_ranges.sort(
-                    (a, b) => a.min_score - b.min_score
-                  );
-                  console.log(`📊 DEBUG Results: Ranges para "${indicatorName}":`, ind.assessment_indicator_ranges);
+                if (indicatorName) {
+                  if (ind.assessment_indicator_ranges) {
+                    rangesMap[indicatorName] = ind.assessment_indicator_ranges.sort(
+                      (a, b) => a.min_score - b.min_score
+                    );
+                    console.log(`📊 DEBUG Results: Ranges para "${indicatorName}":`, ind.assessment_indicator_ranges);
+                  }
+                  // Armazenar metadados do indicador (cor e ícone)
+                  metaMap[indicatorName] = {
+                    color: ind.indicators_master?.color || '#6366F1',
+                    icon: ind.indicators_master?.icon || 'circle'
+                  };
                 }
               });
               console.log('📊 DEBUG Results: Ranges mapeadas por indicador:', rangesMap);
-              if (mounted) setAssessmentRanges(rangesMap);
+              if (mounted) {
+                setAssessmentRanges(rangesMap);
+                setIndicatorsMeta(metaMap);
+              }
             }
           }
         }
@@ -219,24 +258,25 @@ export default function Results() {
   })();
 
   return (
-    <div className="max-w-4xl mx-auto px-6 py-12">
-      <div className="flex items-center justify-between mb-8">
-        <h1 className="text-3xl font-semibold">Resultado do Assessment</h1>
+    <div className="max-w-4xl mx-auto px-4 md:px-6 py-8 md:py-12">
+      <div className="flex items-center justify-between mb-8 gap-4">
+        <h1 className="text-2xl md:text-3xl font-semibold">Resultado do Assessment</h1>
         {id && (
-          <button onClick={() => navigate('/history')} className="text-sm text-[#4F46E5] hover:underline">
-            ← Voltar ao Histórico
+          <button onClick={() => navigate('/history')} className="text-sm text-[#4F46E5] hover:underline whitespace-nowrap">
+            ← Voltar
           </button>
         )}
       </div>
 
-      <div className="p-8 border rounded-2xl bg-white shadow-sm flex flex-col md:flex-row items-center gap-8">
+      {/* Resumo */}
+      <div className="p-6 md:p-8 border rounded-2xl bg-white shadow-sm flex flex-col md:flex-row items-center gap-8 mb-8">
         <div className="flex-0 text-center">
-          <div className="text-6xl font-extrabold text-[#4F46E5]">{percentage}%</div>
+          <div className="text-5xl md:text-6xl font-extrabold text-[#4F46E5]">{percentage}%</div>
           <div className="mt-2 text-sm text-gray-500">{classification}</div>
         </div>
 
         <div className="flex-1 w-full">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
             <div className="p-4 border rounded-lg text-center">
               <div className="text-xs text-gray-500">Score total</div>
               <div className="text-lg font-medium">{total}</div>
@@ -247,35 +287,66 @@ export default function Results() {
             </div>
             <div className="p-4 border rounded-lg text-center">
               <div className="text-xs text-gray-500">Data e Hora</div>
-              <div className="text-lg font-medium">{date}</div>
+              <div className="text-lg font-medium text-xs">{date}</div>
             </div>
           </div>
 
-          <div className="mb-4 p-3 bg-gray-50 rounded text-center">
-            <span className="text-xs text-gray-500 mr-2">Versão do Assessment:</span>
+          <div className="p-3 bg-gray-50 rounded text-center">
+            <span className="text-xs text-gray-500 mr-2">Versão:</span>
             <span className="text-sm font-semibold text-gray-700">v{versionNumber}</span>
           </div>
+        </div>
+      </div>
 
-          <div>
-            <h3 className="text-sm font-semibold mb-3">Indicadores</h3>
-            <div className="space-y-4">
-              {Object.entries(indicatorResults).map(([k, v]) => (
-                <div key={k} className="p-4 border rounded-md">
-                  <div className="flex items-baseline justify-between">
-                    <h4 className="font-medium text-gray-800">{k}</h4>
-                    <div className="text-sm text-gray-600">{v.score} de {v.maxScore} pontos</div>
-                  </div>
-                  <div className="flex items-center gap-3 mt-2">
-                    <div className="text-lg font-semibold">{v.percentage}%</div>
-                    <div className={`px-2 py-1 text-xs font-medium rounded-full ${v.classification === 'Crítico' ? 'bg-red-100 text-red-700' : v.classification === 'Moderado' ? 'bg-yellow-100 text-yellow-700' : 'bg-green-100 text-green-700'}`}>
-                      {v.classification}
-                    </div>
-                  </div>
-                  <p className="mt-3 text-sm text-gray-600">Descrição: {v.interpretation}</p>
-                </div>
-              ))}
+      {/* Visualizações dos Indicadores (Gráficos) */}
+      {assessmentData && Array.isArray(assessmentData.visualization_type) && assessmentData.visualization_type.length > 0 && (
+        <div className="space-y-8 mb-8">
+          {assessmentData.visualization_type.includes('radar') && (
+            <div className="bg-white border rounded-lg p-6 shadow-sm">
+              <RadarChart indicatorResults={indicatorResults} indicatorMeta={indicatorsMeta} />
             </div>
-          </div>
+          )}
+          {assessmentData.visualization_type.includes('horizontal-bar') && (
+            <div className="bg-white border rounded-lg p-6 shadow-sm">
+              <HorizontalBarChart indicatorResults={indicatorResults} indicatorMeta={indicatorsMeta} />
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Detalhes dos Indicadores */}
+      <div className="bg-white border rounded-lg p-6 shadow-sm">
+        <h2 className="text-xl font-semibold mb-6 text-gray-800">Detalhes dos Indicadores</h2>
+        <div className="space-y-4">
+          {Object.entries(indicatorResults).map(([k, v]) => {
+            const meta = indicatorsMeta[k] || {};
+            return (
+              <div key={k} className="p-4 border rounded-lg hover:bg-gray-50 transition">
+                <div className="flex items-start gap-3 mb-2">
+                  {/* Ícone com cor */}
+                  <div
+                    className="w-6 h-6 rounded flex items-center justify-center flex-shrink-0 mt-1"
+                    style={{ backgroundColor: meta.color || '#6366F1' }}
+                  >
+                    <span className="text-xs font-bold text-white">●</span>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-baseline justify-between gap-2 mb-1">
+                      <h4 className="font-semibold text-gray-800">{k}</h4>
+                      <div className="text-sm text-gray-600 flex-shrink-0">{v.score}/{v.maxScore}</div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="text-lg font-semibold text-[#4F46E5]">{v.percentage}%</div>
+                      <div className={`px-2 py-1 text-xs font-medium rounded-full whitespace-nowrap ${v.classification === 'Crítico' ? 'bg-red-100 text-red-700' : v.classification === 'Moderado' ? 'bg-yellow-100 text-yellow-700' : 'bg-green-100 text-green-700'}`}>
+                        {v.classification}
+                      </div>
+                    </div>
+                    {v.interpretation && <p className="mt-2 text-sm text-gray-600 leading-relaxed">{v.interpretation}</p>}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
     </div>

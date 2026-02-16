@@ -65,7 +65,7 @@ CREATE TABLE public.assessments (
   description text,
   type text NOT NULL,
   aggregation_type text NOT NULL DEFAULT 'sum'::text,
-  visualization_type text DEFAULT 'radar'::text,
+  visualization_type jsonb DEFAULT '["radar"]'::jsonb,
   is_active boolean DEFAULT false,
   version integer NOT NULL,
   created_at timestamp without time zone DEFAULT now(),
@@ -92,6 +92,9 @@ CREATE TABLE public.indicators_master (
   description text,
   created_by uuid,
   created_at timestamp with time zone DEFAULT now(),
+  color text DEFAULT '#6366F1'::text,
+  icon text DEFAULT 'circle'::text,
+  updated_at timestamp with time zone DEFAULT now(),
   CONSTRAINT indicators_master_pkey PRIMARY KEY (id),
   CONSTRAINT indicators_master_created_by_fkey FOREIGN KEY (created_by) REFERENCES auth.users(id)
 );

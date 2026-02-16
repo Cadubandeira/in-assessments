@@ -26,6 +26,7 @@ export default function AssessmentBuilder() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [showVersionModal, setShowVersionModal] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [assessmentData, setAssessmentData] = useState(null);
   const [assessmentIndicatorsData, setAssessmentIndicatorsData] = useState([]);
   const [questionsData, setQuestionsData] = useState([]);
@@ -86,9 +87,24 @@ export default function AssessmentBuilder() {
         .single();
       
       if (assError) throw assError;
-      setAssessmentData(assData);
+      
+      // Normalizar visualization_type para array
+      let normalized = assData;
+      if (normalized.visualization_type) {
+        if (typeof normalized.visualization_type === 'string') {
+          // Se for string, converter para array
+          normalized.visualization_type = [normalized.visualization_type];
+        } else if (!Array.isArray(normalized.visualization_type)) {
+          // Se for objeto (JSONB do banco), já está como array
+          normalized.visualization_type = normalized.visualization_type || ['radar'];
+        }
+      } else {
+        normalized.visualization_type = ['radar'];
+      }
+      
+      setAssessmentData(normalized);
       // Inicializar cópia para edição
-      setAssessmentDataEdited(JSON.parse(JSON.stringify(assData)));
+      setAssessmentDataEdited(JSON.parse(JSON.stringify(normalized)));
 
       // 2. Buscar versão ativa
       const activeVer = await getActiveAssessmentVersion(assessmentId);
@@ -98,41 +114,8 @@ export default function AssessmentBuilder() {
       const allVersions = await listAssessmentVersions(assessmentId);
       setVersions(allVersions);
 
-      // 4. Buscar indicadores antigos (para questions) com suas relações
-      const { data: assessmentIndicatorsRaw, error: indError } = await supabase
-        .from('indicators')
-        .select(`
-          *,
-          questions (
-            *,
-            alternatives (*)
-          )
-        `)
-        .eq('assessment_id', assessmentId)
-        .order('display_order', { ascending: true });
-      
-      if (indError) throw indError;
-      
-      // Armazenar indicadores com suas questões
-      const masterByName = new Map((indicators || []).map(item => [item.name?.toLowerCase?.() || '', item]));
-      const indicatorsWithQuestions = (assessmentIndicatorsRaw || []).map(ind => ({
-        ...ind,
-        master_indicator_id: ind.indicator_master_id || masterByName.get(ind.name?.toLowerCase?.() || '')?.id || null,
-        description: ind.description || ind.conceptual_description || '',
-        questions: (ind.questions || []).sort((a, b) => (a.display_order || 0) - (b.display_order || 0))
-          .map(q => ({
-            ...q,
-            alternatives: (q.alternatives || []).sort((a, b) => (a.display_order || 0) - (b.display_order || 0))
-          }))
-      }));
-      
-      setQuestionsData(indicatorsWithQuestions);
-
-      // 5. Carregar indicadores e ranges da versão ativa
-      await loadVersionIndicators(activeVer.id);
-      
-      // Inicializar cópias para edição
-      setQuestionsEdited(JSON.parse(JSON.stringify(indicatorsWithQuestions)));
+      // 4. Carregar indicadores e ranges da versão ativa
+      await loadVersionIndicators(activeVer.id, assessmentId);
     } catch (err) {
       console.error('Erro ao carregar assessment:', err);
       alert('Erro ao carregar assessment: ' + err.message);
@@ -147,8 +130,8 @@ export default function AssessmentBuilder() {
       description: '',
       type: 'default',
       aggregation_type: 'sum',
-      visualization_type: 'radar',
-      availability_type: 'public',
+      visualization_type: ['radar'],
+      availability_type: 'free_for_all',
       is_active: true
     });
     setAssessmentIndicatorsEdited([]);
@@ -161,8 +144,8 @@ export default function AssessmentBuilder() {
     setQuestionsData([]);
   };
 
-  const loadVersionIndicators = async (versionId) => {
-    const { data: indicators, error } = await supabase
+  const loadVersionIndicators = async (versionId, assessmentId) => {
+    const { data: assessmentIndicators, error: assIndError } = await supabase
       .from('assessment_indicators')
       .select(`
         *,
@@ -172,18 +155,73 @@ export default function AssessmentBuilder() {
       .eq('assessment_version_id', versionId)
       .order('display_order', { ascending: true });
 
-    if (error) {
-      console.error('Erro ao carregar indicadores:', error);
+    if (assIndError) {
+      console.error('Erro ao carregar assessment indicators:', assIndError);
       return;
     }
 
-    setAssessmentIndicatorsData(indicators || []);
+    // Buscar questions associadas aos indicadores
+    const { data: indicatorsOld, error: indOldError } = await supabase
+      .from('indicators')
+      .select(`
+        id,
+        indicator_master_id,
+        name,
+        conceptual_description,
+        display_order,
+        weight,
+        questions (
+          *,
+          alternatives (*)
+        )
+      `)
+      .eq('assessment_id', assessmentId)
+      .order('display_order', { ascending: true });
 
-    const indicatorIds = (indicators || []).map(ind => ind.indicator_master_id);
+    if (indOldError) {
+      console.error('Erro ao carregar indicadores antigos:', indOldError);
+    }
+
+    // Mapear questions por indicator_master_id para evitar duplicação
+    const questionsByMasterId = {};
+    (indicatorsOld || []).forEach(ind => {
+      const masterId = ind.indicator_master_id || ind.id;
+      if (!questionsByMasterId[masterId]) {
+        questionsByMasterId[masterId] = [];
+      }
+      const sorted = (ind.questions || [])
+        .sort((a, b) => (a.display_order || 0) - (b.display_order || 0))
+        .map(q => ({
+          ...q,
+          alternatives: (q.alternatives || [])
+            .sort((a, b) => (a.display_order || 0) - (b.display_order || 0))
+        }));
+      questionsByMasterId[masterId] = sorted;
+    });
+
+    // Construir dados para edição com assessment_indicators + questions
+    const indicatorsWithQuestions = (assessmentIndicators || []).map(assInd => ({
+      id: assInd.id,
+      indicator_master_id: assInd.indicator_master_id,
+      name: assInd.indicators_master?.name || '',
+      description: assInd.indicators_master?.description || '',
+      display_order: assInd.display_order,
+      weight: assInd.weight,
+      assessment_indicator_ranges: assInd.assessment_indicator_ranges || [],
+      questions: questionsByMasterId[assInd.indicator_master_id] || [],
+      indicators_master: assInd.indicators_master
+    }));
+
+    setAssessmentIndicatorsData(assessmentIndicators || []);
+    setQuestionsData(indicatorsOld || []);
+    setQuestionsEdited(indicatorsWithQuestions);
+    setAssessmentIndicatorsEdited(JSON.parse(JSON.stringify(assessmentIndicators || [])));
+
+    const indicatorIds = (assessmentIndicators || []).map(ind => ind.indicator_master_id);
     setSelectedIndicators(indicatorIds);
 
     const rangesMap = {};
-    (indicators || []).forEach(ind => {
+    (assessmentIndicators || []).forEach(ind => {
       rangesMap[ind.indicator_master_id] = (ind.assessment_indicator_ranges || [])
         .sort((a, b) => a.min_score - b.min_score)
         .map(r => ({
@@ -194,8 +232,6 @@ export default function AssessmentBuilder() {
         }));
     });
     setRanges(rangesMap);
-    // Inicializar cópia para edição
-    setAssessmentIndicatorsEdited(JSON.parse(JSON.stringify(indicators || [])));
   };
 
   const handleAddIndicator = (indicatorId) => {
@@ -244,7 +280,7 @@ export default function AssessmentBuilder() {
 
     const newIndicatorQuestions = {
       id: makeTempId(),
-      master_indicator_id: master.id,
+      indicator_master_id: master.id,
       name: master.name,
       description: master.description || '',
       display_order: questionsEdited.length + 1,
@@ -259,7 +295,7 @@ export default function AssessmentBuilder() {
   const handleRemoveIndicatorFromAssessment = (indicatorMasterId, indicatorName) => {
     setAssessmentIndicatorsEdited(prev => prev.filter(ind => ind.indicator_master_id !== indicatorMasterId));
     setQuestionsEdited(prev => prev.filter(ind => {
-      const masterMatch = ind.master_indicator_id && ind.master_indicator_id === indicatorMasterId;
+      const masterMatch = ind.indicator_master_id && ind.indicator_master_id === indicatorMasterId;
       const nameMatch = indicatorName && ind.name === indicatorName;
       return !masterMatch && !nameMatch;
     }));
@@ -347,7 +383,7 @@ export default function AssessmentBuilder() {
       const indicatorLabel = indicator.name || `Indicador ${indIdx + 1}`;
       const displayOrder = Number(indicator.display_order || 0);
       const hasMatchingIndicator = assessmentIndicatorsEdited.some(ai =>
-        ai.indicator_master_id === indicator.master_indicator_id ||
+        ai.indicator_master_id === indicator.indicator_master_id ||
         ai.indicators_master?.name === indicator.name
       );
 
@@ -414,6 +450,12 @@ export default function AssessmentBuilder() {
   };
 
   const handleConfirmSave = async () => {
+    // Proteção contra múltiplos cliques
+    if (isSaving) {
+      console.warn('⚠️ Operação de save já em andamento, ignorando novo clique');
+      return;
+    }
+
     if ((!selectedAssessment && selectedAssessment !== 'new') || !currentVersion) {
       alert('Nenhuma versão selecionada.');
       return;
@@ -423,6 +465,7 @@ export default function AssessmentBuilder() {
       return;
     }
 
+    setIsSaving(true);
     try {
       let targetAssessmentId = selectedAssessment;
       let targetVersionId = null;
@@ -540,17 +583,22 @@ export default function AssessmentBuilder() {
       }
 
       // 4. Remover indicadores que foram deletados (com perguntas e alternativas)
-      const originalIndicators = (questionsData || []).filter(ind => isUuid(ind.id));
-      const editedIndicators = questionsEdited || [];
-      const editedIndicatorIds = new Set(editedIndicators.filter(ind => isUuid(ind.id)).map(ind => ind.id));
-      const removedIndicatorIds = originalIndicators
-        .map(ind => ind.id)
-        .filter(id => !editedIndicatorIds.has(id));
+      // Comparar por master_indicator_id para evitar conflitos entre IDs de diferentes tabelas
+      const originalIndicatorsMap = new Map(
+        (questionsData || []).map(ind => [ind.indicator_master_id || ind.id, ind])
+      );
+      const editedIndicatorsMap = new Map(
+        (questionsEdited || []).map(ind => [ind.indicator_master_id || ind.id, ind])
+      );
 
-      if (removedIndicatorIds.length > 0) {
-        const removedQuestions = originalIndicators
-          .filter(ind => removedIndicatorIds.includes(ind.id))
-          .flatMap(ind => ind.questions || []);
+      // Encontrar indicadores que foram removidos
+      const removedIndicatorKeys = Array.from(originalIndicatorsMap.keys())
+        .filter(key => !editedIndicatorsMap.has(key));
+
+      // Deletar perguntas e indicadores que foram removidos
+      if (removedIndicatorKeys.length > 0) {
+        const removedIndicators = removedIndicatorKeys.map(key => originalIndicatorsMap.get(key));
+        const removedQuestions = removedIndicators.flatMap(ind => ind.questions || []);
         const removedQuestionIds = removedQuestions.filter(q => isUuid(q.id)).map(q => q.id);
 
         if (removedQuestionIds.length > 0) {
@@ -567,16 +615,22 @@ export default function AssessmentBuilder() {
           if (deleteQuestionsError) throw deleteQuestionsError;
         }
 
-        const { error: deleteIndicatorsError } = await supabase
-          .from('indicators')
-          .delete()
-          .in('id', removedIndicatorIds);
-        if (deleteIndicatorsError) throw deleteIndicatorsError;
+        const removedIndicatorIds = removedIndicators
+          .map(ind => ind.id)
+          .filter(id => isUuid(id));
+
+        if (removedIndicatorIds.length > 0) {
+          const { error: deleteIndicatorsError } = await supabase
+            .from('indicators')
+            .delete()
+            .in('id', removedIndicatorIds);
+          if (deleteIndicatorsError) throw deleteIndicatorsError;
+        }
       }
 
       const getWeightForIndicator = (indicator) => {
-        if (indicator.master_indicator_id) {
-          const match = assessmentIndicatorsEdited.find(item => item.indicator_master_id === indicator.master_indicator_id);
+        if (indicator.indicator_master_id) {
+          const match = assessmentIndicatorsEdited.find(item => item.indicator_master_id === indicator.indicator_master_id);
           return match?.weight ?? 1;
         }
         const matchByName = assessmentIndicatorsEdited.find(item => item.indicators_master?.name === indicator.name);
@@ -584,15 +638,26 @@ export default function AssessmentBuilder() {
       };
 
       // 5. Criar/atualizar indicadores, perguntas e alternativas
-      for (let i = 0; i < editedIndicators.length; i++) {
-        const indicatorEdited = editedIndicators[i];
-        const indicatorOriginal = originalIndicators.find(ind => ind.id === indicatorEdited.id) || null;
+      // Itera sobre cada indicador editado e sincroniza com o banco de dados
+      for (let i = 0; i < questionsEdited.length; i++) {
+        const indicatorEdited = questionsEdited[i];
+        console.log(`[Salvando Indicador ${i + 1}]`, indicatorEdited.name);
+        
+        // ============ PASSO 5.1: Encontrar indicador original para comparação ============
+        // KEY: usa indicator_master_id para mapear entre questionsData original e questionsEdited novo
+        const indicatorOriginal = originalIndicatorsMap.get(
+          indicatorEdited.indicator_master_id || indicatorEdited.id
+        ) || null;
+        console.log(`  Original encontrado:`, indicatorOriginal?.id ? 'SIM' : 'NÃO');
+
+        // ============ PASSO 5.2: Salvar ou atualizar o indicador na tabela 'indicators' ============
         const indicatorDisplayOrder = indicatorEdited.display_order || (i + 1);
         const indicatorWeight = getWeightForIndicator(indicatorEdited);
-
         let indicatorId = indicatorEdited.id;
 
         if (isUuid(indicatorEdited.id)) {
+          // CASO A: ID é UUID (indicador já existe) → UPDATE
+          console.log(`  → UPDATE indicador ${indicatorEdited.id}`);
           const { error: updateIndicatorError } = await supabase
             .from('indicators')
             .update({
@@ -600,17 +665,19 @@ export default function AssessmentBuilder() {
               conceptual_description: indicatorEdited.description || '',
               display_order: indicatorDisplayOrder,
               weight: indicatorWeight,
-              indicator_master_id: indicatorEdited.master_indicator_id || null
+              indicator_master_id: indicatorEdited.indicator_master_id || null
             })
             .eq('id', indicatorEdited.id);
           if (updateIndicatorError) throw updateIndicatorError;
         } else {
+          // CASO B: ID é tempId (novo indicador) → INSERT
+          console.log(`  → INSERT novo indicador (tempId: ${indicatorEdited.id})`);
           const { data: newIndicatorData, error: newIndicatorError } = await supabase
             .from('indicators')
             .insert([
               {
                 assessment_id: targetAssessmentId,
-                indicator_master_id: indicatorEdited.master_indicator_id || null,
+                indicator_master_id: indicatorEdited.indicator_master_id || null,
                 name: indicatorEdited.name,
                 conceptual_description: indicatorEdited.description || '',
                 display_order: indicatorDisplayOrder,
@@ -620,10 +687,15 @@ export default function AssessmentBuilder() {
             .select();
           if (newIndicatorError) throw newIndicatorError;
           indicatorId = newIndicatorData?.[0]?.id;
+          console.log(`  → INSERT sucesso, novo ID: ${indicatorId}`);
         }
 
+        // ============ PASSO 5.3: Sincronizar perguntas deste indicador ============
         const originalQuestions = indicatorOriginal?.questions || [];
         const editedQuestions = indicatorEdited.questions || [];
+        console.log(`  Perguntas: original=${originalQuestions.length}, editada=${editedQuestions.length}`);
+
+        // Detectar perguntas deletadas
         const editedQuestionIds = new Set(editedQuestions.filter(q => isUuid(q.id)).map(q => q.id));
         const removedQuestionIds = originalQuestions
           .filter(q => isUuid(q.id))
@@ -631,12 +703,15 @@ export default function AssessmentBuilder() {
           .filter(id => !editedQuestionIds.has(id));
 
         if (removedQuestionIds.length > 0) {
+          console.log(`  Deletando ${removedQuestionIds.length} perguntas`);
+          // Deletar alternativas primeiro (FK constraint)
           const { error: deleteAltsError } = await supabase
             .from('alternatives')
             .delete()
             .in('question_id', removedQuestionIds);
           if (deleteAltsError) throw deleteAltsError;
 
+          // Depois deletar as perguntas
           const { error: deleteQuestionsError } = await supabase
             .from('questions')
             .delete()
@@ -644,6 +719,7 @@ export default function AssessmentBuilder() {
           if (deleteQuestionsError) throw deleteQuestionsError;
         }
 
+        // Processar cada pergunta (INSERT ou UPDATE)
         for (let qIdx = 0; qIdx < editedQuestions.length; qIdx++) {
           const questionEdited = editedQuestions[qIdx];
           const questionOriginal = originalQuestions.find(q => q.id === questionEdited.id) || null;
@@ -651,6 +727,7 @@ export default function AssessmentBuilder() {
           let questionId = questionEdited.id;
 
           if (isUuid(questionEdited.id)) {
+            // CASO A: ID é UUID → UPDATE questão existente
             const { error: updateQuestionError } = await supabase
               .from('questions')
               .update({
@@ -662,6 +739,7 @@ export default function AssessmentBuilder() {
               .eq('id', questionEdited.id);
             if (updateQuestionError) throw updateQuestionError;
           } else {
+            // CASO B: ID é tempId → INSERT nova questão
             const { data: newQuestionData, error: newQuestionError } = await supabase
               .from('questions')
               .insert([
@@ -678,8 +756,11 @@ export default function AssessmentBuilder() {
             questionId = newQuestionData?.[0]?.id;
           }
 
+          // ============ PASSO 5.4: Sincronizar alternativas desta pergunta ============
           const originalAlternatives = questionOriginal?.alternatives || [];
           const editedAlternatives = questionEdited.alternatives || [];
+
+          // Detectar alternativas deletadas
           const editedAltIds = new Set(editedAlternatives.filter(a => isUuid(a.id)).map(a => a.id));
           const removedAltIds = originalAlternatives
             .filter(a => isUuid(a.id))
@@ -694,11 +775,13 @@ export default function AssessmentBuilder() {
             if (deleteAltError) throw deleteAltError;
           }
 
+          // Processar cada alternativa (INSERT ou UPDATE)
           for (let aIdx = 0; aIdx < editedAlternatives.length; aIdx++) {
             const altEdited = editedAlternatives[aIdx];
             const altDisplayOrder = altEdited.display_order || (aIdx + 1);
 
             if (isUuid(altEdited.id)) {
+              // CASO A: ID é UUID → UPDATE alternativa existente
               const { error: updateAltError } = await supabase
                 .from('alternatives')
                 .update({
@@ -709,6 +792,7 @@ export default function AssessmentBuilder() {
                 .eq('id', altEdited.id);
               if (updateAltError) throw updateAltError;
             } else {
+              // CASO B: ID é tempId → INSERT nova alternativa
               const { error: insertAltError } = await supabase
                 .from('alternatives')
                 .insert([
@@ -729,10 +813,8 @@ export default function AssessmentBuilder() {
       setCurrentVersion(newVersionObj);
       setShowVersionModal(false);
       
-      // Se foi criação, atualizar lista de assessments e selecionar o novo
+      // Se foi criação, não recarregar lista (será atualizada depois)
       if (selectedAssessment === 'new') {
-        const { data: allAssessments } = await supabase.from('assessments').select('id, name, description');
-        setAssessments(allAssessments || []);
         await handleSelectAssessment(targetAssessmentId);
         alert('Assessment criado com sucesso!');
         return;
@@ -743,7 +825,7 @@ export default function AssessmentBuilder() {
       setVersions(allVersions);
       
       // Carregar indicadores da nova versão
-      await loadVersionIndicators(targetVersionId);
+      await loadVersionIndicators(targetVersionId, targetAssessmentId);
 
       // Perguntar se deseja publicar a nova versão
       const shouldPublish = confirm(
@@ -767,6 +849,8 @@ export default function AssessmentBuilder() {
       }
     } catch (err) {
       alert('Erro ao salvar: ' + (err.message || String(err)));
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -799,7 +883,7 @@ Deseja continuar?`;
       setVersions(allVersions);
 
       // Carregar indicadores da nova versão
-      await loadVersionIndicators(newVersion.id);
+      await loadVersionIndicators(newVersion.id, selectedAssessment);
       
       alert(`✓ Nova versão v${newVersion.version_number} criada como cópia!\n\nVocê está agora em modo de edição. Faça as alterações desejadas e clique em "Salvar".`);
     } catch (err) {
@@ -984,22 +1068,51 @@ Deseja continuar?`;
                     />
                   </div>
                   <div>
-                    <label className="text-xs font-semibold text-gray-500 uppercase block mb-2">Tipo de Visualização</label>
-                    <input
-                      type="text"
-                      value={assessmentDataEdited?.visualization_type || ''}
-                      onChange={(e) => setAssessmentDataEdited({ ...assessmentDataEdited, visualization_type: e.target.value })}
-                      className="w-full p-2 border rounded bg-white text-gray-900 font-semibold"
-                    />
+                    <label className="text-xs font-semibold text-gray-500 uppercase block mb-2">Tipos de Visualização</label>
+                    <div className="flex gap-2 flex-wrap">
+                      {['radar', 'horizontal-bar'].map(type => (
+                        <button
+                          key={type}
+                          type="button"
+                          onClick={() => {
+                            const current = Array.isArray(assessmentDataEdited?.visualization_type) 
+                              ? assessmentDataEdited.visualization_type 
+                              : [];
+                            const isSelected = current.includes(type);
+                            const updated = isSelected 
+                              ? current.filter(t => t !== type)
+                              : [...current, type];
+                            setAssessmentDataEdited({ 
+                              ...assessmentDataEdited, 
+                              visualization_type: updated.length > 0 ? updated : ['radar']
+                            });
+                          }}
+                          className={`px-3 py-2 rounded border-2 text-sm font-medium transition ${
+                            (Array.isArray(assessmentDataEdited?.visualization_type) 
+                              ? assessmentDataEdited.visualization_type 
+                              : [])
+                              .includes(type)
+                              ? 'border-blue-500 bg-blue-50 text-blue-700'
+                              : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400'
+                          }`}
+                        >
+                          {type === 'radar' ? '📊 Radar' : '📈 Gráfico em Barras'}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                   <div>
                     <label className="text-xs font-semibold text-gray-500 uppercase block mb-2">Tipo de Disponibilidade</label>
-                    <input
-                      type="text"
-                      value={assessmentDataEdited?.availability_type || ''}
+                    <select
+                      value={assessmentDataEdited?.availability_type || 'free_for_all'}
                       onChange={(e) => setAssessmentDataEdited({ ...assessmentDataEdited, availability_type: e.target.value })}
                       className="w-full p-2 border rounded bg-white text-gray-900 font-semibold"
-                    />
+                    >
+                      <option value="free_for_all">Grátis para Todos</option>
+                      <option value="first_free">Primeira Resposta Grátis</option>
+                      <option value="paid_unlock">Desbloqueio Pago</option>
+                      <option value="subscription_only">Apenas Assinatura</option>
+                    </select>
                   </div>
                   <div>
                     <label className="text-xs font-semibold text-gray-500 uppercase block mb-2">Status</label>
@@ -1075,7 +1188,7 @@ Deseja continuar?`;
               </div>
 
               {/* 3. ASSESSMENT INDICATORS COM RANGES */}
-              {assessmentIndicatorsData.length > 0 && (
+              {assessmentIndicatorsEdited.length > 0 && (
                 <div className="bg-white border rounded-lg p-6">
                   <h2 className="text-2xl font-bold mb-6 text-[#4F46E5]">Indicadores do Assessment</h2>
                   
@@ -1125,11 +1238,6 @@ Deseja continuar?`;
                                 const newOrder = parseInt(e.target.value, 10) || 0;
                                 updated[idx].display_order = newOrder;
                                 setAssessmentIndicatorsEdited(updated);
-                                setQuestionsEdited(prev => prev.map(ind => {
-                                  const matchesMaster = ind.master_indicator_id && ind.master_indicator_id === indicator.indicator_master_id;
-                                  const matchesName = ind.name === indicator.indicators_master?.name;
-                                  return matchesMaster || matchesName ? { ...ind, display_order: newOrder } : ind;
-                                }));
                               }}
                               className="w-full p-2 border rounded bg-white text-gray-900 font-semibold"
                             />
@@ -1268,28 +1376,13 @@ Deseja continuar?`;
                           <h3 className="text-xl font-bold text-[#4F46E5]">
                             Indicador #{indicator.display_order}: {indicator.name}
                           </h3>
-                          <div className="flex items-center gap-2">
-                            <div className="flex items-center gap-2">
-                              <label className="text-xs font-semibold text-gray-500 uppercase">Ordem</label>
-                              <input
-                                type="number"
-                                value={questionsEdited[indIdx]?.display_order || ''}
-                                onChange={(e) => {
-                                  const updated = [...questionsEdited];
-                                  updated[indIdx].display_order = parseInt(e.target.value, 10) || 0;
-                                  setQuestionsEdited(updated);
-                                }}
-                                className="w-20 p-2 border rounded bg-white text-gray-900 font-semibold"
-                              />
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => handleRemoveIndicatorFromAssessment(indicator.master_indicator_id, indicator.name)}
-                              className="inline-flex items-center gap-1 text-xs text-red-600 hover:text-red-700"
-                            >
-                              <Trash2 className="w-4 h-4" /> Remover
-                            </button>
-                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveIndicatorFromAssessment(indicator.indicator_master_id, indicator.name)}
+                            className="inline-flex items-center gap-1 text-xs text-red-600 hover:text-red-700"
+                          >
+                            <Trash2 className="w-4 h-4" /> Remover
+                          </button>
                         </div>
 
                         {indicator.description && (
@@ -1568,9 +1661,14 @@ Deseja continuar?`;
               </button>
               <button
                 onClick={handleConfirmSave}
-                className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 transition"
+                disabled={isSaving}
+                className={`flex-1 px-4 py-2 text-white rounded-lg font-semibold transition ${
+                  isSaving 
+                    ? 'bg-gray-400 cursor-not-allowed opacity-50' 
+                    : 'bg-green-600 hover:bg-green-700'
+                }`}
               >
-                ✓ Confirmar
+                {isSaving ? '⏳ Salvando...' : '✓ Confirmar'}
               </button>
             </div>
           </div>

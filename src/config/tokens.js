@@ -18,3 +18,31 @@ export const TOKENS = {
     sans: "font-sans"    // 'Inter'
   }
 };
+
+// Opções de cores para indicadores (hex values)
+export const COLOR_OPTIONS = [
+  '#EF4444', // Red
+  '#F97316', // Orange
+  '#EAB308', // Yellow
+  '#22C55E', // Green
+  '#06B6D4', // Cyan
+  '#3B82F6', // Blue
+  '#8B5CF6', // Purple
+  '#EC4899', // Pink
+  '#6366F1', // Indigo (default)
+  '#6B7280', // Gray
+];
+
+// Opções de ícones disponíveis (nomes de ícones lucide-react)
+export const ICON_OPTIONS = [
+  'circle', // Círculo simples
+  'heart', // Coração
+  'star', // Estrela
+  'zap', // Raio/Energia
+  'flame', // Chama
+  'target', // Alvo
+  'activity', // Atividade
+  'brain', // Cérebro
+  'award', // Prêmio
+  'trending-up', // Tendência de crescimento
+];
