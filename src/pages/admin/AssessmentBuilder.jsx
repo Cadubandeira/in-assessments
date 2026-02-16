@@ -34,6 +34,7 @@ export default function AssessmentBuilder() {
   const [assessmentData, setAssessmentData] = useState(null);
   const [assessmentIndicatorsData, setAssessmentIndicatorsData] = useState([]);
   const [questionsData, setQuestionsData] = useState([]);
+  const [indicatorsMap, setIndicatorsMap] = useState({}); // Mapa de indicator_master_id -> { id, assessment_id }
   // Estados para edição
   const [assessmentDataEdited, setAssessmentDataEdited] = useState(null);
   const [assessmentIndicatorsEdited, setAssessmentIndicatorsEdited] = useState([]);
@@ -211,6 +212,18 @@ export default function AssessmentBuilder() {
       console.error('Erro ao carregar indicadores antigos:', indOldError);
     }
 
+    // Criar mapa de indicator_master_id -> indicator (para referência correta de IDs)
+    const indMap = {};
+    (indicatorsOld || []).forEach(ind => {
+      const masterId = ind.indicator_master_id || ind.id;
+      indMap[masterId] = {
+        id: ind.id,
+        assessment_id: ind.assessment_id,
+        name: ind.name,
+        display_order: ind.display_order
+      };
+    });
+
     // Mapear questions por indicator_master_id para evitar duplicação
     const questionsByMasterId = {};
     (indicatorsOld || []).forEach(ind => {
@@ -238,13 +251,15 @@ export default function AssessmentBuilder() {
       weight: assInd.weight,
       assessment_indicator_ranges: assInd.assessment_indicator_ranges || [],
       questions: questionsByMasterId[assInd.indicator_master_id] || [],
-      indicators_master: assInd.indicators_master
+      indicators_master: assInd.indicators_master,
+      actual_indicator_id: indMap[assInd.indicator_master_id]?.id
     }));
 
     setAssessmentIndicatorsData(assessmentIndicators || []);
     setQuestionsData(indicatorsOld || []);
     setQuestionsEdited(indicatorsWithQuestions);
     setAssessmentIndicatorsEdited(JSON.parse(JSON.stringify(assessmentIndicators || [])));
+    setIndicatorsMap(indMap);
 
     const indicatorIds = (assessmentIndicators || []).map(ind => ind.indicator_master_id);
     setSelectedIndicators(indicatorIds);
@@ -766,11 +781,12 @@ export default function AssessmentBuilder() {
         // ============ PASSO 5.2: Salvar ou atualizar o indicador na tabela 'indicators' ============
         const indicatorDisplayOrder = indicatorEdited.display_order || (i + 1);
         const indicatorWeight = getWeightForIndicator(indicatorEdited);
-        let indicatorId = indicatorEdited.id;
+        // IMPORTANTE: usar actual_indicator_id que é o ID correto de 'indicators', não o ID de assessment_indicators
+        let indicatorId = indicatorEdited.actual_indicator_id;
 
-        if (isUuid(indicatorEdited.id)) {
-          // CASO A: ID é UUID (indicador já existe) → UPDATE
-          console.log(`  → UPDATE indicador ${indicatorEdited.id}`);
+        if (isUuid(indicatorEdited.actual_indicator_id)) {
+          // CASO A: Indicador já existe na tabela 'indicators' → UPDATE
+          console.log(`  → UPDATE indicador ${indicatorId}`);
           const { error: updateIndicatorError } = await supabase
             .from('indicators')
             .update({
@@ -780,11 +796,11 @@ export default function AssessmentBuilder() {
               weight: indicatorWeight,
               indicator_master_id: indicatorEdited.indicator_master_id || null
             })
-            .eq('id', indicatorEdited.id);
+            .eq('id', indicatorId);
           if (updateIndicatorError) throw updateIndicatorError;
         } else {
-          // CASO B: ID é tempId (novo indicador) → INSERT
-          console.log(`  → INSERT novo indicador (tempId: ${indicatorEdited.id})`);
+          // CASO B: Novo indicador (sem actual_indicator_id) → INSERT
+          console.log(`  → INSERT novo indicador`);
           const { data: newIndicatorData, error: newIndicatorError } = await supabase
             .from('indicators')
             .insert([
