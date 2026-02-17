@@ -72,7 +72,7 @@ const LoginScreen = () => {
         </div>
         
         <div className="mt-12 md:mt-0 animate-in fade-in slide-in-from-left-4 duration-1000 delay-100">
-          <h1 className={`${TOKENS.fonts.serif} text-5xl md:text-7xl lg:text-8xl leading-[0.95] tracking-tight text-[#1E1B4B]`}>
+          <h1 className={`${TOKENS.fonts.serif} text-4xl sm:text-6xl md:text-7xl lg:text-8xl leading-[1.1] tracking-tight text-[#1E1B4B] break-words`}>
             Autoconhecimento,<br/>
             <span className="text-[#4F46E5] italic">potencial</span><br/>
             & transformação.
@@ -99,7 +99,7 @@ const LoginScreen = () => {
               
               <Button 
                 type="button" 
-                className="w-full py-3.5 text-base font-medium shadow-md hover:shadow-lg hover:bg-gray-50 transition-all duration-300 bg-white text-[#374151] border border-gray-200 flex items-center justify-center gap-3" 
+                className="w-full py-3.5 text-base font-medium shadow-md hover:shadow-lg hover:bg-[var(--hover-bg)] transition-all duration-300 bg-white text-[#374151] border border-gray-200 flex items-center justify-center gap-3" 
                 onClick={handleGoogleLogin}
               >
                 <svg className="w-5 h-5" viewBox="0 0 24 24">

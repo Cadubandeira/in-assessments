@@ -2,16 +2,9 @@ import React, { useState, useMemo, useEffect } from 'react';
 import ErrorBoundary from './components/ErrorBoundary';
 import { HashRouter, Routes, Route, Navigate, useNavigate, useLocation, useParams } from 'react-router-dom';
 import { 
-  BarChart3, 
-  ClipboardList, 
   LogOut, 
   ArrowRight,
-  Sparkles,
-  Download,
-  Share2,
   ChevronRight,
-  TrendingUp,
-  Award,
   CheckCircle2,
 } from 'lucide-react';
 import { supabase } from './supabaseClient';
@@ -19,17 +12,13 @@ import { TOKENS } from './config/tokens';
 import Logo from './components/ui/Logo';
 import Button from './components/ui/Button';
 import LoginScreen from './pages/LoginScreen';
+import Dashboard from './pages/Dashboard';
 import Assessment from './pages/Assessment';
 import Results from './pages/Results';
 import History from './pages/History';
 import IndicatorsAdmin from './pages/admin/IndicatorsAdmin';
 import AssessmentBuilder from './pages/admin/AssessmentBuilder';
-import { useUserRole } from './hooks/useUserRole';
-import { canUserTakeAssessment } from './utils/assessmentRules';
 
-
-// --- BASE DE DADOS MOCK (Simulando resposta do Back-end) ---
-const INDICATORS = ["Liderança", "Comunicação", "Resiliência", "Foco", "Inteligência Emocional"];
 
 const slugify = (value) => value
   .toLowerCase()
@@ -95,89 +84,6 @@ const Header = () => {
         </div>
       </div>
     </nav>
-  );
-};
-
-const Dashboard = ({ user }) => {
-  const navigate = useNavigate();
-  const { role, loading: roleLoading } = useUserRole();
-  const handleStart = () => {
-    // Placeholder: pass empty history for now; can be extended to fetch recent history
-    if (!canUserTakeAssessment([], role)) {
-      alert('Você não pode iniciar um novo assessment no momento.');
-      return;
-    }
-    navigate('/assessment/active');
-  };
-  return (
-    <div className="max-w-6xl mx-auto p-6 py-12">
-      <header className="mb-12">
-        <h1 className={`${TOKENS.fonts.serif} text-5xl mb-4`}>Olá, {user.email?.split('@')[0]}.</h1>
-        <p className={TOKENS.colors.muted}>Seu progresso atualizado conforme suas últimas avaliações.</p>
-      </header>
-
-      {/* Admin Panel Link */}
-      {role === 'admin' && (
-        <div className="mb-8 flex gap-2">
-          <button 
-            onClick={() => navigate('/admin/indicators')}
-            className="px-4 py-2 bg-[#4F46E5] text-white text-sm rounded-lg font-medium hover:bg-[#312E81] transition"
-          >
-            Gerenciar Indicadores
-          </button>
-          <button 
-            onClick={() => navigate('/admin/assessments/builder')}
-            className="px-4 py-2 bg-[#4F46E5] text-white text-sm rounded-lg font-medium hover:bg-[#312E81] transition"
-          >
-            Configurar Assessment
-          </button>
-        </div>
-      )}
-
-      {/* Atalho para Assessment Ativo */}
-      <div className="mb-12 animate-in fade-in slide-in-from-bottom-4 duration-700">
-        <div className={`p-8 border ${TOKENS.colors.border} bg-gradient-to-r from-indigo-50 to-white rounded-2xl flex flex-col md:flex-row items-center justify-between shadow-sm gap-6`}>
-          <div>
-            <div className="flex items-center gap-3 mb-2">
-              <Sparkles className="w-5 h-5 text-[#4F46E5]" />
-              <h3 className={`${TOKENS.fonts.serif} text-2xl text-[#1E1B4B]`}>Assessment Disponível</h3>
-            </div>
-            <p className="text-[#64748B]">Responda ao questionário ativo para gerar novos indicadores de performance.</p>
-          </div>
-          <div className="flex gap-2">
-            <Button onClick={() => navigate('/history')} className="whitespace-nowrap shadow-md bg-gray-50 text-[#4F46E5] border border-[#4F46E5] hover:bg-[#4F46E5] hover:text-white">
-              Ver Histórico
-            </Button>
-            <Button onClick={handleStart} icon={ArrowRight} className="whitespace-nowrap shadow-md">
-              Iniciar Agora
-            </Button>
-          </div>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-        <div className={`md:col-span-2 p-8 border ${TOKENS.colors.border} bg-white rounded-2xl h-80 flex flex-col justify-center items-center text-center shadow-sm`}>
-          <BarChart3 className="w-12 h-12 text-[#C7D2FE] mb-4" />
-          <p className="text-[#94A3B8] font-medium italic">Gráfico de Evolução (Em breve)</p>
-        </div>
-        <div className={`p-8 border ${TOKENS.colors.border} bg-white rounded-2xl shadow-sm`}>
-          <h3 className={`${TOKENS.fonts.serif} text-xl mb-6`}>Indicadores</h3>
-          <div className="space-y-6">
-            {INDICATORS.slice(0, 3).map(ind => (
-              <div key={ind}>
-                <div className="flex justify-between text-sm mb-2">
-                  <span className="font-medium">{ind}</span>
-                  <span className="font-serif">8.5</span>
-                </div>
-                <div className="w-full bg-[#EEF2FF] h-1.5 rounded-full overflow-hidden">
-                  <div className="bg-[#312E81] h-full w-[85%] rounded-full"></div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    </div>
   );
 };
 

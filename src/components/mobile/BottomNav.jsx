@@ -1,0 +1,47 @@
+import React from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { Target, Zap, BrainCircuit, Trophy } from 'lucide-react';
+
+const MobileBottomNav = ({ onStartAssessment }) => {
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  const isActive = (path) => location.pathname === path;
+
+  return (
+    <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-lg px-2 sm:px-4 py-3 flex justify-around items-center z-50 border-t border-gray-200 w-full">
+      <button 
+        onClick={() => navigate('/dashboard')}
+        className={`${isActive('/dashboard') ? 'text-[#4F46E5]' : 'text-gray-500'} flex flex-col items-center gap-1`}
+      >
+        <Target className="w-6 h-6" />
+        <span className="text-[10px] font-bold">Início</span>
+      </button>
+      
+      <button 
+        onClick={onStartAssessment}
+        className="text-gray-500 flex flex-col items-center gap-1"
+      >
+        <Zap className="w-6 h-6" />
+        <span className="text-[10px] font-bold">Atividades</span>
+      </button>
+      
+      <button 
+        onClick={() => navigate('/history')}
+        className={`${isActive('/history') ? 'text-[#4F46E5]' : 'text-gray-500'} flex flex-col items-center gap-1`}
+      >
+        <BrainCircuit className="w-6 h-6" />
+        <span className="text-[10px] font-bold">Evolução</span>
+      </button>
+      
+      <button 
+        className="text-gray-500 flex flex-col items-center gap-1"
+      >
+        <Trophy className="w-6 h-6" />
+        <span className="text-[10px] font-bold">Comunidade</span>
+      </button>
+    </div>
+  );
+};
+
+export default MobileBottomNav;
