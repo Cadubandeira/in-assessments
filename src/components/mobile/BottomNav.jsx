@@ -1,8 +1,8 @@
 import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Home, Zap, TrendingUp, Users } from 'lucide-react';
+import { Home, Zap, TrendingUp, Users, Settings } from 'lucide-react';
 
-const MobileBottomNav = ({ onStartAssessment }) => {
+const MobileBottomNav = ({ onStartAssessment, role }) => {
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -19,8 +19,8 @@ const MobileBottomNav = ({ onStartAssessment }) => {
       </button>
       
       <button 
-        onClick={onStartAssessment}
-        className="text-gray-500 flex flex-col items-center gap-1"
+        onClick={() => navigate('/assessments')}
+        className={`${isActive('/assessments') ? 'text-[#4F46E5]' : 'text-gray-500'} flex flex-col items-center gap-1`}
       >
         <Zap className="w-6 h-6" />
         <span className="text-[10px] font-bold">Atividades</span>
@@ -40,6 +40,16 @@ const MobileBottomNav = ({ onStartAssessment }) => {
         <Users className="w-6 h-6" />
         <span className="text-[10px] font-bold">Comunidade</span>
       </button>
+
+      {role === 'admin' && (
+        <button 
+          onClick={() => navigate('/admin/management')}
+          className={`${isActive('/admin/management') ? 'text-[#4F46E5]' : 'text-gray-500'} flex flex-col items-center gap-1`}
+        >
+          <Settings className="w-6 h-6" />
+          <span className="text-[10px] font-bold">Gestão</span>
+        </button>
+      )}
     </div>
   );
 };

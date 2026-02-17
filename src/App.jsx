@@ -11,6 +11,11 @@ import { supabase } from './supabaseClient';
 import { TOKENS } from './config/tokens';
 import Logo from './components/ui/Logo';
 import Button from './components/ui/Button';
+import MobileHeader from './components/mobile/Header';
+import DesktopHeader from './components/desktop/Header';
+import MobileBottomNav from './components/mobile/BottomNav';
+import { useUserRole } from './hooks/useUserRole';
+import { canUserTakeAssessment } from './utils/assessmentRules';
 import LoginScreen from './pages/LoginScreen';
 import Dashboard from './pages/Dashboard';
 import Assessment from './pages/Assessment';
@@ -47,46 +52,6 @@ const AssessmentCard = ({ assessment, onStart }) => (
 );
 
 // --- PÁGINAS E COMPONENTES ---
-
-const Header = () => {
-  const navigate = useNavigate();
-  const location = useLocation();
-  
-  const isActive = (path) => location.pathname === path;
-
-  return (
-    <nav className={`h-20 border-b ${TOKENS.colors.border} ${TOKENS.colors.bg} sticky top-0 z-10 px-6`}>
-      <div className="max-w-6xl mx-auto flex h-full items-center justify-between">
-        <div className="flex items-center gap-2 cursor-pointer" onClick={() => navigate('/dashboard')}>
-          <Logo />
-        </div>
-        <div className="flex items-center gap-8">
-          <button 
-            onClick={() => navigate('/dashboard')} 
-            className={`text-sm font-medium transition-colors ${isActive('/dashboard') ? 'text-[#4F46E5]' : 'text-[#64748B] hover:text-[#1E1B4B]'}`}
-          >
-            Dashboard
-          </button>
-          <button 
-            onClick={() => navigate('/assessments')} 
-            className={`text-sm font-medium transition-colors ${isActive('/assessments') ? 'text-[#4F46E5]' : 'text-[#64748B] hover:text-[#1E1B4B]'}`}
-          >
-            Testes
-          </button>
-          <button 
-            onClick={() => navigate('/history')} 
-            className={`text-sm font-medium transition-colors ${isActive('/history') ? 'text-[#4F46E5]' : 'text-[#64748B] hover:text-[#1E1B4B]'}`}
-          >
-            Histórico
-          </button>
-          <button onClick={() => supabase.auth.signOut()} className="text-[#64748B] hover:text-[#4F46E5]">
-            <LogOut className="w-5 h-5" />
-          </button>
-        </div>
-      </div>
-    </nav>
-  );
-};
 
 const AssessmentsList = () => {
   const [assessments, setAssessments] = useState([]);
@@ -205,15 +170,28 @@ const ResultsSummary = () => {
 // --- LAYOUT PROTEGIDO ---
 const ProtectedLayout = ({ user, children }) => {
   const location = useLocation();
+  const navigate = useNavigate();
+  const { role } = useUserRole();
 
   if (!user) return <Navigate to="/login" replace />;
+
+  const handleStart = () => {
+    if (!canUserTakeAssessment([], role)) {
+      alert('Você não pode iniciar um novo assessment no momento.');
+      return;
+    }
+    navigate('/assessment/active');
+  };
+
   return (
-    <>
-      <Header />
-      <main key={location.pathname}>
+    <div className={`min-h-screen ${TOKENS.colors.bg} pb-20`}>
+      <MobileHeader user={user} />
+      <DesktopHeader user={user} role={role} onStartAssessment={handleStart} />
+      <main key={location.pathname} className="pt-[72px] md:pt-[88px]">
         {children}
       </main>
-    </>
+      <MobileBottomNav onStartAssessment={handleStart} role={role} />
+    </div>
   );
 };
 

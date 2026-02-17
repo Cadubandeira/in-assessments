@@ -23,9 +23,6 @@ import { supabase } from '../../supabaseClient';
 import { TOKENS } from '../../config/tokens';
 import { useUserRole } from '../../hooks/useUserRole';
 import { canUserTakeAssessment } from '../../utils/assessmentRules';
-import MobileHeader from '../../components/mobile/Header';
-import MobileBottomNav from '../../components/mobile/BottomNav';
-import DesktopHeader from '../../components/desktop/Header';
 
 const iconMap = {
   circle: Circle,
@@ -154,11 +151,9 @@ const Management = ({ user }) => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#F5F3EC] to-[#EEF2FF] pb-20 overflow-x-hidden">
-      <MobileHeader user={user} />
-      <DesktopHeader user={user} role={role} onStartAssessment={handleStart} />
+    <div className="min-h-screen bg-gradient-to-br from-[#F5F3EC] to-[#EEF2FF] overflow-x-hidden">
 
-      <section className="bg-gradient-to-r from-[#4F46E5] via-[#6366F1] to-[#818CF8] pt-24 md:pt-12 pb-24 px-4 sm:px-6 relative overflow-hidden">
+      <section className="bg-gradient-to-r from-[#4F46E5] via-[#6366F1] to-[#818CF8] pt-8 pb-24 px-4 sm:px-6 relative overflow-hidden">
         <div className="absolute inset-0 opacity-10 pointer-events-none overflow-hidden">
           <div className="absolute top-16 -left-10 w-48 h-48 md:w-64 md:h-64 bg-white rounded-full blur-3xl"></div>
           <div className="absolute bottom-0 -right-20 w-64 h-64 md:w-96 md:h-96 bg-[#312E81] rounded-full blur-3xl"></div>
@@ -319,8 +314,6 @@ const Management = ({ user }) => {
           </div>
         </div>
       </main>
-
-      <MobileBottomNav onStartAssessment={handleStart} />
     </div>
   );
 };

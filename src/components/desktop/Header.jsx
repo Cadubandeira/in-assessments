@@ -40,15 +40,15 @@ const DesktopHeader = ({ user, role, onStartAssessment }) => {
               onClick={() => navigate('/dashboard')}
               className="flex items-center gap-2 hover:text-[#4F46E5] transition-colors"
             >
-              <Home className="w-4 h-4" />
+              <Home className="w-5 h-5" />
               <span>Início</span>
             </button>
             <button
               type="button"
-              onClick={onStartAssessment}
+              onClick={() => navigate('/assessments')}
               className="flex items-center gap-2 hover:text-[#4F46E5] transition-colors"
             >
-              <Zap className="w-4 h-4" />
+              <Zap className="w-5 h-5" />
               <span>Atividades</span>
             </button>
             <button
@@ -56,14 +56,14 @@ const DesktopHeader = ({ user, role, onStartAssessment }) => {
               onClick={() => navigate('/history')}
               className="flex items-center gap-2 hover:text-[#4F46E5] transition-colors"
             >
-              <TrendingUp className="w-4 h-4" />
+              <TrendingUp className="w-5 h-5" />
               <span>Evolução</span>
             </button>
             <button
               type="button"
               className="flex items-center gap-2 hover:text-[#4F46E5] transition-colors"
             >
-              <Users className="w-4 h-4" />
+              <Users className="w-5 h-5" />
               <span>Comunidade</span>
             </button>
             {role === 'admin' && (
@@ -72,7 +72,7 @@ const DesktopHeader = ({ user, role, onStartAssessment }) => {
                 onClick={() => navigate('/admin/management')}
                 className="flex items-center gap-2 hover:text-[#4F46E5] transition-colors"
               >
-                <Settings className="w-4 h-4" />
+                <Settings className="w-5 h-5" />
                 <span>Gestão</span>
               </button>
             )}
