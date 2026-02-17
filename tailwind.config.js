@@ -10,6 +10,9 @@ export default {
         serif: ['"DM Serif Display"', 'serif'],
         sans: ['Inter', 'sans-serif'],
       },
+      transitionDuration: {
+        '2000': '2000ms',
+      },
     },
   },
   plugins: [],

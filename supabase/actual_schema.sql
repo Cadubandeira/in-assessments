@@ -24,6 +24,8 @@ CREATE TABLE public.assessment_events (
   created_at timestamp with time zone DEFAULT now(),
   user_display_name text,
   assessment_version_id uuid NOT NULL,
+  activity_type text NOT NULL DEFAULT 'assessment'::text CHECK (activity_type = ANY (ARRAY['assessment'::text, 'quiz'::text, 'certification'::text])),
+  activity_name text NOT NULL,
   CONSTRAINT assessment_events_pkey PRIMARY KEY (id),
   CONSTRAINT assessment_events_assessment_id_fkey FOREIGN KEY (assessment_id) REFERENCES public.assessments(id),
   CONSTRAINT assessment_events_assessment_version_id_fkey FOREIGN KEY (assessment_version_id) REFERENCES public.assessment_versions(id)
@@ -126,4 +128,14 @@ CREATE TABLE public.questions (
   created_at timestamp without time zone DEFAULT now(),
   CONSTRAINT questions_pkey PRIMARY KEY (id),
   CONSTRAINT questions_indicator_id_fkey FOREIGN KEY (indicator_id) REFERENCES public.indicators(id)
+);
+CREATE TABLE public.user_progression (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL UNIQUE,
+  level integer DEFAULT 1 CHECK (level >= 1),
+  total_xp integer DEFAULT 0 CHECK (total_xp >= 0),
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT user_progression_pkey PRIMARY KEY (id),
+  CONSTRAINT user_progression_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
 );

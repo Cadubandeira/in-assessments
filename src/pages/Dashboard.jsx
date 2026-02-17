@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { 
   ArrowRight, 
   BrainCircuit, 
-  Trophy, 
+  History, 
+  Trophy,
   Target,
   Sparkles
 } from 'lucide-react';
@@ -11,16 +12,33 @@ import { supabase } from '../supabaseClient';
 import { TOKENS } from '../config/tokens';
 import { useUserRole } from '../hooks/useUserRole';
 import { canUserTakeAssessment } from '../utils/assessmentRules';
+import { 
+  formatActivityName, 
+  getActivityConfig
+} from '../utils/activityUtils';
+import {
+  getCurrentLevelProgress,
+  getLevelBadge,
+  getLevelColor,
+  formatXP
+} from '../utils/gamificationUtils';
 
 const Dashboard = ({ user }) => {
   const navigate = useNavigate();
   const { role } = useUserRole();
   const [loading, setLoading] = useState(true);
+  const [animateXPBar, setAnimateXPBar] = useState(false);
+  const [animateLevel, setAnimateLevel] = useState(false);
+  const [previousStats, setPreviousStats] = useState(null);
+  const [animationTrigger, setAnimationTrigger] = useState(0);
   const [userStats, setUserStats] = useState({
     totalAssessments: 0,
     lastScore: 0,
     averageScore: 0,
-    recentResults: []
+    recentResults: [],
+    level: 1,
+    totalXP: 0,
+    levelProgress: null
   });
   const [displayName, setDisplayName] = useState(
     user?.user_metadata?.display_name || 
@@ -37,8 +55,61 @@ const Dashboard = ({ user }) => {
       user?.email?.split('@')[0] || 
       'Usuário'
     );
+    // Reset animações e previousStats ao trocar usuário
+    setAnimateXPBar(false);
+    setAnimateLevel(false);
+    setPreviousStats(null);
+    setAnimationTrigger(0);
     loadUserStats();
   }, [user]);
+
+  // Disparar animações apenas quando há mudança real de XP ou nível
+  useEffect(() => {
+    if (!loading && userStats.level !== undefined && userStats.totalXP !== undefined) {
+      // Se é a primeira vez que carregamos dados (previousStats é null), armazenar sem animar
+      if (previousStats === null) {
+        setPreviousStats({
+          level: userStats.level,
+          totalXP: userStats.totalXP
+        });
+        return;
+      }
+
+      // Verificar se houve mudança real
+      const levelChanged = userStats.level !== previousStats.level;
+      const xpChanged = userStats.totalXP !== previousStats.totalXP;
+
+      if (levelChanged || xpChanged) {
+        // Houve mudança! Incrementar trigger para disparar animações
+        setAnimationTrigger(prev => prev + 1);
+
+        // Atualizar previousStats
+        setPreviousStats({
+          level: userStats.level,
+          totalXP: userStats.totalXP
+        });
+      }
+    }
+  }, [userStats.level, userStats.totalXP, previousStats, loading]);
+
+  // Executar as animações quando animationTrigger mudar
+  useEffect(() => {
+    if (animationTrigger > 0) {
+      // Reset para fazer transition acontecer
+      setAnimateLevel(false);
+      setAnimateXPBar(false);
+
+      // Pequeno delay para forçar o trigger da animação
+      const timer = setTimeout(() => {
+        setAnimateLevel(true);
+        setTimeout(() => {
+          setAnimateXPBar(true);
+        }, 300);
+      }, 10);
+
+      return () => clearTimeout(timer);
+    }
+  }, [animationTrigger]);
 
   const loadUserStats = async () => {
     if (!user) return;
@@ -57,15 +128,32 @@ const Dashboard = ({ user }) => {
       .catch(() => {}); // Ignora erro se tabela não existir
 
     try {
-      // Buscar hist\u00f3rico de assessments
+      // Buscar dados de progressão do usuário
+      const { data: progressionData, error: progressionError } = await supabase
+        .from('user_progression')
+        .select('level, total_xp')
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      if (progressionError && progressionError.code !== 'PGRST116') {
+        console.warn('Erro ao buscar progressão:', progressionError);
+      }
+
+      // Buscar histórico de atividades (assessments, quizzes, etc.)
+      // Tenta incluir activity_type e activity_name (adicionados na migração)
+      // Se não existirem, Supabase ignorará e retornará apenas colunas disponíveis
       const { data: assessmentEvents, error } = await supabase
         .from('assessment_events')
-        .select('total_score, max_possible_score, executed_at, indicator_scores_snapshot')
+        .select('total_score, max_possible_score, executed_at, indicator_scores_snapshot, activity_type, activity_name')
         .eq('user_id', user.id)
         .order('executed_at', { ascending: false })
         .limit(10);
 
       if (error) throw error;
+
+      // Preparar dados de progressão
+      const totalXP = progressionData?.total_xp || 0;
+      const levelProgress = getCurrentLevelProgress(totalXP);
 
       if (assessmentEvents && assessmentEvents.length > 0) {
         const percentages = assessmentEvents.map(e => 
@@ -76,11 +164,22 @@ const Dashboard = ({ user }) => {
           totalAssessments: assessmentEvents.length,
           lastScore: percentages[0] || 0,
           averageScore: Math.round(percentages.reduce((a, b) => a + b, 0) / percentages.length),
-          recentResults: assessmentEvents.slice(0, 3)
+          recentResults: assessmentEvents.slice(0, 3),
+          level: levelProgress.level,
+          totalXP: levelProgress.totalXP,
+          levelProgress: levelProgress
         });
+      } else {
+        // Mesmo sem atividades, mostrar nível inicial
+        setUserStats(prev => ({
+          ...prev,
+          level: levelProgress.level,
+          totalXP: levelProgress.totalXP,
+          levelProgress: levelProgress
+        }));
       }
     } catch (err) {
-      console.error('Erro ao carregar estat\u00edsticas:', err);
+      console.error('Erro ao carregar estatísticas:', err);
     } finally {
       setLoading(false);
     }
@@ -139,14 +238,50 @@ const Dashboard = ({ user }) => {
                   <p className="text-[#4F46E5] font-bold text-xs uppercase tracking-widest mb-1">
                     Nível atual
                   </p>
-                  <h3 className="text-4xl sm:text-5xl font-black text-[#1E1B4B] mb-2">
-                    {userStats.lastScore}
+                  <h3 
+                    className="text-4xl sm:text-5xl font-black text-[#1E1B4B] mb-2 transition-all duration-1000"
+                    style={{
+                      transform: animateLevel ? 'scale(1)' : 'scale(1)',
+                      opacity: 1,
+                      textShadow: animateLevel ? '0 0 20px rgba(79, 70, 229, 0.6)' : 'none',
+                      filter: animateLevel ? 'drop-shadow(0 0 10px rgba(79, 70, 229, 0.4))' : 'drop-shadow(0 0 0px transparent)'
+                    }}
+                  >
+                    {userStats.level}
                   </h3>
-                  <div className="inline-flex items-center gap-2 px-3 py-1 bg-[#4F46E5] text-white text-xs font-bold rounded-full uppercase">
-                    Domínio pleno
+                  <div 
+                    className="inline-flex items-center gap-2 px-3 py-1 text-white text-xs font-bold rounded-full uppercase transition-all duration-1000"
+                    style={{ 
+                      backgroundColor: getLevelColor(userStats.level),
+                      transform: animateLevel ? 'scale(1)' : 'scale(1)',
+                      opacity: 1,
+                      boxShadow: animateLevel ? `0 0 15px ${getLevelColor(userStats.level)}99` : 'none'
+                    }}
+                  >
+                    {getLevelBadge(userStats.level)}
                   </div>
+                  <p className="text-gray-600 text-xs mt-3 font-medium">
+                    {formatXP(userStats.totalXP)}
+                  </p>
                 </div>
                 <div className="w-full md:w-2/3 flex flex-col gap-4">
+                  {userStats.levelProgress && (
+                    <div className="flex flex-col gap-2">
+                      <div className="flex justify-between items-center text-xs">
+                        <span className="text-gray-600 font-medium">Progresso para Nível {userStats.level + 1}</span>
+                        <span className="text-gray-500">{userStats.levelProgress.currentLevelXP} / {userStats.levelProgress.nextLevelXP}</span>
+                      </div>
+                      <div className="w-full bg-gray-200 rounded-full h-2.5 overflow-hidden shadow-md">
+                        <div 
+                          className="bg-gradient-to-r from-[#4F46E5] via-[#6366F1] to-[#818CF8] h-2.5 rounded-full transition-all duration-[2000ms] ease-out"
+                          style={{ 
+                            width: animateXPBar ? `${userStats.levelProgress.progressPercentage}%` : `${userStats.levelProgress.progressPercentage}%`,
+                            boxShadow: animateXPBar ? '0 0 15px rgba(79, 70, 229, 0.6)' : 'none'
+                          }}
+                        />
+                      </div>
+                    </div>
+                  )}
                   <div className="flex justify-between items-end">
                     <div className="text-left">
                       <p className="text-gray-600 text-sm font-medium">
@@ -207,11 +342,11 @@ const Dashboard = ({ user }) => {
           {/* COLUNA DIREITA */}
           <div className="lg:col-span-4 flex flex-col gap-4 sm:gap-6 lg:gap-8 w-full">
             
-            {/* ATIVIDADE RECENTE */}
+            {/* ATIVIDADES RECENTES */}
             <div className="bg-white rounded-xl sm:rounded-2xl shadow-sm p-4 sm:p-6 w-full">
               <div className="flex items-center justify-between mb-6">
-                <h3 className="text-lg font-bold text-[#1E1B4B]">Atividade Recente</h3>
-                <Trophy className="text-[#4F46E5] w-6 h-6" />
+                <h3 className="text-lg font-bold text-[#1E1B4B]">Atividades Recentes</h3>
+                <History className="text-[#4F46E5] w-6 h-6" />
               </div>
               
               {userStats.recentResults.length > 0 ? (
@@ -224,17 +359,25 @@ const Dashboard = ({ user }) => {
                       day: '2-digit', 
                       month: 'short' 
                     });
+                    
+                    // Get activity configuration based on type (defaults to assessment)
+                    const activityType = result.activity_type || 'assessment';
+                    const config = getActivityConfig(activityType);
+                    const activityName = formatActivityName(result);
 
                     return (
                       <div 
                         key={idx}
                         className="flex items-center gap-4 p-3 rounded-lg bg-gray-50 border border-transparent hover:border-[#4F46E5]/20 transition-colors"
                       >
-                        <div className="w-12 h-12 rounded-full bg-[#4F46E5] flex items-center justify-center text-white font-bold">
+                        <div 
+                          className={`w-12 h-12 rounded-full flex items-center justify-center text-white font-bold`}
+                          style={{ backgroundColor: config.bgColor }}
+                        >
                           {percentage}%
                         </div>
                         <div className="flex-1">
-                          <p className="text-sm font-bold text-[#1E1B4B]">Assessment {idx + 1}</p>
+                          <p className="text-sm font-bold text-[#1E1B4B]">{activityName}</p>
                           <p className="text-xs text-gray-500">{date}</p>
                         </div>
                       </div>

@@ -434,6 +434,8 @@ export const useAssessment = (options = {}) => {
         indicator_scores_snapshot: indicatorResults,
         answers_snapshot: answers,
         classification_snapshot: indicatorResults,
+        activity_type: 'assessment', // Gamificação: tipo de atividade
+        activity_name: assessment.name, // Gamificação: nome descritivo da atividade
       };
 
       console.log('💾 DEBUG submitAssessment: Salvando payload:', payload);

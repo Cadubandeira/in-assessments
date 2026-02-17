@@ -3,6 +3,7 @@ import { supabase } from '../supabaseClient';
 import { useParams, useNavigate } from 'react-router-dom';
 import RadarChart from '../components/charts/RadarChart';
 import HorizontalBarChart from '../components/charts/HorizontalBarChart';
+import { useProgressionUpdate } from '../hooks/useProgressionUpdate';
 
 // Fallback functions quando não há ranges configuradas
 function classifyFallback(percentage) {
@@ -72,6 +73,7 @@ const getClassificationFromRanges = (score, maxScore, ranges, indicatorName) => 
 export default function Results() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { updateUserProgression } = useProgressionUpdate();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [result, setResult] = useState(null);
@@ -123,6 +125,35 @@ export default function Results() {
           }
         } else {
           if (mounted) setResult(data);
+
+          // Atualizar progressão do usuário após completar a atividade
+          try {
+            if (data?.total_score !== undefined && data?.max_possible_score !== undefined) {
+              console.log('🎮 Iniciando atualização de progressão...');
+              const activityType = data.activity_type || 'assessment';
+              const progressResult = await updateUserProgression(
+                user.id,
+                data.total_score,
+                data.max_possible_score,
+                activityType
+              );
+              
+              console.log('🎮 Resultado da progressão:', progressResult);
+              
+              if (progressResult.success) {
+                console.log(`✅ Progressão atualizada | +${progressResult.xpGained} XP`, progressResult);
+                if (progressResult.leveledUp) {
+                  console.log(`🎉 Level Up! Agora no nível ${progressResult.newLevel}`);
+                }
+              } else {
+                console.warn('⚠️ Erro ao atualizar progressão:', progressResult.error);
+              }
+            } else {
+              console.warn('⚠️ Dados de score não encontrados em assessment_events:', { total_score: data?.total_score, max_possible_score: data?.max_possible_score });
+            }
+          } catch (progressError) {
+            console.error('❌ Erro crítico ao atualizar progressão:', progressError);
+          }
 
           // Buscar dados do assessment com visualization_type
           if (data?.assessment_versions?.assessment_id) {
