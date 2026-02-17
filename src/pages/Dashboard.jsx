@@ -22,6 +22,7 @@ import {
   getLevelColor,
   formatXP
 } from '../utils/gamificationUtils';
+import { useUserRanking } from '../hooks/useUserRanking';
 
 const Dashboard = ({ user }) => {
   const navigate = useNavigate();
@@ -31,6 +32,8 @@ const Dashboard = ({ user }) => {
   const [animateLevel, setAnimateLevel] = useState(false);
   const [previousStats, setPreviousStats] = useState(null);
   const [animationTrigger, setAnimationTrigger] = useState(0);
+  const [showAchievementsModal, setShowAchievementsModal] = useState(false);
+  const [showRankingModal, setShowRankingModal] = useState(false);
   const [userStats, setUserStats] = useState({
     totalAssessments: 0,
     lastScore: 0,
@@ -46,6 +49,9 @@ const Dashboard = ({ user }) => {
     user?.email?.split('@')[0] || 
     'Usuário'
   );
+
+  // Hook para carregar ranking do usuário
+  const { ranking } = useUserRanking(user?.id);
 
   useEffect(() => {
     // Atualiza nome base do metadata ao mudar usuário
@@ -114,18 +120,9 @@ const Dashboard = ({ user }) => {
   const loadUserStats = async () => {
     if (!user) return;
 
-    // Tentar buscar display_name da tabela profiles de forma segura
-    supabase
-      .from('profiles')
-      .select('display_name')
-      .eq('id', user.id)
-      .maybeSingle()
-      .then(({ data }) => {
-        if (data?.display_name) {
-          setDisplayName(data.display_name);
-        }
-      })
-      .catch(() => {}); // Ignora erro se tabela não existir
+    // Usar display_name do user_metadata ou email
+    const name = user?.user_metadata?.display_name || user?.email?.split('@')[0] || 'Usuário';
+    setDisplayName(name);
 
     try {
       // Buscar dados de progressão do usuário
@@ -231,9 +228,6 @@ const Dashboard = ({ user }) => {
             {/* CARD DE PERFORMANCE */}
             <div className="bg-white/80 backdrop-blur-sm border border-white/50 p-4 sm:p-6 lg:p-8 rounded-xl sm:rounded-2xl shadow-xl w-full">
               <div className="flex flex-col md:flex-row items-center gap-4 sm:gap-6 md:gap-8 relative w-full">
-                <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none">
-                  <Trophy size={120} />
-                </div>
                 <div className="w-full md:w-1/3 text-center md:text-left">
                   <p className="text-[#4F46E5] font-bold text-xs uppercase tracking-widest mb-1">
                     Nível atual
@@ -260,46 +254,59 @@ const Dashboard = ({ user }) => {
                   >
                     {getLevelBadge(userStats.level)}
                   </div>
-                  <p className="text-gray-600 text-xs mt-3 font-medium">
-                    {formatXP(userStats.totalXP)}
-                  </p>
                 </div>
                 <div className="w-full md:w-2/3 flex flex-col gap-4">
                   {userStats.levelProgress && (
-                    <div className="flex flex-col gap-2">
-                      <div className="flex justify-between items-center text-xs">
-                        <span className="text-gray-600 font-medium">Progresso para Nível {userStats.level + 1}</span>
-                        <span className="text-gray-500">{userStats.levelProgress.currentLevelXP} / {userStats.levelProgress.nextLevelXP}</span>
+                    <div className="flex flex-col gap-3">
+                      {/* Ranking Badge e Progress Info */}
+                      <div className="flex items-start justify-between gap-4">
+                        {/* Ranking Badge - Esquerda */}
+                        <div className="inline-flex items-center gap-2 px-4 py-3 bg-gradient-to-r from-[#4F46E5]/10 to-[#6366F1]/10 border border-[#4F46E5]/20 text-[#4F46E5] text-base font-bold rounded-lg">
+                          🏆 Ranking geral: {ranking?.percentileText || 'Carregando...'}
+                        </div>
+                        
+                        {/* Percentagem e XP - Direita */}
+                        <div className="flex flex-col items-end">
+                          <span className="text-lg font-bold text-[#4F46E5]">
+                            {Math.round(userStats.levelProgress.progressPercentage)}%
+                          </span>
+                          <p className="text-xs text-gray-500 font-medium">
+                            {userStats.levelProgress.totalXP} / {userStats.levelProgress.nextLevelThreshold} XP
+                          </p>
+                        </div>
                       </div>
-                      <div className="w-full bg-gray-200 rounded-full h-2.5 overflow-hidden shadow-md">
+
+                      {/* XP Bar */}
+                      <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden shadow-md">
                         <div 
-                          className="bg-gradient-to-r from-[#4F46E5] via-[#6366F1] to-[#818CF8] h-2.5 rounded-full transition-all duration-[2000ms] ease-out"
+                          className="bg-gradient-to-r from-[#4F46E5] via-[#6366F1] to-[#818CF8] h-3 rounded-full transition-all duration-[2000ms] ease-out"
                           style={{ 
                             width: animateXPBar ? `${userStats.levelProgress.progressPercentage}%` : `${userStats.levelProgress.progressPercentage}%`,
                             boxShadow: animateXPBar ? '0 0 15px rgba(79, 70, 229, 0.6)' : 'none'
                           }}
                         />
                       </div>
+
+                     
+
+                      {/* Buttons */}
+                      <div className="flex gap-3 pt-2">
+                        <button
+                          onClick={() => setShowRankingModal(true)}
+                          className="flex-1 px-4 py-2 text-xs font-bold text-[#4F46E5] border border-[#4F46E5] rounded-lg hover:bg-[#4F46E5]/5 transition-colors"
+                        >
+                          Ranking
+                        </button>
+                        <button
+                          onClick={() => setShowAchievementsModal(true)}
+                          className="flex-1 px-4 py-2 text-xs font-bold text-white bg-[#4F46E5] rounded-lg hover:bg-[#4F46E5]/90 transition-colors"
+                        >
+                          Ver conquistas
+                        </button>
+                      </div>
                     </div>
                   )}
-                  <div className="flex justify-between items-end">
-                    <div className="text-left">
-                      <p className="text-gray-600 text-sm font-medium">
-                        Assessments Realizados: <span className="text-[#1E1B4B] font-bold">{userStats.totalAssessments}</span>
-                      </p>
-                      <p className="text-gray-500 text-xs">
-                        Média: {userStats.averageScore}%
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex gap-4 mt-2">
-                    <button
-                      onClick={() => navigate('/history')}
-                      className="bg-white text-[#4F46E5] border border-[#4F46E5] px-6 py-2.5 rounded-lg font-bold text-sm hover:bg-[#4F46E5] hover:text-white transition-all"
-                    >
-                      Ver Histórico
-                    </button>
-                  </div>
+                
                 </div>
               </div>
             </div>
@@ -318,7 +325,7 @@ const Dashboard = ({ user }) => {
                 </div>
               </div>
               <button
-                onClick={handleStart}
+                onClick={() => navigate('/assessments')}
                 className="bg-white text-[#4F46E5] px-6 sm:px-8 py-2.5 sm:py-3 rounded-lg font-bold text-xs sm:text-sm uppercase tracking-wider hover:scale-105 transition-transform whitespace-nowrap w-full md:w-auto"
               >
                 Vamos lá!
@@ -422,6 +429,46 @@ const Dashboard = ({ user }) => {
           </div>
         </div>
       </main>
+
+      {/* MODAL DE CONQUISTAS */}
+      {showAchievementsModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 md:p-8 max-h-[80vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-2xl font-bold text-[#1E1B4B]">Suas Conquistas</h2>
+              <button
+                onClick={() => setShowAchievementsModal(false)}
+                className="text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                ✕
+              </button>
+            </div>
+            <p className="text-gray-600 text-center py-8">
+              Conteúdo das conquistas em desenvolvimento...
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DE RANKING */}
+      {showRankingModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 md:p-8 max-h-[80vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-2xl font-bold text-[#1E1B4B]">Ranking Geral</h2>
+              <button
+                onClick={() => setShowRankingModal(false)}
+                className="text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                ✕
+              </button>
+            </div>
+            <p className="text-gray-600 text-center py-8">
+              Conteúdo do ranking em desenvolvimento...
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -90,6 +90,7 @@ export const getCurrentLevel = (totalXP) => {
 
 /**
  * Get progression details for current level
+ * Retorna XP total acumulado vs XP total necessário para alcançar o próximo nível
  * @param {number} totalXP - Total accumulated XP
  * @returns {object} Level progression details
  */
@@ -98,17 +99,21 @@ export const getCurrentLevelProgress = (totalXP) => {
   const currentLevelThreshold = getLevelThreshold(level);
   const nextLevelThreshold = getLevelThreshold(level + 1);
   
+  // XP relativo ao nível (para referência interna)
   const xpInCurrentLevel = totalXP - currentLevelThreshold;
   const xpNeededForLevel = nextLevelThreshold - currentLevelThreshold;
-  const progressPercentage = (xpInCurrentLevel / xpNeededForLevel) * 100;
+  
+  // XP total acumulado vs XP total para próximo nível (o que exibir na barra)
+  const totalXPProgressPercentage = (totalXP / nextLevelThreshold) * 100;
   
   return {
     level,
-    currentLevelXP: xpInCurrentLevel,
-    nextLevelXP: xpNeededForLevel,
     totalXP,
-    progressPercentage: Math.min(progressPercentage, 100), // Cap at 100%
-    xpToNextLevel: Math.max(0, xpNeededForLevel - xpInCurrentLevel)
+    nextLevelThreshold,
+    currentLevelXP: xpInCurrentLevel,        // XP dentro do nível atual (para futuros usos)
+    nextLevelXP: xpNeededForLevel,           // XP máximo deste nível (para futuros usos)
+    progressPercentage: Math.min(totalXPProgressPercentage, 100), // Barra: totalXP / nextLevelXP
+    xpToNextLevel: Math.max(0, nextLevelThreshold - totalXP)      // XP que falta
   };
 };
 
