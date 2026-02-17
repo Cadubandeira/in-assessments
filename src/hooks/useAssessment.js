@@ -355,7 +355,10 @@ export const useAssessment = (options = {}) => {
         const classificationData = getClassificationFromRanges(indicatorScore, indicatorMax, ai.ranges, indicator.name);
         console.log(`📊 DEBUG: ${indicator.name} - Score: ${indicatorScore}/${indicatorMax}, Ranges:`, ai.ranges, 'Resultado:', classificationData);
 
-        indicatorResults[indicator.name] = {
+        const indicatorKey = indicator.id || indicator.name;
+        indicatorResults[indicatorKey] = {
+          indicator_id: indicator.id || null,
+          name: indicator.name,
           score: indicatorScore,
           maxScore: indicatorMax,
           percentage: classificationData.percentage,
@@ -363,7 +366,7 @@ export const useAssessment = (options = {}) => {
           interpretation: classificationData.interpretation
         };
 
-        indicatorScores[indicator.name] = indicatorScore;
+        indicatorScores[indicatorKey] = indicatorScore;
         totalScore += indicatorScore;
         maxPossibleScore += indicatorMax;
       });
@@ -384,7 +387,10 @@ export const useAssessment = (options = {}) => {
 
         const classificationData = getClassificationFromRanges(indicatorScore, indicatorMax, [], indicator.name);
 
-        indicatorResults[indicator.name] = {
+        const indicatorKey = indicator.indicator_master_id || indicator.name;
+        indicatorResults[indicatorKey] = {
+          indicator_id: indicator.indicator_master_id || null,
+          name: indicator.name,
           score: indicatorScore,
           maxScore: indicatorMax,
           percentage: classificationData.percentage,
@@ -392,7 +398,7 @@ export const useAssessment = (options = {}) => {
           interpretation: classificationData.interpretation
         };
 
-        indicatorScores[indicator.name] = indicatorScore;
+        indicatorScores[indicatorKey] = indicatorScore;
         totalScore += indicatorScore;
         maxPossibleScore += indicatorMax;
       });

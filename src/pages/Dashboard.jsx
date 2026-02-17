@@ -23,6 +23,8 @@ import {
   formatXP
 } from '../utils/gamificationUtils';
 import { useUserRanking } from '../hooks/useUserRanking';
+import { useDevelopmentMetrics } from '../hooks/useDevelopmentMetrics';
+import DevelopmentChart from '../components/DevelopmentChart';
 
 const Dashboard = ({ user }) => {
   const navigate = useNavigate();
@@ -52,6 +54,9 @@ const Dashboard = ({ user }) => {
 
   // Hook para carregar ranking do usuário
   const { ranking } = useUserRanking(user?.id);
+
+  // Hook para carregar métricas de desenvolvimento
+  const { indicators: developmentIndicators } = useDevelopmentMetrics(user?.id);
 
   useEffect(() => {
     // Atualiza nome base do metadata ao mudar usuário
@@ -332,17 +337,12 @@ const Dashboard = ({ user }) => {
               </button>
             </div>
 
-            {/* GR\u00c1FICO PLACEHOLDER */}
+            {/* MEU DESENVOLVIMENTO */}
             <div className="bg-white rounded-xl sm:rounded-2xl p-4 sm:p-6 lg:p-8 shadow-sm w-full">
-              <div className="flex justify-between items-center mb-10">
-                <h3 className="text-2xl font-bold text-[#1E1B4B]">Evolução de Competências</h3>
+              <div className="flex justify-between items-center mb-8">
+                <h3 className="text-2xl font-bold text-[#1E1B4B]">Meu Desenvolvimento</h3>
               </div>
-              <div className="h-80 flex items-center justify-center text-gray-400">
-                <div className="text-center">
-                  <Target size={64} className="mx-auto mb-4 opacity-20" />
-                  <p className="font-medium italic">Gráficos de evolução em breve</p>
-                </div>
-              </div>
+              <DevelopmentChart indicators={developmentIndicators} user={user} />
             </div>
           </div>
 

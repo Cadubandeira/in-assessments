@@ -228,7 +228,7 @@ export default function Results() {
                 });
               }
 
-              // Mapear ranges por nome do indicador
+              // Mapear ranges por id do indicador e por nome (compatibilidade)
               const rangesMap = {};
               const metaMap = {};
               console.log('🔍 DEBUG Results: Indicadores com ranges (indicatorsData):', indicatorsData);
@@ -240,11 +240,17 @@ export default function Results() {
                 console.log(`\n  Processando: "${indicatorName}" (master_id: ${indicatorMasterId})`);
                 console.log(`    Master description: "${masterDescription.substring(0, 50)}..."`);
                 
-                if (indicatorName) {
+                if (indicatorMasterId || indicatorName) {
                   if (ind.assessment_indicator_ranges) {
-                    rangesMap[indicatorName] = ind.assessment_indicator_ranges.sort(
+                    const sortedRanges = ind.assessment_indicator_ranges.sort(
                       (a, b) => a.min_score - b.min_score
                     );
+                    if (indicatorMasterId) {
+                      rangesMap[indicatorMasterId] = sortedRanges;
+                    }
+                    if (indicatorName) {
+                      rangesMap[indicatorName] = sortedRanges;
+                    }
                   }
                   
                   // FALLBACK CASCATEADO:
@@ -265,11 +271,19 @@ export default function Results() {
                     console.log(`    ❌ NENHUMA descrição encontrada!`);
                   }
                   
-                  metaMap[indicatorName] = {
+                  const metaPayload = {
+                    id: indicatorMasterId,
+                    name: indicatorName,
                     color: ind.indicators_master?.color || '#6366F1',
                     icon: ind.indicators_master?.icon || 'circle',
                     conceptual_description: conceptualDesc
                   };
+                  if (indicatorMasterId) {
+                    metaMap[indicatorMasterId] = metaPayload;
+                  }
+                  if (indicatorName) {
+                    metaMap[indicatorName] = metaPayload;
+                  }
                 }
               });
               
@@ -333,6 +347,8 @@ export default function Results() {
   const date = result.created_at ? new Date(result.created_at).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : '-';
   const versionNumber = result.assessment_versions?.version_number || '—';
 
+  const isUuid = (value) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value || ''));
+
   let indicatorScores = result.indicator_scores_snapshot || {};
   if (typeof indicatorScores === 'string') {
     try { indicatorScores = JSON.parse(indicatorScores); } catch (e) { indicatorScores = {}; }
@@ -347,17 +363,25 @@ export default function Results() {
   // Build indicator results: prefer snapshot (dados no momento da resposta), otherwise fallback to calculation with DB ranges
   const indicatorResults = classificationSnapshot || (() => {
     const out = {};
-    const totalOverall = Object.values(indicatorScores).reduce((s, v) => s + (Number(v) || 0), 0);
+    const totalOverall = Object.values(indicatorScores).reduce((s, v) => {
+      const scoreValue = Number(v?.score ?? v ?? 0);
+      return s + scoreValue;
+    }, 0);
     Object.entries(indicatorScores).forEach(([k, v]) => {
-      const score = Number(v) || 0;
-      const maxForIndicator = max > 0 && totalOverall > 0 ? Math.round((score / Math.max(1, totalOverall)) * max) : 0;
+      const score = Number(v?.score ?? v ?? 0);
+      const providedMax = Number(v?.maxScore ?? v?.max_score ?? 0);
+      const computedMax = max > 0 && totalOverall > 0 ? Math.round((score / Math.max(1, totalOverall)) * max) : 0;
+      const maxForIndicator = providedMax || computedMax;
       
       // Usar ranges do banco de dados para classificação
-      const ranges = assessmentRanges[k] || [];
-      const classificationData = getClassificationFromRanges(score, maxForIndicator, ranges, k);
+      const ranges = assessmentRanges[k] || assessmentRanges[v?.indicator_id] || assessmentRanges[v?.name] || [];
+      const indicatorLabel = v?.name || k;
+      const classificationData = getClassificationFromRanges(score, maxForIndicator, ranges, indicatorLabel);
       console.log(`📊 DEBUG Results - ${k}: Score ${score}/${maxForIndicator}, Ranges:`, ranges, 'Classificação:', classificationData);
       
       out[k] = {
+        indicator_id: v?.indicator_id || (isUuid(k) ? k : null),
+        name: v?.name || indicatorLabel,
         score,
         maxScore: maxForIndicator,
         percentage: classificationData.percentage,
@@ -367,6 +391,18 @@ export default function Results() {
     });
     return out;
   })();
+
+  const resolveMeta = (key, value) => {
+    if (indicatorsMeta[key]) return indicatorsMeta[key];
+    if (value?.indicator_id && indicatorsMeta[value.indicator_id]) return indicatorsMeta[value.indicator_id];
+    if (value?.name && indicatorsMeta[value.name]) return indicatorsMeta[value.name];
+    return {};
+  };
+
+  const resolveName = (key, value) => {
+    const meta = resolveMeta(key, value);
+    return value?.name || meta?.name || key;
+  };
 
   return (
     <div className="max-w-4xl mx-auto px-4 md:px-6 py-8 md:py-12">
@@ -442,7 +478,8 @@ export default function Results() {
         <h2 className="text-xl font-semibold mb-6 text-gray-800">Detalhes dos Indicadores</h2>
         <div className="space-y-4">
           {Object.entries(indicatorResults).map(([k, v]) => {
-            const meta = indicatorsMeta[k] || {};
+            const meta = resolveMeta(k, v);
+            const displayName = resolveName(k, v);
             const isExpanded = expandedIndicators[k];
             return (
               <div key={k} className="p-4 border rounded-lg hover:bg-gray-50 transition">
@@ -456,7 +493,7 @@ export default function Results() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-baseline justify-between gap-2 mb-1">
-                      <h4 className="font-semibold text-gray-800">{k}</h4>
+                      <h4 className="font-semibold text-gray-800">{displayName}</h4>
                       <div className="text-sm text-gray-600 flex-shrink-0">{v.score}/{v.maxScore}</div>
                     </div>
                     <div className="flex items-center gap-3">

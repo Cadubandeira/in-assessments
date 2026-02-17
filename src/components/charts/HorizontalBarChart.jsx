@@ -11,6 +11,18 @@ export default function HorizontalBarChart({ indicatorResults = {}, indicatorMet
     return <div className="p-4 text-center text-gray-600">Sem dados para exibir</div>;
   }
 
+  const resolveMeta = (key, value) => {
+    if (indicatorMeta[key]) return indicatorMeta[key];
+    if (value?.indicator_id && indicatorMeta[value.indicator_id]) return indicatorMeta[value.indicator_id];
+    if (value?.name && indicatorMeta[value.name]) return indicatorMeta[value.name];
+    return {};
+  };
+
+  const resolveName = (key, value) => {
+    const meta = resolveMeta(key, value);
+    return value?.name || meta?.name || key;
+  };
+
   // Encontrar percentual máximo para escala
   const maxPercentage = Math.max(...entries.map(e => e[1]?.percentage || 0), 100);
 
@@ -22,10 +34,10 @@ export default function HorizontalBarChart({ indicatorResults = {}, indicatorMet
         {/* Gráfico de barras */}
         <div className="flex-1 space-y-4">
           {entries.map((entry, index) => {
-            const name = entry[0];
+            const name = resolveName(entry[0], entry[1]);
             const percentage = entry[1]?.percentage || 0;
             const classification = entry[1]?.classification || '';
-            const meta = indicatorMeta[name] || {};
+            const meta = resolveMeta(entry[0], entry[1]);
             const color = meta.color || '#4F46E5';
 
             // Definir cor da barra baseado na classificação
@@ -77,8 +89,8 @@ export default function HorizontalBarChart({ indicatorResults = {}, indicatorMet
           <h4 className="font-semibold text-sm text-gray-700">Legenda</h4>
           <div className="space-y-2">
             {entries.map((entry) => {
-              const name = entry[0];
-              const meta = indicatorMeta[name] || {};
+              const name = resolveName(entry[0], entry[1]);
+              const meta = resolveMeta(entry[0], entry[1]);
               const color = meta.color || '#4F46E5';
 
               return (

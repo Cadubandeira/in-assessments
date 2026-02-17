@@ -129,6 +129,39 @@ CREATE TABLE public.questions (
   CONSTRAINT questions_pkey PRIMARY KEY (id),
   CONSTRAINT questions_indicator_id_fkey FOREIGN KEY (indicator_id) REFERENCES public.indicators(id)
 );
+CREATE TABLE public.user_indicator_history (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  indicator_id uuid,
+  indicator_name text NOT NULL,
+  score numeric NOT NULL DEFAULT 0,
+  max_score numeric NOT NULL DEFAULT 0,
+  percentage numeric NOT NULL DEFAULT 0,
+  activity_type text,
+  activity_name text,
+  source_event_id uuid,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT user_indicator_history_pkey PRIMARY KEY (id),
+  CONSTRAINT user_indicator_history_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id),
+  CONSTRAINT user_indicator_history_indicator_id_fkey FOREIGN KEY (indicator_id) REFERENCES public.indicators_master(id)
+);
+CREATE TABLE public.user_indicator_scores (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  indicator_id uuid,
+  indicator_name text NOT NULL,
+  score numeric NOT NULL DEFAULT 0,
+  max_score numeric NOT NULL DEFAULT 0,
+  percentage numeric NOT NULL DEFAULT 0,
+  activity_type text,
+  activity_name text,
+  source_event_id uuid,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT user_indicator_scores_pkey PRIMARY KEY (id),
+  CONSTRAINT user_indicator_scores_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id),
+  CONSTRAINT user_indicator_scores_indicator_id_fkey FOREIGN KEY (indicator_id) REFERENCES public.indicators_master(id)
+);
 CREATE TABLE public.user_progression (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   user_id uuid NOT NULL UNIQUE,

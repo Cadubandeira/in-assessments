@@ -12,6 +12,18 @@ export default function RadarChart({ indicatorResults = {}, indicatorMeta = {} }
     return <div className="p-4 text-center text-gray-600">Sem dados para exibir</div>;
   }
 
+  const resolveMeta = (key, value) => {
+    if (indicatorMeta[key]) return indicatorMeta[key];
+    if (value?.indicator_id && indicatorMeta[value.indicator_id]) return indicatorMeta[value.indicator_id];
+    if (value?.name && indicatorMeta[value.name]) return indicatorMeta[value.name];
+    return {};
+  };
+
+  const resolveName = (key, value) => {
+    const meta = resolveMeta(key, value);
+    return value?.name || meta?.name || key;
+  };
+
   // Configurações do gráfico
   const centerX = 150;
   const centerY = 150;
@@ -41,8 +53,9 @@ export default function RadarChart({ indicatorResults = {}, indicatorMeta = {} }
   // Gerar rótulos nos eixos
   const axisLabels = entries.map((entry, index) => {
     const coords = getCoordinates(radius + 30, index);
+    const name = resolveName(entry[0], entry[1]);
     return {
-      name: entry[0],
+      name,
       x: coords.x,
       y: coords.y,
       index,
@@ -99,7 +112,8 @@ export default function RadarChart({ indicatorResults = {}, indicatorMeta = {} }
             {entries.map((entry, index) => {
               const percentage = entry[1]?.percentage || 0;
               const coords = getCoordinates(percentage, index);
-              const color = indicatorMeta[entry[0]]?.color || '#4F46E5';
+              const meta = resolveMeta(entry[0], entry[1]);
+              const color = meta.color || '#4F46E5';
               return (
                 <circle
                   key={`point-${index}`}
@@ -137,9 +151,9 @@ export default function RadarChart({ indicatorResults = {}, indicatorMeta = {} }
           <h4 className="font-semibold text-sm text-gray-700">Legenda</h4>
           <div className="space-y-2">
             {entries.map((entry) => {
-              const name = entry[0];
+              const name = resolveName(entry[0], entry[1]);
               const percentage = entry[1]?.percentage || 0;
-              const meta = indicatorMeta[name] || {};
+              const meta = resolveMeta(entry[0], entry[1]);
               const color = meta.color || '#4F46E5';
               const icon = meta.icon || 'circle';
 
