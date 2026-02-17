@@ -330,7 +330,7 @@ const Dashboard = ({ user }) => {
                 </div>
               </div>
               <button
-                onClick={() => navigate('/assessments')}
+                onClick={() => navigate('/activities')}
                 className="bg-white text-[#4F46E5] px-6 sm:px-8 py-2.5 sm:py-3 rounded-lg font-bold text-xs sm:text-sm uppercase tracking-wider hover:scale-105 transition-transform whitespace-nowrap w-full md:w-auto"
               >
                 Vamos lá!

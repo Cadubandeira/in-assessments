@@ -45,7 +45,7 @@ const DesktopHeader = ({ user, role, onStartAssessment }) => {
             </button>
             <button
               type="button"
-              onClick={() => navigate('/assessments')}
+              onClick={() => navigate('/activities')}
               className="flex items-center gap-2 hover:text-[#4F46E5] transition-colors"
             >
               <Zap className="w-5 h-5" />

@@ -19,8 +19,8 @@ const MobileBottomNav = ({ onStartAssessment, role }) => {
       </button>
       
       <button 
-        onClick={() => navigate('/assessments')}
-        className={`${isActive('/assessments') ? 'text-[#4F46E5]' : 'text-gray-500'} flex flex-col items-center gap-1`}
+        onClick={() => navigate('/activities')}
+        className={`${isActive('/activities') ? 'text-[#4F46E5]' : 'text-gray-500'} flex flex-col items-center gap-1`}
       >
         <Zap className="w-6 h-6" />
         <span className="text-[10px] font-bold">Atividades</span>

@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import ErrorBoundary from './components/ErrorBoundary';
 import { HashRouter, Routes, Route, Navigate, useNavigate, useLocation, useParams } from 'react-router-dom';
 import { 
@@ -21,64 +21,11 @@ import Dashboard from './pages/Dashboard';
 import Assessment from './pages/Assessment';
 import Results from './pages/Results';
 import History from './pages/History';
+import Activities from './pages/Activities';
+import RealScenarios from './pages/RealScenarios';
 import IndicatorsAdmin from './pages/admin/IndicatorsAdmin';
 import AssessmentBuilder from './pages/admin/AssessmentBuilder';
 import Management from './pages/admin/Management';
-
-
-const slugify = (value) => value
-  .toLowerCase()
-  .normalize('NFD')
-  .replace(/[\u0300-\u036f]/g, '')
-  .replace(/[^a-z0-9]+/g, '-')
-  .replace(/(^-|-$)+/g, '');
-
-// --- COMPONENTES ATÔMICOS ---
-
-const AssessmentCard = ({ assessment, onStart }) => (
-  <button
-    type="button"
-    onClick={() => onStart(assessment)}
-    className={`group p-8 border ${TOKENS.colors.border} ${TOKENS.colors.surface} rounded-2xl flex flex-col h-full text-left transition-all hover:border-[#4F46E5] shadow-sm hover:shadow-md`}
-  >
-    <div className="flex-grow">
-      <h3 className={`${TOKENS.fonts.serif} text-2xl mb-3 leading-tight`}>{assessment.name}</h3>
-      <p className={`${TOKENS.colors.muted} text-sm mb-8 leading-relaxed`}>{assessment.description}</p>
-    </div>
-    <div className="flex items-center justify-end mt-auto">
-      <span className={`inline-flex items-center gap-2 text-sm font-medium text-[#4F46E5]`}>Iniciar <ArrowRight className="w-4 h-4" /></span>
-    </div>
-  </button>
-);
-
-// --- PÁGINAS E COMPONENTES ---
-
-const AssessmentsList = () => {
-  const [assessments, setAssessments] = useState([]);
-  const navigate = useNavigate();
-
-  useEffect(() => {
-    const fetch = async () => {
-      const { data } = await supabase
-        .from('assessments')
-        .select('id, name, description, is_active')
-        .eq('is_active', true);
-      if (data) setAssessments(data);
-    };
-    fetch();
-  }, []);
-
-  return (
-    <div className="max-w-6xl mx-auto p-6 py-12">
-      <h2 className={`${TOKENS.fonts.serif} text-4xl mb-8`}>Assessments Disponíveis</h2>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-        {assessments.map(a => (
-          <AssessmentCard key={a.id} assessment={a} onStart={() => navigate(`/assessment/${slugify(a.name || '')}`)} />
-        ))}
-      </div>
-    </div>
-  );
-};
 
 const AssessmentRunner = ({ user }) => {
   const { id } = useParams();
@@ -247,7 +194,9 @@ export default function App() {
           <Route path="/" element={<Navigate to={user ? "/dashboard" : "/login"} />} />
           
           <Route path="/dashboard" element={<ProtectedLayout user={user}><Dashboard user={user} /></ProtectedLayout>} />
-          <Route path="/assessments" element={<ProtectedLayout user={user}><AssessmentsList /></ProtectedLayout>} />
+          <Route path="/activities" element={<ProtectedLayout user={user}><Activities /></ProtectedLayout>} />
+          <Route path="/activities/real-scenarios" element={<ProtectedLayout user={user}><RealScenarios /></ProtectedLayout>} />
+          <Route path="/assessments" element={<Navigate to="/activities" replace />} />
           <Route path="/assessment/active" element={<ProtectedLayout user={user}><Assessment /></ProtectedLayout>} />
           <Route path="/assessment/:id" element={<ProtectedLayout user={user}><Assessment /></ProtectedLayout>} />
           <Route path="/results" element={<ProtectedLayout user={user}><Results /></ProtectedLayout>} />
