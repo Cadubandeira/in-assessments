@@ -11,6 +11,7 @@ import { supabase } from '../supabaseClient';
 import { TOKENS } from '../config/tokens';
 import MobileHeader from '../components/mobile/Header';
 import MobileBottomNav from '../components/mobile/BottomNav';
+import DesktopHeader from '../components/desktop/Header';
 import { useUserRole } from '../hooks/useUserRole';
 import { canUserTakeAssessment } from '../utils/assessmentRules';
 
@@ -108,6 +109,7 @@ const Dashboard = ({ user }) => {
     <div className="min-h-screen bg-gradient-to-br from-[#F5F3EC] to-[#EEF2FF] pb-20 overflow-x-hidden">
       
       <MobileHeader user={user} />
+      <DesktopHeader user={user} onStartAssessment={handleStart} />
       
       {/* HERO SECTION */}
       <section className="bg-gradient-to-r from-[#4F46E5] via-[#6366F1] to-[#818CF8] pt-24 md:pt-12 pb-32 px-4 sm:px-6 relative overflow-hidden">

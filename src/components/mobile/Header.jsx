@@ -29,13 +29,13 @@ const MobileHeader = ({ user }) => {
   };
 
   return (
-    <header className="md:hidden fixed top-0 left-0 right-0 bg-white/95 backdrop-blur-md px-4 py-3 flex items-center justify-between z-50 border-b border-gray-200 w-full">
+    <header className="md:hidden fixed top-0 left-0 right-0 bg-white/95 backdrop-blur-md px-4 py-4 flex items-center justify-between z-50 border-b border-gray-200 w-full min-h-[64px]">
       <Logo size="normal" dark={true} />
       
       <div className="relative user-menu-container">
         <button
           onClick={() => setShowUserMenu(!showUserMenu)}
-          className="w-10 h-10 rounded-full bg-gradient-to-br from-[#4F46E5] to-[#6366F1] text-white font-bold flex items-center justify-center hover:scale-105 transition-transform"
+          className="w-11 h-11 rounded-full bg-gradient-to-br from-[#4F46E5] to-[#6366F1] text-white font-bold flex items-center justify-center hover:scale-105 transition-transform"
         >
           {userInitial}
         </button>
