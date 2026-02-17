@@ -4,16 +4,19 @@
  */
 
 import React, { useMemo } from 'react';
-import { User, Circle } from 'lucide-react';
+import { Circle } from 'lucide-react';
 import { getLucideIcon } from '../utils/iconUtils';
 
 const DevelopmentChart = ({ indicators, user }) => {
   // Configurações do gráfico radial
-  const AVATAR_RADIUS = 40; // Raio do avatar (px)
+  const AVATAR_RADIUS = 44; // Raio do avatar (px)
   const CIRCLE_RADIUS = 30; // Raio de cada círculo de progresso (px)
   const ORBITAL_DISTANCE = 110; // Distância do avatar ao centro dos círculos (px)
   const SVG_SIZE = 320; // Tamanho do SVG
   const CENTER = SVG_SIZE / 2;
+
+  const displayName = user?.user_metadata?.display_name || user?.email?.split('@')[0] || 'Usuário';
+  const userInitial = displayName.charAt(0).toUpperCase();
 
   // Calcular posições dos círculos ao redor do avatar
   const indicatorPositions = useMemo(() => {
@@ -70,7 +73,12 @@ const DevelopmentChart = ({ indicators, user }) => {
               height={AVATAR_RADIUS * 2}
             >
               <div className="w-full h-full flex items-center justify-center">
-                <User size={AVATAR_RADIUS * 1.5} className="text-white" />
+                <span
+                  className="text-white font-bold select-none"
+                  style={{ fontSize: `${AVATAR_RADIUS * 0.8}px`, lineHeight: 1 }}
+                >
+                  {userInitial}
+                </span>
               </div>
             </foreignObject>
           </g>
