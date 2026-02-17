@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { BrainCircuit, LogOut, Target, Trophy, Zap } from 'lucide-react';
+import { Home, LogOut, Settings, TrendingUp, Users, Zap } from 'lucide-react';
 import { supabase } from '../../supabaseClient';
 import Logo from '../ui/Logo';
 
-const DesktopHeader = ({ user, onStartAssessment }) => {
+const DesktopHeader = ({ user, role, onStartAssessment }) => {
   const navigate = useNavigate();
   const [showUserMenu, setShowUserMenu] = useState(false);
 
@@ -40,7 +40,7 @@ const DesktopHeader = ({ user, onStartAssessment }) => {
               onClick={() => navigate('/dashboard')}
               className="flex items-center gap-2 hover:text-[#4F46E5] transition-colors"
             >
-              <Target className="w-4 h-4" />
+              <Home className="w-4 h-4" />
               <span>Início</span>
             </button>
             <button
@@ -56,16 +56,26 @@ const DesktopHeader = ({ user, onStartAssessment }) => {
               onClick={() => navigate('/history')}
               className="flex items-center gap-2 hover:text-[#4F46E5] transition-colors"
             >
-              <BrainCircuit className="w-4 h-4" />
+              <TrendingUp className="w-4 h-4" />
               <span>Evolução</span>
             </button>
             <button
               type="button"
               className="flex items-center gap-2 hover:text-[#4F46E5] transition-colors"
             >
-              <Trophy className="w-4 h-4" />
+              <Users className="w-4 h-4" />
               <span>Comunidade</span>
             </button>
+            {role === 'admin' && (
+              <button
+                type="button"
+                onClick={() => navigate('/admin/management')}
+                className="flex items-center gap-2 hover:text-[#4F46E5] transition-colors"
+              >
+                <Settings className="w-4 h-4" />
+                <span>Gestão</span>
+              </button>
+            )}
           </nav>
 
           <div className="relative user-menu-container">

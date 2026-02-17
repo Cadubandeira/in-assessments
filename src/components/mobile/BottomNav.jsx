@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Target, Zap, BrainCircuit, Trophy } from 'lucide-react';
+import { Home, Zap, TrendingUp, Users } from 'lucide-react';
 
 const MobileBottomNav = ({ onStartAssessment }) => {
   const navigate = useNavigate();
@@ -14,7 +14,7 @@ const MobileBottomNav = ({ onStartAssessment }) => {
         onClick={() => navigate('/dashboard')}
         className={`${isActive('/dashboard') ? 'text-[#4F46E5]' : 'text-gray-500'} flex flex-col items-center gap-1`}
       >
-        <Target className="w-6 h-6" />
+        <Home className="w-6 h-6" />
         <span className="text-[10px] font-bold">Início</span>
       </button>
       
@@ -30,14 +30,14 @@ const MobileBottomNav = ({ onStartAssessment }) => {
         onClick={() => navigate('/history')}
         className={`${isActive('/history') ? 'text-[#4F46E5]' : 'text-gray-500'} flex flex-col items-center gap-1`}
       >
-        <BrainCircuit className="w-6 h-6" />
+        <TrendingUp className="w-6 h-6" />
         <span className="text-[10px] font-bold">Evolução</span>
       </button>
       
       <button 
         className="text-gray-500 flex flex-col items-center gap-1"
       >
-        <Trophy className="w-6 h-6" />
+        <Users className="w-6 h-6" />
         <span className="text-[10px] font-bold">Comunidade</span>
       </button>
     </div>

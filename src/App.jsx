@@ -18,6 +18,7 @@ import Results from './pages/Results';
 import History from './pages/History';
 import IndicatorsAdmin from './pages/admin/IndicatorsAdmin';
 import AssessmentBuilder from './pages/admin/AssessmentBuilder';
+import Management from './pages/admin/Management';
 
 
 const slugify = (value) => value
@@ -274,6 +275,7 @@ export default function App() {
           <Route path="/results" element={<ProtectedLayout user={user}><Results /></ProtectedLayout>} />
           <Route path="/results/:id" element={<ProtectedLayout user={user}><Results /></ProtectedLayout>} />
           <Route path="/history" element={<ProtectedLayout user={user}><History /></ProtectedLayout>} />
+          <Route path="/admin/management" element={<ProtectedLayout user={user}><Management user={user} /></ProtectedLayout>} />
           <Route path="/admin/indicators" element={<ProtectedLayout user={user}><IndicatorsAdmin /></ProtectedLayout>} />
           <Route path="/admin/assessments/builder" element={<ProtectedLayout user={user}><AssessmentBuilder /></ProtectedLayout>} />
         </Routes>

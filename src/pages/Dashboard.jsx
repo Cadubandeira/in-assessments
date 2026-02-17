@@ -109,7 +109,7 @@ const Dashboard = ({ user }) => {
     <div className="min-h-screen bg-gradient-to-br from-[#F5F3EC] to-[#EEF2FF] pb-20 overflow-x-hidden">
       
       <MobileHeader user={user} />
-      <DesktopHeader user={user} onStartAssessment={handleStart} />
+      <DesktopHeader user={user} role={role} onStartAssessment={handleStart} />
       
       {/* HERO SECTION */}
       <section className="bg-gradient-to-r from-[#4F46E5] via-[#6366F1] to-[#818CF8] pt-24 md:pt-12 pb-32 px-4 sm:px-6 relative overflow-hidden">
@@ -137,23 +137,6 @@ const Dashboard = ({ user }) => {
             
             {/* CARD DE PERFORMANCE */}
             <div className="bg-white/80 backdrop-blur-sm border border-white/50 p-4 sm:p-6 lg:p-8 rounded-xl sm:rounded-2xl shadow-xl w-full">
-              {role === 'admin' && (
-                <div className="mb-4 sm:mb-6 flex flex-col sm:flex-row gap-2 pb-4 sm:pb-6 border-b border-gray-200">
-                  <button
-                    onClick={() => navigate('/admin/indicators')}
-                    className="px-4 py-2 bg-[#4F46E5] text-white text-sm rounded-lg font-medium hover:bg-[#312E81] transition"
-                  >
-                    Gerenciar Indicadores
-                  </button>
-                  <button
-                    onClick={() => navigate('/admin/assessments/builder')}
-                    className="px-4 py-2 bg-[#4F46E5] text-white text-sm rounded-lg font-medium hover:bg-[#312E81] transition"
-                  >
-                    Configurar Assessment
-                  </button>
-                </div>
-              )}
-
               <div className="flex flex-col md:flex-row items-center gap-4 sm:gap-6 md:gap-8 relative w-full">
                 <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none">
                   <Trophy size={120} />
@@ -287,10 +270,10 @@ const Dashboard = ({ user }) => {
                   <Sparkles size={64} />
                 </div>
                 <h4 className="font-bold text-[#1E1B4B] group-hover:text-[#4F46E5] transition-colors">
-                  Inicie sua Jornada
+                  Aprenda sobre %Indicador%
                 </h4>
-                <p className="text-xs text-gray-500 mt-1 mb-3">
-                  Complete um assessment para mapear suas competências.
+                <p className="text-sm text-gray-500 mt-1 mb-3">
+                  Escute o podcast sobre %indicador% e aumente sua compreensão sobre o tema. Após isso você poderá testar seu conhecimento com uma atividade..
                 </p>
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold text-[#4F46E5] px-2 py-1 bg-[#4F46E5]/10 rounded">
