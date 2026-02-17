@@ -27,6 +27,15 @@ import IndicatorsAdmin from './pages/admin/IndicatorsAdmin';
 import AssessmentBuilder from './pages/admin/AssessmentBuilder';
 import Management from './pages/admin/Management';
 
+// Scroll to top on route change
+const ScrollToTop = () => {
+  const location = useLocation();
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [location.pathname]);
+  return null;
+};
+
 const AssessmentRunner = ({ user }) => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -186,6 +195,7 @@ export default function App() {
 
   return (
     <HashRouter>
+      <ScrollToTop />
       <ErrorBoundary>
       <div className={`min-h-screen ${TOKENS.colors.bg} ${TOKENS.colors.ink} selection:bg-[#4F46E5] selection:text-white`}>
         

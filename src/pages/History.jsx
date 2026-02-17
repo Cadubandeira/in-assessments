@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { supabase } from '../supabaseClient';
 import { useUserRole } from '../hooks/useUserRole';
 import { useNavigate } from 'react-router-dom';
+import { Filter } from 'lucide-react';
+import { TOKENS } from '../config/tokens';
 
 function classify(percentage) {
   if (percentage <= 40) return 'Crítico';
@@ -22,6 +24,7 @@ export default function History() {
   const [currentUserId, setCurrentUserId] = useState(null);
   const [viewMode, setViewMode] = useState('latest'); // 'latest'|'all'|'user'
   const [selectedUser, setSelectedUser] = useState(null);
+  const [activityType, setActivityType] = useState('all');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -56,7 +59,8 @@ export default function History() {
             user_display_name,
             created_at,
             assessments (
-              name
+              name,
+              type
             ),
             assessment_versions!assessment_events_assessment_version_id_fkey (
               id,
@@ -108,26 +112,15 @@ export default function History() {
   }, [role, roleLoading]);
 
   if (roleLoading || loading) {
-    return <div className="p-12 text-center">Carregando...</div>;
+    return <div className="min-h-screen flex items-center justify-center bg-[#F5F3EC]">Carregando...</div>;
   }
 
   if (roleError) {
-    return <div className="p-12 text-center text-red-600">{roleError}</div>;
+    return <div className="min-h-screen flex items-center justify-center bg-[#F5F3EC] text-red-600">{roleError}</div>;
   }
 
   if (error) {
-    return <div className="p-12 text-center text-red-600">{error}</div>;
-  }
-
-  if (!history || history.length === 0) {
-    return (
-      <div className="max-w-4xl mx-auto px-6 py-12">
-        <h1 className="text-3xl font-semibold mb-4">Histórico de Assessments</h1>
-        <div className="p-12 text-center text-gray-600">
-          Nenhum assessment encontrado.
-        </div>
-      </div>
-    );
+    return <div className="min-h-screen flex items-center justify-center bg-[#F5F3EC] text-red-600">{error}</div>;
   }
 
   const isAdmin = role === 'admin';
@@ -163,86 +156,191 @@ export default function History() {
     visibleItems = history;
   }
 
+  if (activityType !== 'all') {
+    visibleItems = visibleItems.filter(item => item.assessments?.type === activityType);
+  }
+
+  const activityTypes = Array.from(
+    new Set(history.map(item => item.assessments?.type).filter(Boolean))
+  );
+
+  const typeLabel = (type) => {
+    if (!type) return 'Atividade';
+    if (type === 'assessment') return 'Assessment';
+    if (type === 'real_scenario') return 'Situacoes reais';
+    if (type === 'real_scenarios') return 'Situacoes reais';
+    return type.replace(/_/g, ' ');
+  };
+
+  const totals = visibleItems.reduce(
+    (acc, item) => {
+      const total = item.total_score ?? 0;
+      const max = item.max_possible_score ?? 0;
+      const percentage = max > 0 ? Math.round((total / max) * 100) : 0;
+      acc.sum += percentage;
+      acc.best = Math.max(acc.best, percentage);
+      const timestamp = item.created_at ? new Date(item.created_at).getTime() : 0;
+      acc.latest = Math.max(acc.latest, timestamp);
+      return acc;
+    },
+    { sum: 0, best: 0, latest: 0 }
+  );
+  const totalCount = visibleItems.length;
+  const averageScore = totalCount > 0 ? Math.round(totals.sum / totalCount) : 0;
+  const latestDateLabel = totals.latest
+    ? new Date(totals.latest).toLocaleDateString('pt-BR', { dateStyle: 'medium' })
+    : '—';
+
   return (
-    <div className="max-w-4xl mx-auto px-6 py-12">
-      <h1 className="text-3xl font-semibold mb-2">Histórico de Assessments</h1>
-      <div className="flex items-center justify-between mb-8">
-        <p className="text-gray-600">
-          {isUserWithOneResult
-            ? 'Seu resultado mais recente'
-            : isUserWithMultipleResults
-            ? 'Seus resultados mais recentes por assessment'
-            : isAdmin
-            ? 'Visualizando histórico'
-            : ''}
-        </p>
+    <div className="min-h-screen bg-gradient-to-br from-[#F5F3EC] to-[#EEF2FF] overflow-x-hidden">
+      <section className="bg-gradient-to-r from-[#4F46E5] via-[#6366F1] to-[#818CF8] pt-10 pb-24 px-4 sm:px-6 relative overflow-hidden">
+        <div className="absolute inset-0 opacity-10 pointer-events-none overflow-hidden">
+          <div className="absolute top-16 -left-10 w-48 h-48 md:w-64 md:h-64 bg-white rounded-full blur-3xl"></div>
+          <div className="absolute bottom-0 -right-20 w-64 h-64 md:w-96 md:h-96 bg-[#312E81] rounded-full blur-3xl"></div>
+        </div>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 relative z-10 w-full text-left">
+          <p className="text-white/80 font-medium mb-2 tracking-wide uppercase text-xs sm:text-sm">Atividades realizadas</p>
+          <h1 className={`${TOKENS.fonts.serif} text-3xl sm:text-4xl md:text-5xl font-extrabold text-white mb-4 leading-tight`}>
+            Evolução
+          </h1>
+        </div>
+      </section>
 
-        {isAdmin && (
-          <div className="flex items-center gap-3">
-            <label className="text-sm text-gray-600">Filtrar:</label>
-            <select value={viewMode} onChange={(e) => setViewMode(e.target.value)} className="border rounded px-2 py-1">
-              <option value="latest">Mais recente</option>
-              <option value="all">Todos os usuários</option>
-              <option value="user">Usuário específico</option>
-            </select>
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 -mt-16 relative z-20 w-full pb-16">
+        <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-8">
+          <div className="bg-white/90 backdrop-blur-sm border border-white/60 rounded-2xl p-5 shadow-sm">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#4F46E5]">Atividades</p>
+            <p className={`${TOKENS.fonts.serif} text-2xl text-[#1E1B4B] mt-2`}>{totalCount}</p>
+            <p className="text-xs text-gray-500 mt-1">Resultados exibidos</p>
+          </div>
+          <div className="bg-white/90 backdrop-blur-sm border border-white/60 rounded-2xl p-5 shadow-sm">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#4F46E5]">Media</p>
+            <p className={`${TOKENS.fonts.serif} text-2xl text-[#1E1B4B] mt-2`}>{averageScore}%</p>
+            <p className="text-xs text-gray-500 mt-1">Desempenho geral</p>
+          </div>
+          <div className="bg-white/90 backdrop-blur-sm border border-white/60 rounded-2xl p-5 shadow-sm">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#4F46E5]">Melhor resultado</p>
+            <p className={`${TOKENS.fonts.serif} text-2xl text-[#1E1B4B] mt-2`}>{totals.best}%</p>
+            <p className="text-xs text-gray-500 mt-1">Seu pico recente</p>
+          </div>
+          <div className="bg-white/90 backdrop-blur-sm border border-white/60 rounded-2xl p-5 shadow-sm">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#4F46E5]">Ultima atividade</p>
+            <p className={`${TOKENS.fonts.serif} text-2xl text-[#1E1B4B] mt-2`}>{latestDateLabel}</p>
+            <p className="text-xs text-gray-500 mt-1">Data mais recente</p>
+          </div>
+        </section>
 
-            {viewMode === 'user' && (
-              <select className="border rounded px-2 py-1" value={selectedUser || ''} onChange={(e) => setSelectedUser(e.target.value)}>
-                <option value="">Selecione usuário</option>
-                {uniqueUsers.map(u => (
-                  <option key={u.id} value={u.id}>{u.label}</option>
+        <section className="bg-white/90 backdrop-blur-sm border border-white/60 rounded-2xl p-6 sm:p-8 shadow-lg mb-8">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#4F46E5]">Resumo</p>
+              <h2 className={`${TOKENS.fonts.serif} text-2xl sm:text-3xl text-[#1E1B4B]`}>
+                Seus resultados em um so lugar
+              </h2>
+            </div>
+            
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="inline-flex items-center gap-2 text-sm text-gray-600">
+                <Filter className="w-4 h-4" />
+                <span>Filtrar</span>
+              </div>
+              <select
+                value={activityType}
+                onChange={(e) => setActivityType(e.target.value)}
+                className="border border-[#E0E7FF] rounded-lg px-3 py-2 text-sm bg-white"
+              >
+                <option value="all">Todas atividades</option>
+                {activityTypes.map(type => (
+                  <option key={type} value={type}>{typeLabel(type)}</option>
                 ))}
               </select>
-            )}
+              {isAdmin && (
+                <>
+                  <select
+                    value={viewMode}
+                    onChange={(e) => setViewMode(e.target.value)}
+                    className="border border-[#E0E7FF] rounded-lg px-3 py-2 text-sm bg-white"
+                  >
+                    <option value="latest">Mais recente</option>
+                    <option value="all">Todos os usuarios</option>
+                    <option value="user">Usuario especifico</option>
+                  </select>
+
+                  {viewMode === 'user' && (
+                    <select
+                      className="border border-[#E0E7FF] rounded-lg px-3 py-2 text-sm bg-white"
+                      value={selectedUser || ''}
+                      onChange={(e) => setSelectedUser(e.target.value)}
+                    >
+                      <option value="">Selecione usuario</option>
+                      {uniqueUsers.map(u => (
+                        <option key={u.id} value={u.id}>{u.label}</option>
+                      ))}
+                    </select>
+                  )}
+                </>
+              )}
+            </div>
           </div>
-        )}
-      </div>
+        </section>
 
-      <div className="space-y-4">
-        {visibleItems.map((item) => {
-          const total = item.total_score ?? 0;
-          const max = item.max_possible_score ?? 0;
-          const percentage = max > 0 ? Math.round((total / max) * 100) : 0;
-          const classification = classify(percentage);
-          const date = item.created_at
-            ? new Date(item.created_at).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })
-            : '-';
+        {!history || history.length === 0 ? (
+          <section className="bg-white/90 backdrop-blur-sm border border-white/60 rounded-2xl p-10 text-center shadow-lg">
+            <p className="text-sm text-gray-600">Nenhum assessment encontrado.</p>
+          </section>
+        ) : (
+          <div className="space-y-4">
+            {visibleItems.map((item) => {
+              const total = item.total_score ?? 0;
+              const max = item.max_possible_score ?? 0;
+              const percentage = max > 0 ? Math.round((total / max) * 100) : 0;
+              const classification = classify(percentage);
+              const date = item.created_at
+                ? new Date(item.created_at).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })
+                : '-';
 
-          // Extract version number from join
-          const versionNumber = item.assessment_versions?.version_number || '—';
-          const assessmentName = item.assessments?.name || 'Assessment';
+              const versionNumber = item.assessment_versions?.version_number || '—';
+              const assessmentName = item.assessments?.name || 'Assessment';
+              const performedBy = item.user_display_name || item.user_id || '—';
 
-          // For admins viewing all results, display email or user display name if available
-          const performedBy = item.user_display_name || item.user_id || '—';
-
-          return (
-            <div key={item.id} className="p-6 border rounded-lg bg-white shadow-sm hover:shadow-md transition-shadow">
-              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                <div className="flex-1">
-                  <h3 className="text-xl font-bold text-gray-900 mb-2">
-                    {assessmentName}
-                  </h3>
-                  <div className="flex items-center gap-4 mb-2">
-                    <span className="text-sm text-gray-500">{date}</span>
-                    <span className="text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded">v{versionNumber}</span>
-                    <div className={`px-3 py-1 text-xs font-medium rounded-full ${getClassificationColor(classification)}`}>
-                      {classification}
+              return (
+                <div key={item.id} className="p-6 sm:p-8 border border-white/70 rounded-2xl bg-white/90 backdrop-blur-sm shadow-sm hover:shadow-lg transition-shadow">
+                  <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
+                    <div className="flex-1">
+                      <div className="flex flex-wrap items-center gap-3 mb-3">
+                        <span className="text-xs font-semibold uppercase tracking-[0.2em] text-[#4F46E5]">Resultado</span>
+                        <span className="text-xs text-gray-500">{date}</span>
+                        <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">v{versionNumber}</span>
+                        <div className={`px-3 py-1 text-xs font-medium rounded-full ${getClassificationColor(classification)}`}>
+                          {classification}
+                        </div>
+                        {isAdmin && (
+                          <div className="text-xs text-gray-500">
+                            Usuario: <span className="font-semibold text-gray-700">{performedBy}</span>
+                          </div>
+                        )}
+                      </div>
+                      <h3 className={`${TOKENS.fonts.serif} text-2xl text-[#1E1B4B] mb-2`}>
+                        {assessmentName}
+                      </h3>
+                      <div className="text-lg font-semibold text-gray-800">
+                        {percentage}% · {total} de {max} pontos
+                      </div>
                     </div>
-                    {isAdmin && <div className="text-sm text-gray-500">Usuário: <span className="font-medium text-gray-700">{performedBy}</span></div>}
-                  </div>
-                  <div className="text-lg font-semibold text-gray-800 mb-2">
-                    {percentage}% · {total} de {max} pontos
+
+                    <button
+                      onClick={() => navigate(`/results/${item.id}`)}
+                      className="px-4 py-2.5 bg-[#4F46E5] text-white rounded-lg font-semibold hover:bg-[#312E81] transition-colors"
+                    >
+                      Ver detalhes
+                    </button>
                   </div>
                 </div>
-
-                <button onClick={() => navigate(`/results/${item.id}`)} className="px-4 py-2 bg-[#4F46E5] text-white rounded-lg font-medium hover:bg-[#312E81] transition-colors">
-                  Ver detalhes
-                </button>
-              </div>
-            </div>
-          );
-        })}
-      </div>
+              );
+            })}
+          </div>
+        )}
+      </main>
     </div>
   );
 }
