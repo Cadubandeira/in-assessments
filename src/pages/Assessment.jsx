@@ -175,9 +175,6 @@ const Assessment = () => {
               >
                 <div className="absolute inset-0 bg-white/20 animate-pulse"></div>
               </div>
-              <span className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-[#312E81]">
-                {progressPercentage}%
-              </span>
             </div>
           </div>
         </div>
@@ -305,7 +302,7 @@ const Assessment = () => {
                 onClick={handleNext}
                 className="group inline-flex items-center gap-3 px-12 py-4 bg-gradient-to-r from-[#4F46E5] to-[#6366F1] text-white rounded-xl font-bold text-lg hover:shadow-2xl hover:scale-105 transition-all duration-300 shadow-xl"
               >
-                Começar Assessment <ArrowRight className="w-6 h-6 group-hover:translate-x-1 transition-transform" />
+                Começar <ArrowRight className="w-6 h-6 group-hover:translate-x-1 transition-transform" />
               </button>
             </div>
           </div>
@@ -332,7 +329,7 @@ const Assessment = () => {
                     </div>
                   )}
                   <div className="text-center sm:text-left">
-                    <h2 className={`${TOKENS.fonts.serif} text-4xl sm:text-5xl text-[#1E1B4B] leading-tight mb-2`}>
+                    <h2 className={`${TOKENS.fonts.serif} text-3xl sm:text-4xl text-[#1E1B4B] leading-tight mb-2`}>
                       {currentIndicator.name}
                     </h2>
                     {indicatorMeta?.color && (
@@ -367,7 +364,7 @@ const Assessment = () => {
                 disabled={!canProceed()}
                 className="group inline-flex items-center gap-3 px-10 py-4 bg-gradient-to-r from-[#4F46E5] to-[#6366F1] text-white rounded-xl font-bold text-lg hover:shadow-2xl hover:scale-105 transition-all duration-300 shadow-xl disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
               >
-                Iniciar Perguntas <ArrowRight className="w-6 h-6 group-hover:translate-x-1 transition-transform" />
+                Avançar <ArrowRight className="w-6 h-6 group-hover:translate-x-1 transition-transform" />
               </button>
             </div>
           </div>
@@ -377,7 +374,7 @@ const Assessment = () => {
         {phase === 'question' && currentQuestion && (
           <div className="space-y-8">
             {/* Question Header */}
-            <div className="bg-white/80 backdrop-blur-sm border border-white/60 rounded-2xl p-6 shadow-lg">
+            <div className="bg-white/80 backdrop-blur-sm border border-white/60 rounded-2xl p-6 shadow-sm">
               <div className="flex items-center justify-between flex-wrap gap-4">
                 <div className="flex items-center gap-4">
                   {IconComponent && indicatorMeta?.color && (
@@ -419,7 +416,7 @@ const Assessment = () => {
 
             {/* Question Card */}
             <div className="bg-gradient-to-br from-white/90 to-white/70 backdrop-blur-md border border-white/60 rounded-3xl p-8 sm:p-12 shadow-sm">
-              <h3 className={`${TOKENS.fonts.serif} text-3xl sm:text-4xl text-[#1E1B4B] mb-10 leading-tight`}>
+              <h3 className={`${TOKENS.fonts.serif} text-xl sm:text-2xl text-[#1E1B4B] mb-10 leading-tight`}>
                 {currentQuestion.text}
               </h3>
 
@@ -437,14 +434,14 @@ const Assessment = () => {
                       }`}
                     >
                       <div className="flex items-center gap-4">
-                        <div className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm transition-all ${
+                        <div className={`hidden sm:flex flex-shrink-0 w-10 h-10 rounded-full items-center justify-center font-bold text-sm transition-all ${
                           isSelected
                             ? 'bg-[#4F46E5] text-white'
                             : 'bg-gray-100 text-gray-400 group-hover:bg-[#4F46E5]/10 group-hover:text-[#4F46E5]'
                         }`}>
                           {isSelected ? <CheckCircle className="w-6 h-6" /> : String.fromCharCode(65 + idx)}
                         </div>
-                        <span className={`text-lg font-medium transition-colors ${
+                        <span className={`text-lg leading-snug sm:leading-normal transition-colors ${
                           isSelected ? 'text-[#1E1B4B]' : 'text-gray-700'
                         }`}>
                           {alt.text}
