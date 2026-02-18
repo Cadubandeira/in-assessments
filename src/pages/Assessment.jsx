@@ -180,10 +180,10 @@ const Assessment = () => {
         </div>
       )}
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 pt-[72px] pb-12 sm:pb-16">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 pb-12 sm:pb-16">
         {/* INTRO PHASE */}
         {phase === 'intro' && (
-          <div className="space-y-10">
+          <div className="space-y-10 pt-8">
             <div className="text-center mb-12">
               <span className="inline-block text-xs font-bold uppercase tracking-[0.2em] text-white bg-gradient-to-r from-[#4F46E5] to-[#6366F1] px-4 py-2 rounded-full mb-6 shadow-md">
                 Assessment
@@ -310,7 +310,7 @@ const Assessment = () => {
 
         {/* INDICATOR INTRO PHASE */}
         {phase === 'indicator-intro' && currentIndicator && (
-          <div className="space-y-10">
+          <div className="space-y-10 pt-8">
             <div className="text-center">
               <span className="inline-block text-xs font-bold uppercase tracking-[0.2em] text-[#4F46E5] bg-[#4F46E5]/10 px-4 py-2 rounded-full">
                 Indicador {currentIndicatorIndex + 1} de {indicators.length}
@@ -372,7 +372,7 @@ const Assessment = () => {
 
         {/* QUESTION PHASE */}
         {phase === 'question' && currentQuestion && (
-          <div className="space-y-8">
+          <div className="space-y-8 pt-8">
             {/* Question Header */}
             <div className="bg-white/80 backdrop-blur-sm border border-white/60 rounded-2xl p-6 shadow-sm">
               <div className="flex items-center justify-between flex-wrap gap-4">
