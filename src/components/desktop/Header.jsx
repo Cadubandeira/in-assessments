@@ -1,15 +1,18 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Home, LogOut, Settings, TrendingUp, Users, Zap } from 'lucide-react';
 import { supabase } from '../../supabaseClient';
 import Logo from '../ui/Logo';
 
 const DesktopHeader = ({ user, role, onStartAssessment }) => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [showUserMenu, setShowUserMenu] = useState(false);
 
   const displayName = user?.user_metadata?.display_name || user?.email?.split('@')[0] || 'Usuário';
   const userInitial = displayName.charAt(0).toUpperCase();
+  
+  const isActive = (path) => location.pathname === path;
 
   // Fechar menu ao clicar fora
   useEffect(() => {
@@ -38,7 +41,9 @@ const DesktopHeader = ({ user, role, onStartAssessment }) => {
             <button
               type="button"
               onClick={() => navigate('/dashboard')}
-              className="flex items-center gap-2 hover:text-[#4F46E5] transition-colors"
+              className={`flex items-center gap-2 transition-colors ${
+                isActive('/dashboard') ? 'text-[#4F46E5]' : 'text-gray-600 hover:text-[#4F46E5]'
+              }`}
             >
               <Home className="w-5 h-5" />
               <span>Início</span>
@@ -46,7 +51,9 @@ const DesktopHeader = ({ user, role, onStartAssessment }) => {
             <button
               type="button"
               onClick={() => navigate('/activities')}
-              className="flex items-center gap-2 hover:text-[#4F46E5] transition-colors"
+              className={`flex items-center gap-2 transition-colors ${
+                isActive('/activities') ? 'text-[#4F46E5]' : 'text-gray-600 hover:text-[#4F46E5]'
+              }`}
             >
               <Zap className="w-5 h-5" />
               <span>Atividades</span>
@@ -54,14 +61,16 @@ const DesktopHeader = ({ user, role, onStartAssessment }) => {
             <button
               type="button"
               onClick={() => navigate('/history')}
-              className="flex items-center gap-2 hover:text-[#4F46E5] transition-colors"
+              className={`flex items-center gap-2 transition-colors ${
+                isActive('/history') ? 'text-[#4F46E5]' : 'text-gray-600 hover:text-[#4F46E5]'
+              }`}
             >
               <TrendingUp className="w-5 h-5" />
               <span>Evolução</span>
             </button>
             <button
               type="button"
-              className="flex items-center gap-2 hover:text-[#4F46E5] transition-colors"
+              className="flex items-center gap-2 text-gray-600 hover:text-[#4F46E5] transition-colors"
             >
               <Users className="w-5 h-5" />
               <span>Comunidade</span>
@@ -70,7 +79,9 @@ const DesktopHeader = ({ user, role, onStartAssessment }) => {
               <button
                 type="button"
                 onClick={() => navigate('/admin/management')}
-                className="flex items-center gap-2 hover:text-[#4F46E5] transition-colors"
+                className={`flex items-center gap-2 transition-colors ${
+                  isActive('/admin/management') ? 'text-[#4F46E5]' : 'text-gray-600 hover:text-[#4F46E5]'
+                }`}
               >
                 <Settings className="w-5 h-5" />
                 <span>Gestão</span>

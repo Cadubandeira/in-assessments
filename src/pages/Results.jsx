@@ -1,9 +1,14 @@
 import React, { useEffect, useState } from 'react';
-import { supabase } from '../supabaseClient';
 import { useParams, useNavigate } from 'react-router-dom';
+import { Share2, ArrowRight, Zap, Check, X } from 'lucide-react';
+import { supabase } from '../supabaseClient';
 import RadarChart from '../components/charts/RadarChart';
 import HorizontalBarChart from '../components/charts/HorizontalBarChart';
+import XPGainOverlay from '../components/XPGainOverlay';
 import { useProgressionUpdate } from '../hooks/useProgressionUpdate';
+import { TOKENS } from '../config/tokens';
+import { getLucideIcon } from '../utils/iconUtils';
+import { XP_CONFIG, calculateXP, formatXP } from '../utils/gamificationUtils';
 
 // Fallback functions quando não há ranges configuradas
 function classifyFallback(percentage) {
@@ -80,8 +85,11 @@ export default function Results() {
   const [assessmentRanges, setAssessmentRanges] = useState({});
   const [assessmentData, setAssessmentData] = useState(null);
   const [indicatorsMeta, setIndicatorsMeta] = useState({});
-  const [expandedIndicators, setExpandedIndicators] = useState({});
   const [overallRanges, setOverallRanges] = useState([]);
+  const [suggestedAssessments, setSuggestedAssessments] = useState([]);
+  const [suggestedLoading, setSuggestedLoading] = useState(true);
+  const [showXPOverlay, setShowXPOverlay] = useState(false);
+  const [xpOverlayData, setXpOverlayData] = useState(null);
 
   useEffect(() => {
     let mounted = true;
@@ -142,6 +150,44 @@ export default function Results() {
               
               if (progressResult.success) {
                 console.log(`✅ Progressão atualizada | +${progressResult.xpGained} XP`, progressResult);
+                
+                // Preparar dados do overlay XP
+                const bonuses = [];
+                const xpGained = progressResult.xpGained || 0;
+                
+                // Calcular bônus alcançados
+                const activityType = data.activity_type || 'assessment';
+                const xpConfig = XP_CONFIG[activityType] || XP_CONFIG.assessment;
+                const percentage = data.max_possible_score > 0 ? Math.round((data.total_score / data.max_possible_score) * 100) : 0;
+                
+                if (percentage >= 100 && xpConfig.bonusThresholds?.[100]) {
+                  bonuses.push({
+                    label: 'Resultado 100%',
+                    xp: xpConfig.bonusThresholds[100]
+                  });
+                } else if (percentage >= 90 && xpConfig.bonusThresholds?.[90]) {
+                  bonuses.push({
+                    label: 'Resultado 90%+',
+                    xp: xpConfig.bonusThresholds[90]
+                  });
+                } else if (percentage >= 80 && xpConfig.bonusThresholds?.[80]) {
+                  bonuses.push({
+                    label: 'Resultado 80%+',
+                    xp: xpConfig.bonusThresholds[80]
+                  });
+                }
+                
+                if (mounted) {
+                  setXpOverlayData({
+                    xpGained,
+                    totalXP: progressResult.totalXP,
+                    newLevel: progressResult.newLevel,
+                    leveledUp: progressResult.leveledUp,
+                    bonuses
+                  });
+                  setShowXPOverlay(true);
+                }
+                
                 if (progressResult.leveledUp) {
                   console.log(`🎉 Level Up! Agora no nível ${progressResult.newLevel}`);
                 }
@@ -320,6 +366,35 @@ export default function Results() {
     return () => { mounted = false; };
   }, [id]);
 
+  useEffect(() => {
+    const fetchSuggested = async () => {
+      const currentAssessmentId = assessmentData?.id || result?.assessment_versions?.assessment_id;
+      if (!currentAssessmentId) return;
+
+      setSuggestedLoading(true);
+      try {
+        const { data } = await supabase
+          .from('assessments')
+          .select('id, name, description, is_active, published_at, created_at')
+          .eq('is_active', true);
+
+        const sorted = (data || [])
+          .filter(item => item?.id !== currentAssessmentId)
+          .sort((a, b) => {
+            const dateA = new Date(a.published_at || a.created_at || 0).getTime();
+            const dateB = new Date(b.published_at || b.created_at || 0).getTime();
+            return dateB - dateA;
+          });
+
+        setSuggestedAssessments(sorted.slice(0, 3));
+      } finally {
+        setSuggestedLoading(false);
+      }
+    };
+
+    fetchSuggested();
+  }, [assessmentData?.id, result?.assessment_versions?.assessment_id]);
+
   if (loading) return <div className="p-12 text-center">Carregando...</div>;
   if (error) return <div className="p-12 text-center text-red-600">{error}</div>;
   if (!result) return <div className="p-12 text-center">Nenhum assessment encontrado.</div>;
@@ -344,8 +419,57 @@ export default function Results() {
   }
   
   const classification = overallLabel;
-  const date = result.created_at ? new Date(result.created_at).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : '-';
-  const versionNumber = result.assessment_versions?.version_number || '—';
+
+  const assessmentName = assessmentData?.name || 'Assessment';
+  const assessmentDescription = assessmentData?.description || 'Confira os resultados obtidos neste assessment.';
+
+  const activityType = result.activity_type || 'assessment';
+  const xpConfig = XP_CONFIG[activityType] || XP_CONFIG.assessment;
+  const totalXp = calculateXP(total, max, activityType);
+  const bonusXp = Math.max(0, totalXp - xpConfig.base);
+  const bonus80 = xpConfig.bonusThresholds?.[80] ?? 0;
+  const bonus90 = xpConfig.bonusThresholds?.[90] ?? 0;
+  const bonus100 = xpConfig.bonusThresholds?.[100] ?? 0;
+  const reached80 = percentage >= 80;
+  const reached90 = percentage >= 90;
+  const reached100 = percentage >= 100;
+
+  let bonusLabel = 'Sem bônus obtido';
+  if (bonusXp > 0) {
+    if (percentage >= 100) bonusLabel = 'Bônus máximo (100%)';
+    else if (percentage >= 90) bonusLabel = 'Bônus alto (90%+)';
+    else if (percentage >= 80) bonusLabel = 'Bônus (80%+)';
+  }
+
+  const getClassificationTone = (label) => {
+    if (label === 'Crítico') return 'bg-red-100 text-red-700';
+    if (label === 'Moderado') return 'bg-yellow-100 text-yellow-700';
+    return 'bg-green-100 text-green-700';
+  };
+
+  const getIndicatorBadgeStyle = (value) => {
+    const clamped = Math.min(100, Math.max(0, Number(value) || 0));
+    const t = clamped / 100;
+    const red = { r: 220, g: 38, b: 38 };
+    const blue = { r: 59, g: 130, b: 246 };
+    const green = { r: 22, g: 163, b: 74 };
+
+    const blend = (from, to, amount) => ({
+      r: Math.round(from.r + (to.r - from.r) * amount),
+      g: Math.round(from.g + (to.g - from.g) * amount),
+      b: Math.round(from.b + (to.b - from.b) * amount)
+    });
+
+    const blended = t <= 0.5
+      ? blend(red, blue, t * 2)
+      : blend(blue, green, (t - 0.5) * 2);
+
+    return {
+      backgroundColor: `rgb(${blended.r}, ${blended.g}, ${blended.b})`,
+      color: '#FFFFFF',
+      boxShadow: `0 0 12px rgba(${blended.r}, ${blended.g}, ${blended.b}, 0.35)`
+    };
+  };
 
   const isUuid = (value) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value || ''));
 
@@ -405,128 +529,254 @@ export default function Results() {
   };
 
   return (
-    <div className="max-w-4xl mx-auto px-4 md:px-6 py-8 md:py-12">
-      <div className="flex items-center justify-between mb-8 gap-4">
-        <h1 className="text-2xl md:text-3xl font-semibold">Resultado do Assessment</h1>
-        {id && (
-          <button onClick={() => navigate('/history')} className="text-sm text-[#4F46E5] hover:underline whitespace-nowrap">
-            ← Voltar
-          </button>
-        )}
-      </div>
-
-      {/* Resumo */}
-      <div className="p-6 md:p-8 border rounded-2xl bg-white shadow-sm flex flex-col md:flex-row items-start gap-8 mb-8">
-        <div className="flex-0 text-center">
-          <div className="text-5xl md:text-6xl font-extrabold text-[#4F46E5]">{percentage}%</div>
-          <div className="mt-2 text-sm text-gray-500">{classification}</div>
-        </div>
-
-        <div className="flex-1 w-full">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-            <div className="p-4 border rounded-lg text-center">
-              <div className="text-xs text-gray-500">Score total</div>
-              <div className="text-lg font-medium">{total}</div>
-            </div>
-            <div className="p-4 border rounded-lg text-center">
-              <div className="text-xs text-gray-500">Score máximo</div>
-              <div className="text-lg font-medium">{max}</div>
-            </div>
-            <div className="p-4 border rounded-lg text-center">
-              <div className="text-xs text-gray-500">Data e Hora</div>
-              <div className="text-lg font-medium text-xs">{date}</div>
-            </div>
-          </div>
-
-          <div className="p-3 bg-gray-50 rounded text-center mb-4">
-            <span className="text-xs text-gray-500 mr-2">Versão:</span>
-            <span className="text-sm font-semibold text-gray-700">v{versionNumber}</span>
-          </div>
-
-          {overallInterpretation && (
-            <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-              <div className="flex items-center gap-2 mb-3">
-                <span className="font-semibold text-blue-900">Classificação:</span>
-                <span className="px-3 py-1 text-sm font-medium rounded-full bg-blue-100 text-blue-700">{overallLabel}</span>
-              </div>
-              <p className="text-sm text-gray-700 leading-relaxed">
-                <span className="font-semibold text-blue-900">Interpretação:</span> {overallInterpretation}
-              </p>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Visualizações dos Indicadores (Gráficos) */}
-      {assessmentData && Array.isArray(assessmentData.visualization_type) && assessmentData.visualization_type.length > 0 && (
-        <div className="space-y-8 mb-8">
-          {assessmentData.visualization_type.includes('radar') && (
-            <div className="bg-white border rounded-lg p-6 shadow-sm">
-              <RadarChart indicatorResults={indicatorResults} indicatorMeta={indicatorsMeta} />
-            </div>
-          )}
-          {assessmentData.visualization_type.includes('horizontal-bar') && (
-            <div className="bg-white border rounded-lg p-6 shadow-sm">
-              <HorizontalBarChart indicatorResults={indicatorResults} indicatorMeta={indicatorsMeta} />
-            </div>
-          )}
-        </div>
+    <div className="min-h-screen bg-gradient-to-br from-[#F5F3EC] to-[#EEF2FF] overflow-x-hidden">
+      {/* XP Gain Overlay */}
+      {xpOverlayData && (
+        <XPGainOverlay
+          isVisible={showXPOverlay}
+          xpGained={xpOverlayData.xpGained}
+          totalXP={xpOverlayData.totalXP}
+          newLevel={xpOverlayData.newLevel}
+          leveledUp={xpOverlayData.leveledUp}
+          bonuses={xpOverlayData.bonuses}
+          onClose={() => setShowXPOverlay(false)}
+        />
       )}
 
-      {/* Detalhes dos Indicadores */}
-      <div className="bg-white border rounded-lg p-6 shadow-sm">
-        <h2 className="text-xl font-semibold mb-6 text-gray-800">Detalhes dos Indicadores</h2>
-        <div className="space-y-4">
-          {Object.entries(indicatorResults).map(([k, v]) => {
-            const meta = resolveMeta(k, v);
-            const displayName = resolveName(k, v);
-            const isExpanded = expandedIndicators[k];
-            return (
-              <div key={k} className="p-4 border rounded-lg hover:bg-gray-50 transition">
-                <div className="flex items-start gap-3 mb-2">
-                  {/* Ícone com cor */}
-                  <div
-                    className="w-6 h-6 rounded flex items-center justify-center flex-shrink-0 mt-1"
-                    style={{ backgroundColor: meta.color || '#6366F1' }}
-                  >
-                    <span className="text-xs font-bold text-white">●</span>
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 pb-16">
+        <div className="flex flex-col lg:flex-row items-start lg:items-end justify-between gap-6 mb-10">
+          <div className="max-w-3xl">
+            <span className="inline-block text-xs font-bold uppercase tracking-[0.2em] text-white bg-gradient-to-r from-[#4F46E5] to-[#6366F1] px-4 py-2 rounded-full mb-5 shadow-md">
+              Assessment
+            </span>
+            <h1 className={`${TOKENS.fonts.serif} text-3xl sm:text-4xl md:text-5xl font-extrabold text-[#1E1B4B] leading-tight mb-4`}>
+              {assessmentName}
+            </h1>
+            <p className="text-lg text-gray-600 leading-relaxed">
+              {assessmentDescription}
+            </p>
+          </div>
+          <button
+            type="button"
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-[#E0E7FF] bg-white/80 text-[#4F46E5] font-semibold shadow-sm hover:shadow-md transition"
+          >
+            <Share2 className="w-4 h-4" />
+            Compartilhar
+          </button>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-10 items-start">
+          <div>
+            <div className="bg-white/80 backdrop-blur-sm border border-white/60 rounded-2xl p-6 sm:p-8 shadow-sm">
+              <div className="flex items-start justify-between gap-6">
+                <div className="text-center md:text-left">
+                  <p className="text-[#4F46E5] font-bold text-xs uppercase tracking-widest mb-1">
+                    Resultado do assessment
+                  </p>
+                  <h3 className="text-4xl sm:text-5xl font-black text-[#1E1B4B] pt-2">
+                    {classification}
+                  </h3>
+                </div>
+              </div>
+
+              <div className="mt-8">
+                <div className="relative w-full">
+                  <div className="w-full bg-[#E0E7FF] h-3 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-gradient-to-r from-[#4F46E5] via-[#6366F1] to-[#818CF8] rounded-full"
+                      style={{ width: `${percentage}%` }}
+                    ></div>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-baseline justify-between gap-2 mb-1">
-                      <h4 className="font-semibold text-gray-800">{displayName}</h4>
-                      <div className="text-sm text-gray-600 flex-shrink-0">{v.score}/{v.maxScore}</div>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <div className="text-lg font-semibold text-[#4F46E5]">{v.percentage}%</div>
-                      <div className={`px-2 py-1 text-xs font-medium rounded-full whitespace-nowrap ${v.classification === 'Crítico' ? 'bg-red-100 text-red-700' : v.classification === 'Moderado' ? 'bg-yellow-100 text-yellow-700' : 'bg-green-100 text-green-700'}`}>
-                        {v.classification}
-                      </div>
-                    </div>
-                    {v.interpretation && <p className="mt-2 text-sm text-gray-600 leading-relaxed">{v.interpretation}</p>}
-                    
-                    {/* Conceptual Description - Expansível */}
-                    {meta.conceptual_description && (
-                      <div className="mt-3">
-                        <button
-                          onClick={() => setExpandedIndicators(prev => ({ ...prev, [k]: !prev[k] }))}
-                          className="text-xs text-indigo-600 hover:text-indigo-800 font-medium flex items-center gap-1"
+                  <div
+                    className="absolute top-1/2 w-9 h-9 rounded-full shadow-lg flex items-center justify-center text-xs font-bold text-white bg-gradient-to-br from-[#4F46E5] to-[#6366F1]"
+                    style={{ left: `${percentage}%`, transform: 'translate(-50%, -50%)' }}
+                  >
+                    {percentage}
+                  </div>
+                </div>
+                <div className="flex items-center justify-between text-xs text-gray-500 mt-2">
+                  <span>0</span>
+                  <span>100</span>
+                </div>
+              </div>
+              <p className="mt-6 text-base sm:text-lg text-gray-700 leading-relaxed text-justify [text-align-last:left]">
+              {overallInterpretation || 'Este resultado reflete seu desempenho geral no assessment.'}
+            </p>
+            </div>
+
+            <div className="mt-8 grid gap-4">
+              {Object.entries(indicatorResults)
+                .sort(([, a], [, b]) => (b?.percentage ?? 0) - (a?.percentage ?? 0))
+                .map(([k, v]) => {
+                const meta = resolveMeta(k, v);
+                const displayName = resolveName(k, v);
+                const IndicatorIcon = meta?.icon ? getLucideIcon(meta.icon) : null;
+
+                return (
+                  <div key={k} className="bg-white/80 border border-white/60 rounded-2xl p-6 shadow-sm">
+                    <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] items-center gap-4">
+                      <div className="flex items-center gap-4">
+                        <div
+                          className="w-12 h-12 rounded-full flex items-center justify-center shadow"
+                          style={{ backgroundColor: meta.color || '#6366F1' }}
                         >
-                          {isExpanded ? '▼' : '▶'} {isExpanded ? 'Ocultar' : 'Saiba mais sobre este indicador'}
-                        </button>
-                        {isExpanded && (
-                          <div className="mt-2 pl-4 border-l-2 border-indigo-200 text-sm text-gray-700 leading-relaxed">
-                            {meta.conceptual_description}
-                          </div>
-                        )}
+                          {IndicatorIcon ? (
+                            <IndicatorIcon className="w-6 h-6 text-white" strokeWidth={2} />
+                          ) : (
+                            <span className="text-white text-sm font-bold">●</span>
+                          )}
+                        </div>
+                        <div>
+                          <h3 className="text-lg font-semibold text-[#1E1B4B]">{displayName}</h3>
+                        </div>
                       </div>
+                      <div className="flex flex-col items-end text-right">
+                        <span
+                          className="inline-flex px-3 py-1 text-xs font-bold rounded-full uppercase"
+                          style={getIndicatorBadgeStyle(v.percentage)}
+                        >
+                          {v.classification}
+                        </span>
+                        <p className="text-2xl font-semibold text-[#1E1B4B] mt-2">{v.percentage}%</p>
+                      </div>
+                    </div>
+
+                    {v.interpretation && (
+                      <p className="mt-3 text-base text-gray-700 leading-relaxed text-justify [text-align-last:left]">
+                        {v.interpretation}
+                      </p>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-6">
+            <div className="bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 border border-indigo-200/60 rounded-2xl p-6 sm:p-8 shadow-lg relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-indigo-400/10 to-purple-400/10 rounded-full blur-2xl"></div>
+              <div className="relative z-10">
+                <div className="flex items-start gap-3 mb-4">
+                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg">
+                    <Zap className="w-6 h-6 text-white" strokeWidth={2.5} fill="currentColor" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-xs font-bold uppercase tracking-[0.2em] text-indigo-700 mb-1">XP conquistada</p>
+                    <p className="text-sm text-gray-600">Com base no seu resultado para esta atividade</p>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-purple-600">
+                      {formatXP(totalXp)}
+                    </div>
+                    {bonusXp > 0 && (
+                      <div className="text-xs font-semibold text-indigo-700">+{bonusXp} XP bonus</div>
                     )}
                   </div>
                 </div>
+
+                <div className="space-y-2.5 text-sm">
+                  <div className="flex items-center gap-3 p-2 rounded-lg bg-white/90 border border-indigo-200/70 shadow-sm">
+                    <div className="w-5 h-5 rounded-full flex items-center justify-center bg-[#E0E7FF] text-[#4F46E5]">
+                      <Check className="w-3 h-3" />
+                    </div>
+                    <span className="text-[#1E1B4B] font-semibold flex-1">Completar assessment</span>
+                    <span className="font-semibold text-indigo-700">+{xpConfig.base} XP</span>
+                  </div>
+                  <div className={`flex items-center gap-3 p-2 rounded-lg ${reached80 ? 'bg-white/70' : 'bg-white/40 opacity-60'}`}>
+                    <div className={`w-5 h-5 rounded-full flex items-center justify-center ${reached80 ? 'bg-[#E0E7FF] text-[#4F46E5]' : 'bg-[#F1F5FF] text-[#6366F1]'}`}>
+                      {reached80 ? <Check className="w-3 h-3" /> : <X className="w-3 h-3" />}
+                    </div>
+                    <span className={`flex-1 ${reached80 ? 'text-gray-700' : 'text-gray-500'}`}>Resultado de 80 a 89%</span>
+                    <span className={`font-semibold ${reached80 ? 'text-purple-600' : 'text-gray-500 line-through'}`}>
+                      +{bonus80} XP
+                    </span>
+                  </div>
+                  <div className={`flex items-center gap-3 p-2 rounded-lg ${reached90 ? 'bg-white/70' : 'bg-white/40 opacity-60'}`}>
+                    <div className={`w-5 h-5 rounded-full flex items-center justify-center ${reached90 ? 'bg-[#E0E7FF] text-[#4F46E5]' : 'bg-[#F1F5FF] text-[#6366F1]'}`}>
+                      {reached90 ? <Check className="w-3 h-3" /> : <X className="w-3 h-3" />}
+                    </div>
+                    <span className={`flex-1 ${reached90 ? 'text-gray-700' : 'text-gray-500'}`}>Resultado de 90 a 99%</span>
+                    <span className={`font-semibold ${reached90 ? 'text-purple-600' : 'text-gray-500 line-through'}`}>
+                      +{bonus90} XP
+                    </span>
+                  </div>
+                  <div className={`flex items-center gap-3 p-2 rounded-lg ${reached100 ? 'bg-gradient-to-r from-purple-100 to-pink-100 border border-purple-300/50' : 'bg-white/40 opacity-60'}`}>
+                    <div className={`w-5 h-5 rounded-full flex items-center justify-center ${reached100 ? 'bg-[#E0E7FF] text-[#4F46E5]' : 'bg-[#F1F5FF] text-[#6366F1]'}`}>
+                      {reached100 ? <Check className="w-3 h-3" /> : <X className="w-3 h-3" />}
+                    </div>
+                    <span className={`flex-1 ${reached100 ? 'text-gray-700 font-medium' : 'text-gray-500'}`}>Resultado de 100%</span>
+                    <span className={`font-semibold ${reached100 ? 'text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-pink-600' : 'text-gray-500 line-through'}`}>
+                      +{bonus100} XP
+                    </span>
+                  </div>
+                </div>
+
               </div>
-            );
-          })}
+            </div>
+
+            {assessmentData && Array.isArray(assessmentData.visualization_type) && assessmentData.visualization_type.length > 0 && (
+              <div className="grid gap-6">
+                {assessmentData.visualization_type.includes('radar') && (
+                  <div className="bg-white/80 border border-white/60 rounded-2xl p-6 shadow-sm">
+                    <RadarChart indicatorResults={indicatorResults} indicatorMeta={indicatorsMeta} />
+                  </div>
+                )}
+                {assessmentData.visualization_type.includes('horizontal-bar') && (
+                  <div className="bg-white/80 border border-white/60 rounded-2xl p-6 shadow-sm">
+                    <HorizontalBarChart indicatorResults={indicatorResults} indicatorMeta={indicatorsMeta} />
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </div>
-      </div>
+
+        <div>
+          <div className="flex items-center justify-between gap-4 mb-6">
+            <h2 className={`${TOKENS.fonts.serif} text-2xl text-[#1E1B4B]`}>Atividades a seguir</h2>
+            <button
+              type="button"
+              onClick={() => navigate('/activities')}
+              className="text-sm font-semibold text-[#4F46E5] hover:underline"
+            >
+              Ver todas
+            </button>
+          </div>
+          {suggestedLoading ? (
+            <div className="bg-white/80 border border-white/60 rounded-2xl p-6 text-sm text-gray-600">
+              Carregando sugestoes...
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {suggestedAssessments.length === 0 ? (
+                <div className="bg-white/80 border border-white/60 rounded-2xl p-6 text-sm text-gray-600">
+                  Nenhuma sugestao encontrada agora.
+                </div>
+              ) : (
+                suggestedAssessments.map(assessment => (
+                  <button
+                    key={assessment.id}
+                    type="button"
+                    onClick={() => navigate(`/assessment/${assessment.id}`)}
+                    className="group bg-white/80 border border-white/60 rounded-2xl p-6 text-left shadow-sm hover:shadow-lg transition"
+                  >
+                    <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#4F46E5] mb-2">Disponivel</p>
+                    <h3 className={`${TOKENS.fonts.serif} text-xl text-[#1E1B4B] mb-3 leading-tight`}>
+                      {assessment.name}
+                    </h3>
+                    <p className="text-sm text-gray-600 leading-relaxed mb-4">
+                      {assessment.description}
+                    </p>
+                    <span className="inline-flex items-center gap-2 text-sm font-semibold text-[#4F46E5]">
+                      Iniciar agora <ArrowRight className="w-4 h-4" />
+                    </span>
+                  </button>
+                ))
+              )}
+            </div>
+          )}
+        </div>
+      </main>
     </div>
   );
 }
