@@ -2,9 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { useAssessment } from '../hooks/useAssessment';
 import { TOKENS } from '../config/tokens';
-import { ArrowRight, CheckCircle } from 'lucide-react';
+import { ArrowRight, CheckCircle, Zap, Info } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import { getLucideIcon } from '../utils/iconUtils';
+import { XP_CONFIG } from '../utils/gamificationUtils';
 
 const Assessment = () => {
   const { id } = useParams();
@@ -26,6 +27,11 @@ const Assessment = () => {
   const [indicatorsMeta, setIndicatorsMeta] = useState({});
 
   console.log('Assessment Page Debug:', { loading, error, assessment });
+
+  // Scroll to top when phase or question changes
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [phase, currentIndicatorIndex, currentQuestionIndexInIndicator]);
 
   // Defesas contra formatos inesperados vindos do backend
   const indicators = Array.isArray(assessment?.indicators) ? assessment.indicators : [];
@@ -177,7 +183,7 @@ const Assessment = () => {
         </div>
       )}
 
-      <main className="max-w-4xl mx-auto px-4 sm:px-6 py-12 sm:py-16">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 py-12 sm:py-16">
         {/* INTRO PHASE */}
         {phase === 'intro' && (
           <div className="space-y-10">
@@ -185,52 +191,114 @@ const Assessment = () => {
               <span className="inline-block text-xs font-bold uppercase tracking-[0.2em] text-white bg-gradient-to-r from-[#4F46E5] to-[#6366F1] px-4 py-2 rounded-full mb-6 shadow-md">
                 Assessment
               </span>
-              <h1 className={`${TOKENS.fonts.serif} text-5xl sm:text-6xl md:text-7xl font-extrabold text-[#1E1B4B] mb-6 leading-[1.1]`}>
+              <h2 className={`${TOKENS.fonts.serif} font-serif text-3xl sm:text-4xl md:text-5xl font-extrabold text-[#1E1B4B] mb-4 leading-tight`}>
                 {assessment.name}
-              </h1>
+              </h2>
               <p className="text-xl text-gray-600 max-w-2xl mx-auto leading-relaxed">
                 {assessment.description}
               </p>
             </div>
 
-            {introductionHtml && (
-              <div 
-                className="bg-white/80 backdrop-blur-sm border border-white/60 rounded-2xl p-8 sm:p-10 shadow-xl prose prose-base max-w-none"
-                dangerouslySetInnerHTML={{ __html: introductionHtml }}
-              />
-            )}
-
-            <div className="grid sm:grid-cols-2 gap-6">
-              <div className="bg-gradient-to-br from-white/80 to-white/60 backdrop-blur-sm border border-white/60 rounded-2xl p-6 sm:p-8 shadow-lg">
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="w-12 h-12 rounded-xl bg-[#4F46E5]/10 flex items-center justify-center">
-                    <span className="text-2xl font-bold text-[#4F46E5]">{indicators.length}</span>
-                  </div>
-                  <div>
-                    <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#4F46E5] mb-1">Indicadores</p>
-                    <p className="text-sm text-gray-600">Dimensões avaliadas</p>
-                  </div>
-                </div>
-              </div>
-              
-              <div className="bg-gradient-to-br from-white/80 to-white/60 backdrop-blur-sm border border-white/60 rounded-2xl p-6 sm:p-8 shadow-lg">
-                <div className="flex items-center gap-3 mb-3">
+            {/* Grid Layout: Introdução à esquerda, Indicadores e Perguntas à direita */}
+            <div className="grid lg:grid-cols-2 gap-6">
+              {/* Card de Introdução */}
+              <div className="bg-white/80 backdrop-blur-sm border border-white/60 rounded-2xl p-6 sm:p-8 shadow-sm h-fit">
+                <div className="flex items-center gap-3 mb-6">
                   <div className="w-12 h-12 rounded-xl bg-[#6366F1]/10 flex items-center justify-center">
-                    <span className="text-2xl font-bold text-[#6366F1]">{totalQuestions}</span>
+                    <span className="text-2xl font-bold text-[#6366F1] italic">i</span>
                   </div>
                   <div>
-                    <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#6366F1] mb-1">Perguntas</p>
-                    <p className="text-sm text-gray-600">Tempo estimado: {Math.ceil(totalQuestions * 0.5)} min</p>
+                    <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#4F46E5] mb-1">Introdução</p>
+                    <p className="text-sm text-gray-600">Se prepare para o assessment</p>
+                  </div>
+                </div>
+                {introductionHtml ? (
+                  <div 
+                    className="prose prose-sm max-w-none text-gray-700"
+                    dangerouslySetInnerHTML={{ __html: introductionHtml }}
+                  />
+                ) : (
+                  <p className="text-sm text-gray-600 leading-relaxed">
+                    Este assessment avaliará suas competências através de perguntas organizadas por indicadores. Responda com honestidade para obter um resultado mais preciso.
+                  </p>
+                )}
+              </div>
+
+              {/* Coluna direita: Indicadores e Perguntas */}
+              <div className="space-y-6">
+                {/* Card de Indicadores */}
+                <div className="bg-gradient-to-br from-white/80 to-white/60 backdrop-blur-sm border border-white/60 rounded-2xl p-6 sm:p-8 shadow-sm">
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 rounded-xl bg-[#4F46E5]/10 flex items-center justify-center">
+                      <span className="text-2xl font-bold text-[#4F46E5]">{indicators.length}</span>
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#4F46E5] mb-1">Indicadores</p>
+                      <p className="text-sm text-gray-600">Avaliados ao longo do assessment</p>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Card de Perguntas */}
+                <div className="bg-gradient-to-br from-white/80 to-white/60 backdrop-blur-sm border border-white/60 rounded-2xl p-6 sm:p-8 shadow-sm">
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 rounded-xl bg-[#6366F1]/10 flex items-center justify-center">
+                      <span className="text-2xl font-bold text-[#6366F1]">{totalQuestions}</span>
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#4F46E5] mb-1">Perguntas</p>
+                      <p className="text-sm text-gray-600">Tempo estimado: {Math.ceil(totalQuestions * 1.2)} min</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Card de Recompensas XP */}
+                <div className="bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 border border-indigo-200/60 rounded-2xl p-6 sm:p-8 shadow-lg relative overflow-hidden">
+                  <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-indigo-400/10 to-purple-400/10 rounded-full blur-2xl"></div>
+                  <div className="relative z-10">
+                    <div className="flex items-start gap-3 mb-4">
+                      <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg">
+                        <Zap className="w-6 h-6 text-white" strokeWidth={2.5} fill="currentColor" />
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-xs font-bold uppercase tracking-[0.2em] text-indigo-700 mb-1">Ganhe XP</p>
+                        <p className="text-sm text-gray-600">Complete e suba de nível</p>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-purple-600">
+                          até {XP_CONFIG.assessment.base + XP_CONFIG.assessment.bonusThresholds[100]} XP
+                        </div>
+                
+                      </div>
+                    </div>
+                    
+                    <div className="space-y-2.5 text-sm">
+                      <div className="flex items-center gap-3 p-2 rounded-lg bg-white/60 backdrop-blur-sm">
+                        <div className="w-2 h-2 rounded-full bg-indigo-400"></div>
+                        <span className="text-gray-600 flex-1">Completar assessment</span>
+                        <span className="font-bold text-indigo-700">+{XP_CONFIG.assessment.base} XP</span>
+                      </div>
+                      <div className="flex items-center gap-3 p-2 rounded-lg bg-white/40">
+                        <div className="w-2 h-2 rounded-full bg-purple-400"></div>
+                        <span className="text-gray-600 flex-1">Resultado de 80 a 89%</span>
+                        <span className="font-semibold text-purple-600">+{XP_CONFIG.assessment.bonusThresholds[80]} XP</span>
+                      </div>
+                      <div className="flex items-center gap-3 p-2 rounded-lg bg-white/40">
+                        <div className="w-2 h-2 rounded-full bg-purple-500"></div>
+                        <span className="text-gray-600 flex-1">Resultado de 90 a 99%</span>
+                        <span className="font-semibold text-purple-600">+{XP_CONFIG.assessment.bonusThresholds[90]} XP</span>
+                      </div>
+                      <div className="flex items-center gap-3 p-2 rounded-lg bg-gradient-to-r from-purple-100 to-pink-100 border border-purple-300/50">
+                        <div className="w-2 h-2 rounded-full bg-gradient-to-r from-purple-600 to-pink-600 animate-pulse"></div>
+                        <span className="text-gray-700 font-medium flex-1">Resultado de 100% 🎯</span>
+                        <span className="font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-pink-600">+{XP_CONFIG.assessment.bonusThresholds[100]} XP</span>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
 
-            <div className="bg-gradient-to-br from-[#EEF2FF] to-[#E0E7FF] border border-[#C7D2FE] rounded-2xl p-6 sm:p-8">
-              <p className="text-sm text-[#312E81] leading-relaxed">
-                💡 Você será apresentado a cada indicador antes de responder suas perguntas. Responda com calma e honestidade.
-              </p>
-            </div>
 
             <div className="flex justify-center pt-4">
               <button
@@ -252,27 +320,15 @@ const Assessment = () => {
               </span>
             </div>
 
-            <div className="relative bg-gradient-to-br from-white/90 to-white/70 backdrop-blur-md border border-white/60 rounded-3xl p-10 sm:p-12 shadow-2xl overflow-hidden">
-              {/* Background decoration */}
-              {indicatorMeta?.color && (
-                <div 
-                  className="absolute top-0 right-0 w-64 h-64 rounded-full blur-3xl opacity-10"
-                  style={{ backgroundColor: indicatorMeta.color }}
-                ></div>
-              )}
-              
+            <div className="relative bg-gradient-to-br from-white/90 to-white/70 backdrop-blur-md border border-white/60 rounded-3xl p-10 sm:p-12 shadow-sm overflow-hidden">
               <div className="relative z-10">
                 <div className="flex flex-col sm:flex-row items-center gap-6 mb-8">
                   {IconComponent && indicatorMeta?.color && (
                     <div 
-                      className="w-24 h-24 rounded-2xl flex items-center justify-center shadow-xl transform hover:scale-110 transition-transform duration-300"
-                      style={{ 
-                        backgroundColor: `${indicatorMeta.color}15`, 
-                        color: indicatorMeta.color,
-                        border: `3px solid ${indicatorMeta.color}30`
-                      }}
+                      className="w-20 h-20 rounded-full flex items-center justify-center shadow-xl"
+                      style={{ backgroundColor: indicatorMeta.color }}
                     >
-                      <IconComponent className="w-12 h-12" strokeWidth={2.5} />
+                      <IconComponent className="w-10 h-10 text-white" strokeWidth={2} />
                     </div>
                   )}
                   <div className="text-center sm:text-left">
@@ -297,12 +353,10 @@ const Assessment = () => {
                 )}
 
                 <div className="flex items-center gap-3 pt-6 border-t border-gray-200">
-                  <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-[#EEF2FF] flex items-center justify-center">
-                    <span className="text-lg font-bold text-[#4F46E5]">{currentQuestions.length}</span>
+                  <div className="flex-shrink-0 rounded-lg bg-[#EEF2FF] px-4 py-2 flex items-center justify-center">
+                    <span className="text-sm font-bold text-[#4F46E5] whitespace-nowrap">{currentQuestions.length} {currentQuestions.length === 1 ? 'pergunta' : 'perguntas'} neste indicador</span>
                   </div>
-                  <p className="text-sm text-gray-600">
-                    {currentQuestions.length === 1 ? 'Uma pergunta' : `${currentQuestions.length} perguntas`} neste indicador
-                  </p>
+              
                 </div>
               </div>
             </div>
@@ -328,13 +382,10 @@ const Assessment = () => {
                 <div className="flex items-center gap-4">
                   {IconComponent && indicatorMeta?.color && (
                     <div 
-                      className="w-12 h-12 rounded-xl flex items-center justify-center"
-                      style={{ 
-                        backgroundColor: `${indicatorMeta.color}15`, 
-                        color: indicatorMeta.color
-                      }}
+                      className="w-12 h-12 rounded-full flex items-center justify-center"
+                      style={{ backgroundColor: indicatorMeta.color }}
                     >
-                      <IconComponent className="w-6 h-6" strokeWidth={2.5} />
+                      <IconComponent className="w-6 h-6 text-white" strokeWidth={2} />
                     </div>
                   )}
                   <div>
@@ -367,7 +418,7 @@ const Assessment = () => {
             </div>
 
             {/* Question Card */}
-            <div className="bg-gradient-to-br from-white/90 to-white/70 backdrop-blur-md border border-white/60 rounded-3xl p-8 sm:p-12 shadow-2xl">
+            <div className="bg-gradient-to-br from-white/90 to-white/70 backdrop-blur-md border border-white/60 rounded-3xl p-8 sm:p-12 shadow-sm">
               <h3 className={`${TOKENS.fonts.serif} text-3xl sm:text-4xl text-[#1E1B4B] mb-10 leading-tight`}>
                 {currentQuestion.text}
               </h3>
