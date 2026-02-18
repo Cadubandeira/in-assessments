@@ -180,7 +180,7 @@ const Assessment = () => {
         </div>
       )}
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 py-12 sm:py-16">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 pt-[72px] pb-12 sm:pb-16">
         {/* INTRO PHASE */}
         {phase === 'intro' && (
           <div className="space-y-10">
@@ -467,7 +467,7 @@ const Assessment = () => {
                   </>
                 ) : (
                   <>
-                    {currentQuestionIndexInIndicator === currentQuestions.length - 1 && currentIndicatorIndex === indicators.length - 1 ? 'Finalizar Assessment' : 'Próxima Pergunta'}
+                    {currentQuestionIndexInIndicator === currentQuestions.length - 1 && currentIndicatorIndex === indicators.length - 1 ? 'Finalizar Assessment' : 'Próxima pergunta'}
                     <ArrowRight className="w-6 h-6 group-hover:translate-x-1 transition-transform" />
                   </>
                 )}

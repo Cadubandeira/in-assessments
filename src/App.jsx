@@ -143,7 +143,7 @@ const ProtectedLayout = ({ user, children }) => {
     <div className={`min-h-screen ${TOKENS.colors.bg} pb-20`}>
       <MobileHeader user={user} />
       <DesktopHeader user={user} role={role} onStartAssessment={handleStart} />
-      <main key={location.pathname} className="pt-[72px] md:pt-[88px]">
+      <main key={location.pathname}>
         {children}
       </main>
       <MobileBottomNav onStartAssessment={handleStart} role={role} />
