@@ -238,9 +238,18 @@ export default function Results() {
               visualizationType = ['radar'];
             }
             
+            // Buscar dados do assessment (nome e descrição)
+            const { data: assessmentInfo, error: assessmentError } = await supabase
+              .from('assessments')
+              .select('name, description')
+              .eq('id', data.assessment_versions.assessment_id)
+              .single();
+            
             if (mounted) {
               setAssessmentData({
                 ...data.assessment_versions,
+                name: assessmentInfo?.name || 'Assessment',
+                description: assessmentInfo?.description || '',
                 visualization_type: visualizationType
               });
             }
@@ -441,8 +450,8 @@ export default function Results() {
   
   const classification = overallLabel;
 
-  const assessmentName = assessmentData?.name || 'Assessment';
-  const assessmentDescription = assessmentData?.description || 'Confira os resultados obtidos neste assessment.';
+  const assessmentName = assessmentData?.name || result?.assessment_versions?.assessment_id || 'Assessment';
+  const assessmentDescription = assessmentData?.description || '';
 
   const activityType = result.activity_type || 'assessment';
   const xpConfig = XP_CONFIG[activityType] || XP_CONFIG.assessment;
