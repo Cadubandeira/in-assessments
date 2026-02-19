@@ -2,14 +2,40 @@ import React, { useEffect, useState } from 'react';
 import { supabase } from '../supabaseClient';
 import { useUserRole } from '../hooks/useUserRole';
 import { useNavigate } from 'react-router-dom';
-import { Filter } from 'lucide-react';
+import { Filter, Zap, Circle } from 'lucide-react';
 import { TOKENS } from '../config/tokens';
+import { calculateXP, formatXP, XP_CONFIG } from '../utils/gamificationUtils';
+import { getLucideIcon } from '../utils/iconUtils';
 
 function classify(percentage) {
   if (percentage <= 40) return 'Crítico';
   if (percentage <= 70) return 'Moderado';
   return 'Saudável';
 }
+
+const getIndicatorBadgeStyle = (value) => {
+  const clamped = Math.min(100, Math.max(0, Number(value) || 0));
+  const t = clamped / 100;
+  const red = { r: 220, g: 38, b: 38 };
+  const blue = { r: 59, g: 130, b: 246 };
+  const green = { r: 22, g: 163, b: 74 };
+
+  const blend = (from, to, amount) => ({
+    r: Math.round(from.r + (to.r - from.r) * amount),
+    g: Math.round(from.g + (to.g - from.g) * amount),
+    b: Math.round(from.b + (to.b - from.b) * amount)
+  });
+
+  const blended = t <= 0.5
+    ? blend(red, blue, t * 2)
+    : blend(blue, green, (t - 0.5) * 2);
+
+  return {
+    backgroundColor: `rgb(${blended.r}, ${blended.g}, ${blended.b})`,
+    color: '#FFFFFF',
+    boxShadow: `0 0 12px rgba(${blended.r}, ${blended.g}, ${blended.b}, 0.35)`
+  };
+};
 
 const getClassificationColor = (classification) => {
   if (classification === 'Crítico') return 'bg-red-100 text-red-700';
@@ -27,6 +53,7 @@ export default function History() {
   const [activityType, setActivityType] = useState('all');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [indicatorsMeta, setIndicatorsMeta] = useState({});
 
   useEffect(() => {
     if (roleLoading) return; // Wait for role to load
@@ -86,17 +113,66 @@ export default function History() {
           }
         } else {
           if (mounted) {
-            if (role !== 'admin' && data) {
-              // Agrupar por assessment_id e pegar apenas o primeiro (mais recente)
-              const latestAssessmentsMap = new Map();
-              data.forEach((event) => {
-                if (!latestAssessmentsMap.has(event.assessment_id)) {
-                  latestAssessmentsMap.set(event.assessment_id, event);
-                }
-              });
-              setHistory(Array.from(latestAssessmentsMap.values()));
-            } else {
-              setHistory(data || []);
+            const historyData = role !== 'admin' && data
+              ? (() => {
+                  const latestAssessmentsMap = new Map();
+                  data.forEach((event) => {
+                    if (!latestAssessmentsMap.has(event.assessment_id)) {
+                      latestAssessmentsMap.set(event.assessment_id, event);
+                    }
+                  });
+                  return Array.from(latestAssessmentsMap.values());
+                })()
+              : (data || []);
+
+            setHistory(historyData);
+
+            // Buscar metadados dos indicadores para todos os assessments
+            const assessmentIds = [...new Set(historyData.map(item => item.assessment_id).filter(Boolean))];
+            
+            if (assessmentIds.length > 0) {
+              const { data: indicatorsData, error: indError } = await supabase
+                .from('indicators')
+                .select(`
+                  id,
+                  assessment_id,
+                  indicator_master_id,
+                  name,
+                  indicators_master (
+                    id,
+                    name,
+                    color,
+                    icon
+                  )
+                `)
+                .in('assessment_id', assessmentIds);
+
+              if (!indError && indicatorsData) {
+                const metaMap = {};
+                indicatorsData.forEach(ind => {
+                  const indicatorName = ind.indicators_master?.name || ind.name;
+                  const indicatorMasterId = ind.indicator_master_id;
+                  
+                  const metaPayload = {
+                    id: indicatorMasterId,
+                    name: indicatorName,
+                    color: ind.indicators_master?.color || '#6366F1',
+                    icon: ind.indicators_master?.icon || 'circle'
+                  };
+                  
+                  if (indicatorMasterId) {
+                    metaMap[indicatorMasterId] = metaPayload;
+                  }
+                  if (indicatorName) {
+                    metaMap[indicatorName] = metaPayload;
+                  }
+                  // Também adicionar por ID do indicador customizado
+                  if (ind.id) {
+                    metaMap[ind.id] = metaPayload;
+                  }
+                });
+                setIndicatorsMeta(metaMap);
+              }
             }
           }
         }
@@ -295,45 +371,106 @@ export default function History() {
               const max = item.max_possible_score ?? 0;
               const percentage = max > 0 ? Math.round((total / max) * 100) : 0;
               const classification = classify(percentage);
-              const date = item.created_at
-                ? new Date(item.created_at).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })
-                : '-';
 
               const versionNumber = item.assessment_versions?.version_number || '—';
               const assessmentName = item.assessments?.name || 'Assessment';
               const performedBy = item.user_display_name || item.user_id || '—';
+              
+              // Calcular XP
+              const activityType = item.activity_type || 'assessment';
+              const totalXp = calculateXP(total, max, activityType);
+              
+              // Processar indicadores do snapshot
+              let indicatorScores = item.indicator_scores_snapshot || {};
+              if (typeof indicatorScores === 'string') {
+                try { indicatorScores = JSON.parse(indicatorScores); } catch (e) { indicatorScores = {}; }
+              }
 
               return (
-                <div key={item.id} className="p-6 sm:p-8 border border-white/70 rounded-2xl bg-white/90 backdrop-blur-sm shadow-sm hover:shadow-lg transition-shadow">
-                  <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
-                    <div className="flex-1">
-                      <div className="flex flex-wrap items-center gap-3 mb-3">
-                        <span className="text-xs font-semibold uppercase tracking-[0.2em] text-[#4F46E5]">Resultado</span>
-                        <span className="text-xs text-gray-500">{date}</span>
-                        <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">v{versionNumber}</span>
-                        <div className={`px-3 py-1 text-xs font-medium rounded-full ${getClassificationColor(classification)}`}>
-                          {classification}
-                        </div>
+                <div 
+                  key={item.id} 
+                  className="group border border-white/70 rounded-2xl bg-white/90 backdrop-blur-sm shadow-sm hover:shadow-xl transition-all duration-300 overflow-hidden cursor-pointer"
+                  onClick={() => navigate(`/results/${item.id}`)}
+                >
+                  <div className="p-5">
+                    {/* Container com grid de 2 linhas */}
+                    <div className="grid grid-cols-[1fr_auto] gap-x-4 gap-y-2">
+                      {/* Linha 1 - Esquerda: Título */}
+                      <div className="flex-1">
+                        <h3 className={`${TOKENS.fonts.serif} text-xl text-[#1E1B4B] font-bold leading-tight`}>
+                          {assessmentName}
+                        </h3>
                         {isAdmin && (
-                          <div className="text-xs text-gray-500">
-                            Usuario: <span className="font-semibold text-gray-700">{performedBy}</span>
+                          <div className="flex items-center gap-2 text-sm text-gray-500 mt-1">
+                            <span>{new Date(item.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })}</span>
+                            <span>•</span>
+                            <span>{new Date(item.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
+                            <span>•</span>
+                            <span>v{versionNumber}</span>
+                            <span>•</span>
+                            <span>{performedBy}</span>
                           </div>
                         )}
                       </div>
-                      <h3 className={`${TOKENS.fonts.serif} text-2xl text-[#1E1B4B] mb-2`}>
-                        {assessmentName}
-                      </h3>
-                      <div className="text-lg font-semibold text-gray-800">
-                        {percentage}% · {total} de {max} pontos
+
+                      {/* Linha 1 - Direita: Percentual */}
+                      <div className="flex items-start">
+                        <span className="text-4xl font-black text-[#1E1B4B] leading-none">{percentage}%</span>
+                      </div>
+
+                      {/* Linha 2 - Esquerda: XP + Indicadores */}
+                      <div className="flex items-center gap-3 flex-wrap">
+                        {/* Quadrado XP */}
+                        <div className="flex items-center gap-2">
+                          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-md">
+                            <Zap className="w-4 h-4 text-white" strokeWidth={2.5} fill="currentColor" />
+                          </div>
+                          <span className="text-sm font-bold text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-purple-600">
+                            {formatXP(totalXp)}
+                          </span>
+                        </div>
+
+                        {/* Círculos dos indicadores */}
+                        {Object.entries(indicatorScores).map(([key, value], idx) => {
+                          const score = Number(value?.score ?? value ?? 0);
+                          const maxScore = Number(value?.maxScore ?? value?.max_score ?? 0);
+                          const indicatorPercentage = maxScore > 0 ? Math.round((score / maxScore) * 100) : 0;
+                          const indicatorName = value?.name || key;
+                          const indicatorId = value?.indicator_id || key;
+                          
+                          // Buscar metadados (cor e ícone)
+                          const meta = indicatorsMeta[indicatorId] || indicatorsMeta[indicatorName] || {};
+                          const color = meta.color || '#6366F1';
+                          const IconComponent = meta.icon ? getLucideIcon(meta.icon) : Circle;
+
+                          return (
+                            <div
+                              key={key}
+                              className="flex items-center gap-2"
+                              title={`${indicatorName}: ${indicatorPercentage}%`}
+                            >
+                              <div
+                                className="w-8 h-8 rounded-full flex items-center justify-center"
+                                style={{ backgroundColor: color }}
+                              >
+                                <IconComponent className="w-4 h-4 text-white" />
+                              </div>
+                              <span className="text-sm font-semibold text-gray-700">{indicatorPercentage}%</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {/* Linha 2 - Direita: Badge */}
+                      <div className="flex items-center">
+                        <div
+                          className="px-4 py-2 text-sm font-bold rounded-full whitespace-nowrap shadow-md"
+                          style={getIndicatorBadgeStyle(percentage)}
+                        >
+                          {classification}
+                        </div>
                       </div>
                     </div>
-
-                    <button
-                      onClick={() => navigate(`/results/${item.id}`)}
-                      className="px-4 py-2.5 bg-[#4F46E5] text-white rounded-lg font-semibold hover:bg-[#312E81] transition-colors"
-                    >
-                      Ver detalhes
-                    </button>
                   </div>
                 </div>
               );
