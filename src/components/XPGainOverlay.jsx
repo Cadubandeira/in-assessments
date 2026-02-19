@@ -44,8 +44,14 @@ const XPGainOverlay = ({
   if (!isVisible) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-      <div className="bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 border border-indigo-200/60 rounded-3xl p-8 sm:p-12 shadow-2xl max-w-md w-full relative overflow-hidden">
+    <div 
+      className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4 cursor-pointer"
+      onClick={onClose}
+    >
+      <div 
+        className="bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 border border-indigo-200/60 rounded-3xl p-8 sm:p-12 shadow-2xl max-w-md w-full relative overflow-hidden"
+        onClick={e => e.stopPropagation()}
+      >
         {/* Background decoration */}
         <div className="absolute top-0 right-0 w-40 h-40 bg-gradient-to-br from-indigo-400/10 to-purple-400/10 rounded-full blur-3xl"></div>
         <div className="absolute -bottom-10 -left-10 w-32 h-32 bg-gradient-to-br from-purple-400/10 to-pink-400/10 rounded-full blur-3xl"></div>
@@ -103,14 +109,16 @@ const XPGainOverlay = ({
 
           {/* XP Progress */}
           <div className={bonuses && bonuses.length > 0 ? 'mb-6' : 'mb-8'}>
-            <div className="flex items-center justify-between gap-3 mb-3">
+            <div className="flex items-start justify-between gap-4 mb-3">
               <div>
                 <p className="text-xs text-gray-500 uppercase tracking-wider font-bold">Progresso para próx. nível</p>
-                <p className="text-lg font-bold text-[#4F46E5]">{Math.round(progressPercentage)}%</p>
               </div>
-              <p className="text-sm text-gray-600 text-right font-medium">
-                {totalXP} / {levelProgress.nextLevelThreshold} XP
-              </p>
+              <div className="flex flex-col items-end">
+                <p className="text-lg font-bold text-[#4F46E5]">{Math.round(progressPercentage)}%</p>
+                <p className="text-xs text-gray-500 font-medium">
+                  {totalXP} / {levelProgress.nextLevelThreshold} XP
+                </p>
+              </div>
             </div>
 
             <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden shadow-md">
@@ -150,8 +158,6 @@ const XPGainOverlay = ({
             </div>
           )}
 
-          {/* Close Button */}
-          <p className="text-xs text-gray-500 animate-pulse">Clique em qualquer lugar ou aguarde para fechar</p>
         </div>
       </div>
     </div>

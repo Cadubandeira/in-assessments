@@ -543,26 +543,17 @@ export default function Results() {
         />
       )}
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 pb-16">
-        <div className="flex flex-col lg:flex-row items-start lg:items-end justify-between gap-6 mb-10">
-          <div className="max-w-3xl">
-            <span className="inline-block text-xs font-bold uppercase tracking-[0.2em] text-white bg-gradient-to-r from-[#4F46E5] to-[#6366F1] px-4 py-2 rounded-full mb-5 shadow-md">
-              Assessment
-            </span>
-            <h1 className={`${TOKENS.fonts.serif} text-3xl sm:text-4xl md:text-5xl font-extrabold text-[#1E1B4B] leading-tight mb-4`}>
-              {assessmentName}
-            </h1>
-            <p className="text-lg text-gray-600 leading-relaxed">
-              {assessmentDescription}
-            </p>
-          </div>
-          <button
-            type="button"
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-[#E0E7FF] bg-white/80 text-[#4F46E5] font-semibold shadow-sm hover:shadow-md transition"
-          >
-            <Share2 className="w-4 h-4" />
-            Compartilhar
-          </button>
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 pb-16 pt-8">
+        <div className="text-center mb-12">
+          <span className="inline-block text-xs font-bold uppercase tracking-[0.2em] text-white bg-gradient-to-r from-[#4F46E5] to-[#6366F1] px-4 py-2 rounded-full mb-6 shadow-md">
+            Assessment
+          </span>
+          <h1 className={`${TOKENS.fonts.serif} font-serif text-3xl sm:text-4xl md:text-5xl font-extrabold text-[#1E1B4B] mb-4 leading-tight`}>
+            {assessmentName}
+          </h1>
+          <p className="text-xl text-gray-600 max-w-2xl mx-auto leading-relaxed">
+            {assessmentDescription}
+          </p>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-10 items-start">

@@ -1,5 +1,6 @@
 import React from 'react';
 import { renderIcon } from '../../utils/iconRenderer';
+import { getLucideIcon } from '../../utils/iconUtils';
 
 /**
  * Componente de Gráfico de Radar SVG
@@ -119,7 +120,7 @@ export default function RadarChart({ indicatorResults = {}, indicatorMeta = {} }
                   key={`point-${index}`}
                   cx={coords.x}
                   cy={coords.y}
-                  r="5"
+                  r="9"
                   fill={color}
                   stroke="white"
                   strokeWidth="2"
@@ -127,22 +128,7 @@ export default function RadarChart({ indicatorResults = {}, indicatorMeta = {} }
               );
             })}
 
-            {/* Rótulos */}
-            {axisLabels.map((label, i) => (
-              <text
-                key={`label-${i}`}
-                x={label.x}
-                y={label.y}
-                textAnchor="middle"
-                dominantBaseline="middle"
-                fontSize="12"
-                fill="#374151"
-                fontWeight="500"
-                className="pointer-events-none select-none"
-              >
-                {label.name}
-              </text>
-            ))}
+            {/* Rótulos removidos - mantém apenas na legenda */}
           </svg>
         </div>
 
@@ -156,20 +142,25 @@ export default function RadarChart({ indicatorResults = {}, indicatorMeta = {} }
               const meta = resolveMeta(entry[0], entry[1]);
               const color = meta.color || '#4F46E5';
               const icon = meta.icon || 'circle';
+              const IconComponent = icon ? getLucideIcon(icon) : null;
 
               return (
                 <div key={name} className="flex items-center gap-3 p-2 rounded hover:bg-gray-50 transition">
-                  {/* Ícone com cor de fundo */}
+                  {/* Ícone com cor de fundo - padrão dos cards */}
                   <div
-                    className="w-4 h-4 rounded flex items-center justify-center flex-shrink-0"
+                    className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 shadow-sm"
                     style={{ backgroundColor: color }}
                   >
-                    <span className="text-xs font-bold text-white">●</span>
+                    {IconComponent ? (
+                      <IconComponent className="w-5 h-5 text-white" strokeWidth={2} />
+                    ) : (
+                      <span className="text-white text-sm font-bold">●</span>
+                    )}
                   </div>
                   {/* Nome e percentual */}
                   <div className="flex-1 min-w-0">
                     <p className="text-xs font-medium text-gray-700 truncate">{name}</p>
-                    <p className="text-xs text-gray-500">{percentage}%</p>
+                    <p className="text-xs text-gray-500 font-semibold">{percentage}%</p>
                   </div>
                 </div>
               );
