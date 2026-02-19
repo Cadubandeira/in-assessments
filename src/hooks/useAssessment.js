@@ -442,6 +442,7 @@ export const useAssessment = (options = {}) => {
         classification_snapshot: indicatorResults,
         activity_type: 'assessment', // Gamificação: tipo de atividade
         activity_name: assessment.name, // Gamificação: nome descritivo da atividade
+        xp_awarded: false, // Marca que XP ainda não foi concedido
       };
 
       console.log('💾 DEBUG submitAssessment: Salvando payload:', payload);

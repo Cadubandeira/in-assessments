@@ -134,71 +134,83 @@ export default function Results() {
         } else {
           if (mounted) setResult(data);
 
-          // Atualizar progressão do usuário após completar a atividade
-          try {
-            if (data?.total_score !== undefined && data?.max_possible_score !== undefined) {
-              console.log('🎮 Iniciando atualização de progressão...');
-              const activityType = data.activity_type || 'assessment';
-              const progressResult = await updateUserProgression(
-                user.id,
-                data.total_score,
-                data.max_possible_score,
-                activityType
-              );
-              
-              console.log('🎮 Resultado da progressão:', progressResult);
-              
-              if (progressResult.success) {
-                console.log(`✅ Progressão atualizada | +${progressResult.xpGained} XP`, progressResult);
-                
-                // Preparar dados do overlay XP
-                const bonuses = [];
-                const xpGained = progressResult.xpGained || 0;
-                
-                // Calcular bônus alcançados
+          // Verificar se XP já foi concedido anteriormente
+          const isFirstVisit = data.xp_awarded === false || data.xp_awarded === null;
+          
+          // Atualizar progressão do usuário apenas na primeira visita
+          if (isFirstVisit) {
+            try {
+              if (data?.total_score !== undefined && data?.max_possible_score !== undefined) {
+                console.log('🎮 Primeira visita detectada - Iniciando atualização de progressão...');
                 const activityType = data.activity_type || 'assessment';
-                const xpConfig = XP_CONFIG[activityType] || XP_CONFIG.assessment;
-                const percentage = data.max_possible_score > 0 ? Math.round((data.total_score / data.max_possible_score) * 100) : 0;
+                const progressResult = await updateUserProgression(
+                  user.id,
+                  data.total_score,
+                  data.max_possible_score,
+                  activityType
+                );
                 
-                if (percentage >= 100 && xpConfig.bonusThresholds?.[100]) {
-                  bonuses.push({
-                    label: 'Resultado 100%',
-                    xp: xpConfig.bonusThresholds[100]
-                  });
-                } else if (percentage >= 90 && xpConfig.bonusThresholds?.[90]) {
-                  bonuses.push({
-                    label: 'Resultado 90%+',
-                    xp: xpConfig.bonusThresholds[90]
-                  });
-                } else if (percentage >= 80 && xpConfig.bonusThresholds?.[80]) {
-                  bonuses.push({
-                    label: 'Resultado 80%+',
-                    xp: xpConfig.bonusThresholds[80]
-                  });
-                }
+                console.log('🎮 Resultado da progressão:', progressResult);
                 
-                if (mounted) {
-                  setXpOverlayData({
-                    xpGained,
-                    totalXP: progressResult.totalXP,
-                    newLevel: progressResult.newLevel,
-                    leveledUp: progressResult.leveledUp,
-                    bonuses
-                  });
-                  setShowXPOverlay(true);
-                }
-                
-                if (progressResult.leveledUp) {
-                  console.log(`🎉 Level Up! Agora no nível ${progressResult.newLevel}`);
+                if (progressResult.success) {
+                  console.log(`✅ Progressão atualizada | +${progressResult.xpGained} XP`, progressResult);
+                  
+                  // Marcar XP como concedido
+                  await supabase
+                    .from('assessment_events')
+                    .update({ xp_awarded: true })
+                    .eq('id', data.id);
+                  
+                  // Preparar dados do overlay XP
+                  const bonuses = [];
+                  const xpGained = progressResult.xpGained || 0;
+                  
+                  // Calcular bônus alcançados
+                  const xpConfig = XP_CONFIG[activityType] || XP_CONFIG.assessment;
+                  const percentage = data.max_possible_score > 0 ? Math.round((data.total_score / data.max_possible_score) * 100) : 0;
+                  
+                  if (percentage >= 100 && xpConfig.bonusThresholds?.[100]) {
+                    bonuses.push({
+                      label: 'Resultado 100%',
+                      xp: xpConfig.bonusThresholds[100]
+                    });
+                  } else if (percentage >= 90 && xpConfig.bonusThresholds?.[90]) {
+                    bonuses.push({
+                      label: 'Resultado 90%+',
+                      xp: xpConfig.bonusThresholds[90]
+                    });
+                  } else if (percentage >= 80 && xpConfig.bonusThresholds?.[80]) {
+                    bonuses.push({
+                      label: 'Resultado 80%+',
+                      xp: xpConfig.bonusThresholds[80]
+                    });
+                  }
+                  
+                  if (mounted) {
+                    setXpOverlayData({
+                      xpGained,
+                      totalXP: progressResult.totalXP,
+                      newLevel: progressResult.newLevel,
+                      leveledUp: progressResult.leveledUp,
+                      bonuses
+                    });
+                    setShowXPOverlay(true);
+                  }
+                  
+                  if (progressResult.leveledUp) {
+                    console.log(`🎉 Level Up! Agora no nível ${progressResult.newLevel}`);
+                  }
+                } else {
+                  console.warn('⚠️ Erro ao atualizar progressão:', progressResult.error);
                 }
               } else {
-                console.warn('⚠️ Erro ao atualizar progressão:', progressResult.error);
+                console.warn('⚠️ Dados de score não encontrados em assessment_events:', { total_score: data?.total_score, max_possible_score: data?.max_possible_score });
               }
-            } else {
-              console.warn('⚠️ Dados de score não encontrados em assessment_events:', { total_score: data?.total_score, max_possible_score: data?.max_possible_score });
-            }
-          } catch (progressError) {
+            } catch (progressError) {
             console.error('❌ Erro crítico ao atualizar progressão:', progressError);
+          }
+          } else {
+            console.log('ℹ️ XP já foi concedido anteriormente para este resultado. Overlay não será exibido.');
           }
 
           // Buscar dados do assessment com visualization_type
@@ -529,7 +541,7 @@ export default function Results() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#F5F3EC] to-[#EEF2FF] overflow-x-hidden">
+    <div className="min-h-screen bg-gradient-to-br from-[#F5F3EC] to-[#EEF2FF]">
       {/* XP Gain Overlay */}
       {xpOverlayData && (
         <XPGainOverlay
@@ -556,7 +568,8 @@ export default function Results() {
           </p>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-10 items-start">
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_400px] gap-6 items-start">
+          {/* Coluna principal - rola normalmente */}
           <div>
             <div className="bg-white/80 backdrop-blur-sm border border-white/60 rounded-2xl p-6 sm:p-8 shadow-sm">
               <div className="flex items-start justify-between gap-6">
@@ -594,6 +607,21 @@ export default function Results() {
               {overallInterpretation || 'Este resultado reflete seu desempenho geral no assessment.'}
             </p>
             </div>
+
+            {assessmentData && Array.isArray(assessmentData.visualization_type) && assessmentData.visualization_type.length > 0 && (
+              <div className="mt-8 grid gap-6">
+                {assessmentData.visualization_type.includes('radar') && (
+                  <div className="bg-white/80 border border-white/60 rounded-2xl p-6 shadow-sm">
+                    <RadarChart indicatorResults={indicatorResults} indicatorMeta={indicatorsMeta} />
+                  </div>
+                )}
+                {assessmentData.visualization_type.includes('horizontal-bar') && (
+                  <div className="bg-white/80 border border-white/60 rounded-2xl p-6 shadow-sm">
+                    <HorizontalBarChart indicatorResults={indicatorResults} indicatorMeta={indicatorsMeta} />
+                  </div>
+                )}
+              </div>
+            )}
 
             <div className="mt-8 grid gap-4">
               {Object.entries(indicatorResults)
@@ -643,7 +671,77 @@ export default function Results() {
             </div>
           </div>
 
-          <div className="flex flex-col gap-6">
+          {/* Card XP - sticky (apenas desktop) */}
+          <div 
+            className="hidden lg:block bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 border border-indigo-200/60 rounded-2xl p-6 sm:p-8 shadow-lg self-start overflow-hidden"
+            style={{
+              position: 'sticky',
+              top: '5rem'
+            }}
+          >
+            <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-indigo-400/10 to-purple-400/10 rounded-full blur-2xl -z-10"></div>
+            <div className="relative">
+              <div className="flex items-start gap-3 mb-4">
+                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg">
+                    <Zap className="w-6 h-6 text-white" strokeWidth={2.5} fill="currentColor" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-xs font-bold uppercase tracking-[0.2em] text-indigo-700 mb-1">XP conquistada</p>
+                    <p className="text-sm text-gray-600">Com base no seu resultado para esta atividade</p>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-purple-600">
+                      {formatXP(totalXp)}
+                    </div>
+                    {bonusXp > 0 && (
+                      <div className="text-xs font-semibold text-indigo-700">+{bonusXp} XP bonus</div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="space-y-2.5 text-sm">
+                  <div className="flex items-center gap-3 p-2 rounded-lg bg-white/90 border border-indigo-200/70 shadow-sm">
+                    <div className="w-5 h-5 rounded-full flex items-center justify-center bg-[#E0E7FF] text-[#4F46E5]">
+                      <Check className="w-3 h-3" />
+                    </div>
+                    <span className="text-[#1E1B4B] font-semibold flex-1">Completar assessment</span>
+                    <span className="font-semibold text-indigo-700">+{xpConfig.base} XP</span>
+                  </div>
+                  <div className={`flex items-center gap-3 p-2 rounded-lg ${reached80 ? 'bg-white/70' : 'bg-white/40 opacity-60'}`}>
+                    <div className={`w-5 h-5 rounded-full flex items-center justify-center ${reached80 ? 'bg-[#E0E7FF] text-[#4F46E5]' : 'bg-[#F1F5FF] text-[#6366F1]'}`}>
+                      {reached80 ? <Check className="w-3 h-3" /> : <X className="w-3 h-3" />}
+                    </div>
+                    <span className={`flex-1 ${reached80 ? 'text-gray-700' : 'text-gray-500'}`}>Resultado de 80 a 89%</span>
+                    <span className={`font-semibold ${reached80 ? 'text-purple-600' : 'text-gray-500 line-through'}`}>
+                      +{bonus80} XP
+                    </span>
+                  </div>
+                  <div className={`flex items-center gap-3 p-2 rounded-lg ${reached90 ? 'bg-white/70' : 'bg-white/40 opacity-60'}`}>
+                    <div className={`w-5 h-5 rounded-full flex items-center justify-center ${reached90 ? 'bg-[#E0E7FF] text-[#4F46E5]' : 'bg-[#F1F5FF] text-[#6366F1]'}`}>
+                      {reached90 ? <Check className="w-3 h-3" /> : <X className="w-3 h-3" />}
+                    </div>
+                    <span className={`flex-1 ${reached90 ? 'text-gray-700' : 'text-gray-500'}`}>Resultado de 90 a 99%</span>
+                    <span className={`font-semibold ${reached90 ? 'text-purple-600' : 'text-gray-500 line-through'}`}>
+                      +{bonus90} XP
+                    </span>
+                  </div>
+                  <div className={`flex items-center gap-3 p-2 rounded-lg ${reached100 ? 'bg-gradient-to-r from-purple-100 to-pink-100 border border-purple-300/50' : 'bg-white/40 opacity-60'}`}>
+                    <div className={`w-5 h-5 rounded-full flex items-center justify-center ${reached100 ? 'bg-[#E0E7FF] text-[#4F46E5]' : 'bg-[#F1F5FF] text-[#6366F1]'}`}>
+                      {reached100 ? <Check className="w-3 h-3" /> : <X className="w-3 h-3" />}
+                    </div>
+                    <span className={`flex-1 ${reached100 ? 'text-gray-700 font-medium' : 'text-gray-500'}`}>Resultado de 100%</span>
+                    <span className={`font-semibold ${reached100 ? 'text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-pink-600' : 'text-gray-500 line-through'}`}>
+                      +{bonus100} XP
+                    </span>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+
+
+          {/* Versão mobile do card mt-8 de XP */}
+          <div className="lg:hidden">
             <div className="bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 border border-indigo-200/60 rounded-2xl p-6 sm:p-8 shadow-lg relative overflow-hidden">
               <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-indigo-400/10 to-purple-400/10 rounded-full blur-2xl"></div>
               <div className="relative z-10">
@@ -704,25 +802,10 @@ export default function Results() {
 
               </div>
             </div>
-
-            {assessmentData && Array.isArray(assessmentData.visualization_type) && assessmentData.visualization_type.length > 0 && (
-              <div className="grid gap-6">
-                {assessmentData.visualization_type.includes('radar') && (
-                  <div className="bg-white/80 border border-white/60 rounded-2xl p-6 shadow-sm">
-                    <RadarChart indicatorResults={indicatorResults} indicatorMeta={indicatorsMeta} />
-                  </div>
-                )}
-                {assessmentData.visualization_type.includes('horizontal-bar') && (
-                  <div className="bg-white/80 border border-white/60 rounded-2xl p-6 shadow-sm">
-                    <HorizontalBarChart indicatorResults={indicatorResults} indicatorMeta={indicatorsMeta} />
-                  </div>
-                )}
-              </div>
-            )}
           </div>
         </div>
 
-        <div>
+        <div className="mt-10">
           <div className="flex items-center justify-between gap-4 mb-6">
             <h2 className={`${TOKENS.fonts.serif} text-2xl text-[#1E1B4B]`}>Atividades a seguir</h2>
             <button
