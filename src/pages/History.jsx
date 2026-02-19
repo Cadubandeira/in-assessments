@@ -48,9 +48,8 @@ export default function History() {
   const { role, loading: roleLoading, error: roleError } = useUserRole();
   const [history, setHistory] = useState([]);
   const [currentUserId, setCurrentUserId] = useState(null);
-  const [viewMode, setViewMode] = useState('latest'); // 'latest'|'all'|'user'
-  const [selectedUser, setSelectedUser] = useState(null);
-  const [activityType, setActivityType] = useState('all');
+  const [sortOrder, setSortOrder] = useState('recent'); // 'recent' | 'oldest' | 'best' | 'worst'
+  const [selectedAssessment, setSelectedAssessment] = useState('all');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [indicatorsMeta, setIndicatorsMeta] = useState({});
@@ -113,18 +112,7 @@ export default function History() {
           }
         } else {
           if (mounted) {
-            const historyData = role !== 'admin' && data
-              ? (() => {
-                  const latestAssessmentsMap = new Map();
-                  data.forEach((event) => {
-                    if (!latestAssessmentsMap.has(event.assessment_id)) {
-                      latestAssessmentsMap.set(event.assessment_id, event);
-                    }
-                  });
-                  return Array.from(latestAssessmentsMap.values());
-                })()
-              : (data || []);
-
+            const historyData = data || [];
             setHistory(historyData);
 
             // Buscar metadados dos indicadores para todos os assessments
@@ -200,53 +188,48 @@ export default function History() {
   }
 
   const isAdmin = role === 'admin';
-  const isUserWithOneResult = role !== 'admin' && history.length === 1;
-  const isUserWithMultipleResults = role !== 'admin' && history.length > 1;
-  // Build a list of unique user ids from history (for admin filter)
-  const uniqueUsers = Array.from(
+
+  // Lista de assessments únicos para filtro de admin
+  const uniqueAssessments = Array.from(
     new Map(
       history
-        .filter(h => h.user_id)
-        .map(h => [h.user_id, { id: h.user_id, label: h.user_display_name || h.user_id }])
+        .filter(h => h.assessments?.name)
+        .map(h => [h.assessment_id, { id: h.assessment_id, name: h.assessments.name }])
     ).values()
   );
 
-  // Determine which items to show based on viewMode and selectedUser
+  // Aplicar filtros
   let visibleItems = history;
-  if (isAdmin) {
-    if (viewMode === 'latest') {
-      // latest for admin defaults to the most recent overall
-      const latestMap = new Map();
-      history.forEach((item) => {
-        if (!latestMap.has(item.assessment_id)) {
-          latestMap.set(item.assessment_id, item);
-        }
-      });
-      visibleItems = Array.from(latestMap.values());
-    } else if (viewMode === 'user' && selectedUser) {
-      visibleItems = history.filter(h => h.user_id === selectedUser);
-    } else if (viewMode === 'all') {
-      visibleItems = history;
+
+  // Filtro por assessment (apenas admin)
+  if (isAdmin && selectedAssessment !== 'all') {
+    visibleItems = visibleItems.filter(item => item.assessment_id === selectedAssessment);
+  }
+
+  // Aplicar ordenamento
+  visibleItems = [...visibleItems].sort((a, b) => {
+    const aTotal = a.total_score ?? 0;
+    const aMax = a.max_possible_score ?? 1;
+    const aPercentage = aMax > 0 ? (aTotal / aMax) * 100 : 0;
+    
+    const bTotal = b.total_score ?? 0;
+    const bMax = b.max_possible_score ?? 1;
+    const bPercentage = bMax > 0 ? (bTotal / bMax) * 100 : 0;
+
+    const aTime = a.created_at ? new Date(a.created_at).getTime() : 0;
+    const bTime = b.created_at ? new Date(b.created_at).getTime() : 0;
+
+    if (sortOrder === 'recent') {
+      return bTime - aTime; // Mais recente primeiro
+    } else if (sortOrder === 'oldest') {
+      return aTime - bTime; // Mais antigo primeiro
+    } else if (sortOrder === 'best') {
+      return bPercentage - aPercentage; // Melhor primeiro
+    } else if (sortOrder === 'worst') {
+      return aPercentage - bPercentage; // Pior primeiro
     }
-  } else {
-    visibleItems = history;
-  }
-
-  if (activityType !== 'all') {
-    visibleItems = visibleItems.filter(item => item.assessments?.type === activityType);
-  }
-
-  const activityTypes = Array.from(
-    new Set(history.map(item => item.assessments?.type).filter(Boolean))
-  );
-
-  const typeLabel = (type) => {
-    if (!type) return 'Atividade';
-    if (type === 'assessment') return 'Assessment';
-    if (type === 'real_scenario') return 'Situacoes reais';
-    if (type === 'real_scenarios') return 'Situacoes reais';
-    return type.replace(/_/g, ' ');
-  };
+    return 0;
+  });
 
   const totals = visibleItems.reduce(
     (acc, item) => {
@@ -306,59 +289,40 @@ export default function History() {
           </div>
         </section>
 
-        <section className="bg-white/90 backdrop-blur-sm border border-white/60 rounded-2xl p-6 sm:p-8 shadow-lg mb-8">
-          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#4F46E5]">Resumo</p>
-              <h2 className={`${TOKENS.fonts.serif} text-2xl sm:text-3xl text-[#1E1B4B]`}>
-                Seus resultados em um so lugar
-              </h2>
-            </div>
-            
-            <div className="flex flex-wrap items-center gap-3">
+        {/* Filtros alinhados à direita */}
+        <div className="flex justify-end items-center gap-3 mb-6">
+          <div className="inline-flex items-center gap-2 text-sm text-gray-600">
+            <Filter className="w-4 h-4" />
+            <span>Ordenar</span>
+          </div>
+          <select
+            value={sortOrder}
+            onChange={(e) => setSortOrder(e.target.value)}
+            className="border border-[#E0E7FF] rounded-lg px-3 py-2 text-sm bg-white"
+          >
+            <option value="recent">Mais recente</option>
+            <option value="oldest">Mais antigo</option>
+            <option value="best">Melhor desempenho</option>
+            <option value="worst">Pior desempenho</option>
+          </select>
+          {isAdmin && (
+            <>
               <div className="inline-flex items-center gap-2 text-sm text-gray-600">
-                <Filter className="w-4 h-4" />
-                <span>Filtrar</span>
+                <span>Assessment</span>
               </div>
               <select
-                value={activityType}
-                onChange={(e) => setActivityType(e.target.value)}
+                value={selectedAssessment}
+                onChange={(e) => setSelectedAssessment(e.target.value)}
                 className="border border-[#E0E7FF] rounded-lg px-3 py-2 text-sm bg-white"
               >
-                <option value="all">Todas atividades</option>
-                {activityTypes.map(type => (
-                  <option key={type} value={type}>{typeLabel(type)}</option>
+                <option value="all">Todos</option>
+                {uniqueAssessments.map(assessment => (
+                  <option key={assessment.id} value={assessment.id}>{assessment.name}</option>
                 ))}
               </select>
-              {isAdmin && (
-                <>
-                  <select
-                    value={viewMode}
-                    onChange={(e) => setViewMode(e.target.value)}
-                    className="border border-[#E0E7FF] rounded-lg px-3 py-2 text-sm bg-white"
-                  >
-                    <option value="latest">Mais recente</option>
-                    <option value="all">Todos os usuarios</option>
-                    <option value="user">Usuario especifico</option>
-                  </select>
-
-                  {viewMode === 'user' && (
-                    <select
-                      className="border border-[#E0E7FF] rounded-lg px-3 py-2 text-sm bg-white"
-                      value={selectedUser || ''}
-                      onChange={(e) => setSelectedUser(e.target.value)}
-                    >
-                      <option value="">Selecione usuario</option>
-                      {uniqueUsers.map(u => (
-                        <option key={u.id} value={u.id}>{u.label}</option>
-                      ))}
-                    </select>
-                  )}
-                </>
-              )}
-            </div>
-          </div>
-        </section>
+            </>
+          )}
+        </div>
 
         {!history || history.length === 0 ? (
           <section className="bg-white/90 backdrop-blur-sm border border-white/60 rounded-2xl p-10 text-center shadow-lg">

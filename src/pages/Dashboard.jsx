@@ -414,10 +414,14 @@ const Dashboard = ({ user }) => {
                   <Sparkles size={64} />
                 </div>
                 <h4 className="font-bold text-[#1E1B4B] group-hover:text-[#4F46E5] transition-colors">
-                  Aprenda sobre %Indicador%
+                  Aprenda sobre {developmentIndicators.length > 0 
+                    ? developmentIndicators.reduce((min, ind) => ind.percentage < min.percentage ? ind : min, developmentIndicators[0]).name
+                    : 'Indicadores'}
                 </h4>
                 <p className="text-sm text-gray-500 mt-1 mb-3">
-                  Escute o podcast sobre %indicador% e aumente sua compreensão sobre o tema. Após isso você poderá testar seu conhecimento com uma atividade..
+                  Escute o podcast sobre {developmentIndicators.length > 0 
+                    ? developmentIndicators.reduce((min, ind) => ind.percentage < min.percentage ? ind : min, developmentIndicators[0]).name
+                    : 'indicadores'} e aumente sua compreensão sobre o tema. Após isso você poderá testar seu conhecimento com uma atividade..
                 </p>
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold text-[#4F46E5] px-2 py-1 bg-[#4F46E5]/10 rounded">
