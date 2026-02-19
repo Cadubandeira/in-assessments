@@ -26,6 +26,7 @@ CREATE TABLE public.assessment_events (
   assessment_version_id uuid NOT NULL,
   activity_type text NOT NULL DEFAULT 'assessment'::text CHECK (activity_type = ANY (ARRAY['assessment'::text, 'quiz'::text, 'certification'::text])),
   activity_name text NOT NULL,
+  xp_awarded boolean DEFAULT false,
   CONSTRAINT assessment_events_pkey PRIMARY KEY (id),
   CONSTRAINT assessment_events_assessment_id_fkey FOREIGN KEY (assessment_id) REFERENCES public.assessments(id),
   CONSTRAINT assessment_events_assessment_version_id_fkey FOREIGN KEY (assessment_version_id) REFERENCES public.assessment_versions(id)

@@ -1,12 +1,15 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { getLucideIcon } from '../../utils/iconUtils';
-import { Zap } from 'lucide-react';
+import { Zap, ChevronDown } from 'lucide-react';
 
 /**
  * Componente de Gráfico de Radar SVG - Estilo Futurista SaaS
  * Exibe indicadores em formato de radar com design moderno e efeitos neon
  */
 export default function RadarChart({ indicatorResults = {}, indicatorMeta = {} }) {
+  // Estado do accordion
+  const [isLegendOpen, setIsLegendOpen] = useState(false);
+
   // Validar dados
   const entries = Object.entries(indicatorResults || {});
   if (entries.length === 0) {
@@ -101,19 +104,20 @@ export default function RadarChart({ indicatorResults = {}, indicatorMeta = {} }
 
   return (
     <div className="w-full flex flex-col">
-      <h3 className="text-lg font-semibold mb-6 text-center text-[#1E1B4B]">Radar de Desempenho</h3>
-      
-      <div className="flex flex-col lg:flex-row gap-8 items-center">
-        {/* Gráfico SVG */}
-        <div className="flex-1 flex justify-center">
-          <div className="relative">
-            <svg 
-              width="100%" 
-              height="auto" 
-              viewBox="0 0 400 400" 
-              className="max-w-md drop-shadow-2xl"
-              style={{ filter: 'drop-shadow(0 0 40px rgba(79, 70, 229, 0.15))' }}
-            >
+      {/* Gráfico SVG */}
+      <div className="flex items-center justify-center pb-6">
+        <div 
+          className="relative cursor-pointer transition-transform hover:scale-[1.02]"
+          onClick={() => setIsLegendOpen(!isLegendOpen)}
+          title="Clique para ver a legenda"
+        >
+          <svg 
+            width="100%" 
+            height="auto" 
+            viewBox="0 0 400 400" 
+            className="max-w-md drop-shadow-2xl"
+            style={{ filter: 'drop-shadow(0 0 40px rgba(79, 70, 229, 0.15))' }}
+          >
               <defs>
                 {/* Gradiente radial para o fundo */}
                 <radialGradient id="bgGradient" cx="50%" cy="50%" r="50%">
@@ -262,10 +266,38 @@ export default function RadarChart({ indicatorResults = {}, indicatorMeta = {} }
           </div>
         </div>
 
-        {/* Legenda */}
-        <div className="flex-1 lg:flex-0 lg:w-64 space-y-4">
-          <h4 className="font-bold text-sm text-[#1E1B4B] uppercase tracking-wider">Indicadores</h4>
-          <div className="space-y-3">
+        {/* Legenda abaixo do gráfico */}
+        <div className="w-full">
+          {/* Cabeçalho do Accordion */}
+          <button
+            onClick={() => setIsLegendOpen(!isLegendOpen)}
+            className="group w-full flex items-center justify-between gap-3 px-5 py-3.5 rounded-xl border-2 border-[#C7D2FE] hover:border-[#A5B4FC] transition-all duration-300 shadow-sm hover:shadow-md"
+            style={{
+              boxShadow: isLegendOpen ? '0 0 20px rgba(139, 92, 246, 0.15)' : ''
+            }}
+          >
+            <div className="flex items-center gap-3">
+              <div className={`w-1.5 h-6 rounded-full bg-gradient-to-b from-[#8B5CF6] to-[#A78BFA] transition-all duration-300 ${isLegendOpen ? 'opacity-100' : 'opacity-50 group-hover:opacity-75'}`} />
+              <div className="flex flex-col items-start">
+                <h4 className="font-bold text-sm text-[#1E1B4B]">Legenda</h4>
+                <span className="text-xs text-[#6366F1] font-medium">
+                  {entries.length} {entries.length === 1 ? 'indicador' : 'indicadores'}
+                </span>
+              </div>
+            </div>
+            <div className={`flex items-center justify-center w-8 h-8 rounded-lg transition-all duration-300 ${isLegendOpen ? 'shadow-inner' : ''}`}>
+              <ChevronDown
+                className={`w-4 h-4 text-[#8B5CF6] transition-transform duration-300 ${
+                  isLegendOpen ? 'rotate-180' : ''
+                }`}
+                strokeWidth={2.5}
+              />
+            </div>
+          </button>
+
+          {/* Conteúdo do Accordion */}
+          {isLegendOpen && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mt-4 animate-in fade-in slide-in-from-top-2 duration-300">
             {entries.map((entry) => {
               const name = resolveName(entry[0], entry[1]);
               const percentage = entry[1]?.percentage || 0;
@@ -277,17 +309,13 @@ export default function RadarChart({ indicatorResults = {}, indicatorMeta = {} }
               return (
                 <div 
                   key={name} 
-                  className="flex items-center gap-3 p-3 rounded-xl bg-white/60 backdrop-blur-sm border border-gray-100 hover:border-[#8B5CF6]/30 hover:shadow-md transition-all"
-                  style={{
-                    boxShadow: `0 0 0 1px ${color}15`
-                  }}
+                  className="flex items-center gap-3 p-3 rounded-lg border border-gray-100 bg-white"
                 >
                   {/* Ícone com cor de fundo */}
                   <div
-                    className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 shadow-sm"
+                    className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
                     style={{ 
-                      backgroundColor: color,
-                      boxShadow: `0 2px 8px ${color}40`
+                      backgroundColor: color
                     }}
                   >
                     {IconComponent ? (
@@ -299,24 +327,14 @@ export default function RadarChart({ indicatorResults = {}, indicatorMeta = {} }
                   {/* Nome e percentual */}
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold text-[#1E1B4B] truncate">{name}</p>
-                    <p className="text-xs text-gray-500 font-bold mt-0.5">{percentage}%</p>
-                  </div>
-                  {/* Barra mini de progresso */}
-                  <div className="w-12 h-1.5 bg-gray-200 rounded-full overflow-hidden">
-                    <div 
-                      className="h-full rounded-full transition-all duration-700"
-                      style={{ 
-                        width: `${percentage}%`,
-                        backgroundColor: color
-                      }}
-                    />
+                    <p className="text-xs text-gray-500">{percentage} / 100</p>
                   </div>
                 </div>
               );
             })}
-          </div>
+            </div>
+          )}
         </div>
-      </div>
     </div>
   );
 }
