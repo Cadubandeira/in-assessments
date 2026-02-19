@@ -543,7 +543,8 @@ export default function AssessmentBuilder() {
             assessment_id: targetAssessmentId,
             version_number: 1,
             is_active: true,
-            introduction_html: introductionHtml
+            introduction_html: introductionHtml,
+            visualization_type: assessmentDataEdited.visualization_type || '["radar"]'
           }])
           .select()
           .single();
@@ -575,6 +576,23 @@ export default function AssessmentBuilder() {
               .eq('id', selectedAssessment);
             if (updateError) throw updateError;
           }
+        }
+
+        // 2.1. Atualizar visualization_type e introduction_html da nova versão
+        const versionUpdateFields = {};
+        if (assessmentDataEdited?.visualization_type) {
+          versionUpdateFields.visualization_type = assessmentDataEdited.visualization_type;
+        }
+        if (introductionHtml !== undefined) {
+          versionUpdateFields.introduction_html = introductionHtml;
+        }
+        
+        if (Object.keys(versionUpdateFields).length > 0) {
+          const { error: updateVersionError } = await supabase
+            .from('assessment_versions')
+            .update(versionUpdateFields)
+            .eq('id', targetVersionId);
+          if (updateVersionError) throw updateVersionError;
         }
 
         // 3. Limpar indicadores copiados automaticamente (pois vamos salvar o estado atual do editor)

@@ -47,7 +47,25 @@ export async function getAssessmentVersion(versionId) {
  * @returns {Promise<Object>} Nova versão criada
  */
 export async function createNewAssessmentVersion(assessmentId, previousVersionId = null) {
-  // 1. Buscar o número da última versão
+  // 1. Buscar o assessment pai para pegar visualization_type default
+  const { data: assessmentData } = await supabase
+    .from('assessments')
+    .select('visualization_type')
+    .eq('id', assessmentId)
+    .single();
+
+  // 2. Buscar a versão anterior se existir
+  let previousVersionData = null;
+  if (previousVersionId) {
+    const { data: prevVersion } = await supabase
+      .from('assessment_versions')
+      .select('version_number, visualization_type, introduction_html')
+      .eq('id', previousVersionId)
+      .single();
+    previousVersionData = prevVersion;
+  }
+
+  // 3. Buscar o número da última versão
   const { data: versions } = await supabase
     .from('assessment_versions')
     .select('version_number')
@@ -56,21 +74,34 @@ export async function createNewAssessmentVersion(assessmentId, previousVersionId
     .limit(1);
 
   const nextVersionNumber = versions && versions.length > 0 ? versions[0].version_number + 1 : 1;
+  
+  // Determinar visualization_type: usar da versão anterior, senão do assessment pai, senão default
+  let visualizationType = ["radar"]; // Default em JavaScript
+  if (previousVersionData?.visualization_type) {
+    visualizationType = previousVersionData.visualization_type;
+  } else if (assessmentData?.visualization_type) {
+    visualizationType = assessmentData.visualization_type;
+  }
 
-  // 2. Criar nova versão (inativa por padrão)
+  // Copiar introduction_html da versão anterior, se existir
+  const introductionHtml = previousVersionData?.introduction_html || '';
+
+  // 4. Criar nova versão (inativa por padrão)
   const { data: newVersion, error: versionError } = await supabase
     .from('assessment_versions')
     .insert([{
       assessment_id: assessmentId,
       version_number: nextVersionNumber,
-      is_active: false
+      is_active: false,
+      visualization_type: visualizationType,
+      introduction_html: introductionHtml
     }])
     .select()
     .single();
 
   if (versionError) throw versionError;
 
-  // 3. Se há versão anterior, copiar indicadores, ranges e overall_ranges
+  // 5. Se há versão anterior, copiar indicadores, ranges e overall_ranges
   if (previousVersionId) {
     // Buscar indicadores da versão anterior
     const { data: oldIndicators, error: indicatorsError } = await supabase

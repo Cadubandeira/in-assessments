@@ -111,7 +111,8 @@ export default function Results() {
               version_number,
               is_active,
               created_at,
-              assessment_id
+              assessment_id,
+              visualization_type
             )
           `);
 
@@ -213,27 +214,35 @@ export default function Results() {
             console.log('ℹ️ XP já foi concedido anteriormente para este resultado. Overlay não será exibido.');
           }
 
-          // Buscar dados do assessment com visualization_type
-          if (data?.assessment_versions?.assessment_id) {
-            const { data: assData, error: assError } = await supabase
-              .from('assessments')
-              .select('*')
-              .eq('id', data.assessment_versions.assessment_id)
-              .single();
-
-            if (!assError && assData) {
-              // Normalizar visualization_type para array
-              let normalized = assData;
-              if (normalized.visualization_type) {
-                if (typeof normalized.visualization_type === 'string') {
-                  normalized.visualization_type = [normalized.visualization_type];
-                } else if (!Array.isArray(normalized.visualization_type)) {
-                  normalized.visualization_type = normalized.visualization_type || ['radar'];
+          // Usar visualization_type da versão específica do assessment
+          if (data?.assessment_versions) {
+            // Normalizar visualization_type para array
+            let visualizationType = data.assessment_versions.visualization_type;
+            
+            if (visualizationType) {
+              if (typeof visualizationType === 'string') {
+                // Se for string, pode ser JSON string ou valor único
+                try {
+                  const parsed = JSON.parse(visualizationType);
+                  visualizationType = Array.isArray(parsed) ? parsed : [parsed];
+                } catch {
+                  // Não é JSON, tratar como string simples
+                  visualizationType = [visualizationType];
                 }
-              } else {
-                normalized.visualization_type = ['radar'];
+              } else if (!Array.isArray(visualizationType)) {
+                // Se for objeto ou outro tipo, tentar converter
+                visualizationType = [visualizationType];
               }
-              if (mounted) setAssessmentData(normalized);
+            } else {
+              // Fallback para radar se não especificado
+              visualizationType = ['radar'];
+            }
+            
+            if (mounted) {
+              setAssessmentData({
+                ...data.assessment_versions,
+                visualization_type: visualizationType
+              });
             }
 
             // Buscar as ranges e metadados dos indicadores
@@ -610,15 +619,28 @@ export default function Results() {
 
             {assessmentData && Array.isArray(assessmentData.visualization_type) && assessmentData.visualization_type.length > 0 && (
               <div className="mt-8 grid gap-6">
-                {assessmentData.visualization_type.includes('radar') && (
-                  <div className="bg-white/80 border border-white/60 rounded-2xl p-6 shadow-sm">
-                    <RadarChart indicatorResults={indicatorResults} indicatorMeta={indicatorsMeta} />
+                {/* Se ambos os gráficos estão selecionados, renderizar no mesmo card */}
+                {assessmentData.visualization_type.includes('radar') && assessmentData.visualization_type.includes('horizontal-bar') ? (
+                  <div className="bg-white/80 border border-white/60 rounded-2xl p-6 shadow-sm space-y-8">
+                    <RadarChart indicatorResults={indicatorResults} indicatorMeta={indicatorsMeta} hideLegend={true} />
+                    <div className="border-t border-gray-200 pt-6">
+                      <HorizontalBarChart indicatorResults={indicatorResults} indicatorMeta={indicatorsMeta} />
+                    </div>
                   </div>
-                )}
-                {assessmentData.visualization_type.includes('horizontal-bar') && (
-                  <div className="bg-white/80 border border-white/60 rounded-2xl p-6 shadow-sm">
-                    <HorizontalBarChart indicatorResults={indicatorResults} indicatorMeta={indicatorsMeta} />
-                  </div>
+                ) : (
+                  <>
+                    {/* Renderizar gráficos individualmente */}
+                    {assessmentData.visualization_type.includes('radar') && (
+                      <div className="bg-white/80 border border-white/60 rounded-2xl p-6 shadow-sm">
+                        <RadarChart indicatorResults={indicatorResults} indicatorMeta={indicatorsMeta} />
+                      </div>
+                    )}
+                    {assessmentData.visualization_type.includes('horizontal-bar') && (
+                      <div className="bg-white/80 border border-white/60 rounded-2xl p-6 shadow-sm">
+                        <HorizontalBarChart indicatorResults={indicatorResults} indicatorMeta={indicatorsMeta} />
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             )}

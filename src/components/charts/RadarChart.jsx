@@ -6,7 +6,7 @@ import { Zap, ChevronDown } from 'lucide-react';
  * Componente de Gráfico de Radar SVG - Estilo Futurista SaaS
  * Exibe indicadores em formato de radar com design moderno e efeitos neon
  */
-export default function RadarChart({ indicatorResults = {}, indicatorMeta = {} }) {
+export default function RadarChart({ indicatorResults = {}, indicatorMeta = {}, hideLegend = false }) {
   // Estado do accordion
   const [isLegendOpen, setIsLegendOpen] = useState(false);
 
@@ -267,6 +267,7 @@ export default function RadarChart({ indicatorResults = {}, indicatorMeta = {} }
         </div>
 
         {/* Legenda abaixo do gráfico */}
+        {!hideLegend && (
         <div className="w-full">
           {/* Cabeçalho do Accordion */}
           <button
@@ -335,6 +336,7 @@ export default function RadarChart({ indicatorResults = {}, indicatorMeta = {} }
             </div>
           )}
         </div>
+        )}
     </div>
   );
 }
