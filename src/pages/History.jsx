@@ -7,10 +7,19 @@ import { TOKENS } from '../config/tokens';
 import { calculateXP, formatXP, XP_CONFIG } from '../utils/gamificationUtils';
 import { getLucideIcon } from '../utils/iconUtils';
 
-function classify(percentage) {
+function classifyFallback(percentage) {
   if (percentage <= 40) return 'Crítico';
   if (percentage <= 70) return 'Moderado';
   return 'Saudável';
+}
+
+function getClassificationFromRanges(percentage, overallRanges) {
+  if (!overallRanges || overallRanges.length === 0) {
+    return classifyFallback(percentage);
+  }
+  
+  const range = overallRanges.find(r => percentage >= r.min_score && percentage <= r.max_score);
+  return range ? range.label : classifyFallback(percentage);
 }
 
 const getIndicatorBadgeStyle = (value) => {
@@ -37,12 +46,6 @@ const getIndicatorBadgeStyle = (value) => {
   };
 };
 
-const getClassificationColor = (classification) => {
-  if (classification === 'Crítico') return 'bg-red-100 text-red-700';
-  if (classification === 'Moderado') return 'bg-yellow-100 text-yellow-700';
-  return 'bg-green-100 text-green-700';
-};
-
 export default function History() {
   const navigate = useNavigate();
   const { role, loading: roleLoading, error: roleError } = useUserRole();
@@ -53,6 +56,7 @@ export default function History() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [indicatorsMeta, setIndicatorsMeta] = useState({});
+  const [overallRangesCache, setOverallRangesCache] = useState({});
 
   useEffect(() => {
     if (roleLoading) return; // Wait for role to load
@@ -78,6 +82,7 @@ export default function History() {
             user_id,
             assessment_id,
             assessment_version,
+            assessment_version_id,
             total_score,
             max_possible_score,
             classification_snapshot,
@@ -160,6 +165,33 @@ export default function History() {
                   }
                 });
                 setIndicatorsMeta(metaMap);
+              }
+            }
+
+            // Buscar overall_ranges para todos os assessment_versions
+            const versionIds = [...new Set(historyData.map(item => item.assessment_version_id).filter(Boolean))];
+            
+            if (versionIds.length > 0) {
+              const { data: rangesData, error: rangesError } = await supabase
+                .from('assessment_overall_ranges')
+                .select('*')
+                .in('assessment_version_id', versionIds);
+
+              if (!rangesError && rangesData) {
+                const rangesMap = {};
+                rangesData.forEach(range => {
+                  if (!rangesMap[range.assessment_version_id]) {
+                    rangesMap[range.assessment_version_id] = [];
+                  }
+                  rangesMap[range.assessment_version_id].push(range);
+                });
+                
+                // Ordenar ranges de cada versão por min_score
+                Object.keys(rangesMap).forEach(versionId => {
+                  rangesMap[versionId].sort((a, b) => a.min_score - b.min_score);
+                });
+                
+                setOverallRangesCache(rangesMap);
               }
             }
           }
@@ -334,7 +366,10 @@ export default function History() {
               const total = item.total_score ?? 0;
               const max = item.max_possible_score ?? 0;
               const percentage = max > 0 ? Math.round((total / max) * 100) : 0;
-              const classification = classify(percentage);
+              
+              // Buscar overall_ranges para este assessment_version_id
+              const versionRanges = overallRangesCache[item.assessment_version_id] || [];
+              const classification = getClassificationFromRanges(percentage, versionRanges);
 
               const versionNumber = item.assessment_versions?.version_number || '—';
               const assessmentName = item.assessments?.name || 'Assessment';
