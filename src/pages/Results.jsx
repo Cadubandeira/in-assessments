@@ -42,23 +42,13 @@ const getClassificationFromRanges = (score, maxScore, ranges, indicatorName) => 
   const sortedRanges = [...ranges].sort((a, b) => a.min_score - b.min_score);
   const percentage = maxScore > 0 ? Math.round((score / maxScore) * 100) : 0;
 
-  console.log(`� DEBUG getClassificationFromRanges:`, {
-    indicatorName,
-    score,
-    maxScore,
-    percentage,
-    ranges: sortedRanges
-  });
 
   // Encontrar a faixa que contém o score baseado na PERCENTAGE, não no score bruto
   for (let i = 0; i < sortedRanges.length; i++) {
     const range = sortedRanges[i];
     const inRange = percentage >= range.min_score && percentage <= range.max_score;
     
-    console.log(`  Testando range "${range.label}" (${range.min_score}-${range.max_score}): ${percentage} >= ${range.min_score} && ${percentage} <= ${range.max_score} = ${inRange}`);
-    
     if (inRange) {
-      console.log(`✅ Enquadrado em: ${range.label}`);
       return {
         percentage,
         classification: range.label,
@@ -144,7 +134,6 @@ export default function Results() {
           if (isFirstVisit) {
             try {
               if (data?.total_score !== undefined && data?.max_possible_score !== undefined) {
-                console.log('🎮 Primeira visita detectada - Iniciando atualização de progressão...');
                 const activityType = data.activity_type || 'assessment';
                 const progressResult = await updateUserProgression(
                   user.id,
@@ -153,10 +142,7 @@ export default function Results() {
                   activityType
                 );
                 
-                console.log('🎮 Resultado da progressão:', progressResult);
-                
                 if (progressResult.success) {
-                  console.log(`✅ Progressão atualizada | +${progressResult.xpGained} XP`, progressResult);
                   
                   // Marcar XP como concedido
                   await supabase
@@ -212,9 +198,6 @@ export default function Results() {
                     setShowXPOverlay(true);
                   }
                   
-                  if (progressResult.leveledUp) {
-                    console.log(`🎉 Level Up! Agora no nível ${progressResult.newLevel}`);
-                  }
                 } else {
                   console.warn('⚠️ Erro ao atualizar progressão:', progressResult.error);
                 }
@@ -224,8 +207,6 @@ export default function Results() {
             } catch (progressError) {
             console.error('❌ Erro crítico ao atualizar progressão:', progressError);
           }
-          } else {
-            console.log('ℹ️ XP já foi concedido anteriormente para este resultado. Overlay não será exibido.');
           }
 
           // Usar visualization_type da versão específica do assessment
@@ -298,8 +279,6 @@ export default function Results() {
                 .select('id, indicator_master_id, name, conceptual_description')
                 .eq('assessment_id', data.assessment_versions.assessment_id);
 
-              console.log('📊 DEBUG Results: fullIndicators carregados:', fullIndicators);
-
               // Criar múltiplos índices para garantir match
               const conceptualDescByMasterId = {};
               const conceptualDescByName = {};
@@ -314,21 +293,16 @@ export default function Results() {
                   if (ind.name) {
                     conceptualDescByName[ind.name] = desc;
                   }
-                  console.log(`  - Indicador "${ind.name}": master_id=${ind.indicator_master_id}, desc="${desc.substring(0, 50)}..."`);
                 });
               }
 
               // Mapear ranges por id do indicador e por nome (compatibilidade)
               const rangesMap = {};
               const metaMap = {};
-              console.log('🔍 DEBUG Results: Indicadores com ranges (indicatorsData):', indicatorsData);
               indicatorsData.forEach(ind => {
                 const indicatorName = ind.indicators_master?.name;
                 const indicatorMasterId = ind.indicator_master_id;
                 const masterDescription = ind.indicators_master?.description || '';
-                
-                console.log(`\n  Processando: "${indicatorName}" (master_id: ${indicatorMasterId})`);
-                console.log(`    Master description: "${masterDescription.substring(0, 50)}..."`);
                 
                 if (indicatorMasterId || indicatorName) {
                   if (ind.assessment_indicator_ranges) {
@@ -350,15 +324,10 @@ export default function Results() {
                   
                   if (indicatorMasterId && conceptualDescByMasterId[indicatorMasterId]) {
                     conceptualDesc = conceptualDescByMasterId[indicatorMasterId];
-                    console.log(`    ✅ Usando conceptual_description: "${conceptualDesc.substring(0, 50)}..."`);
                   } else if (masterDescription) {
                     conceptualDesc = masterDescription;
-                    console.log(`    ✅ FALLBACK para master description: "${conceptualDesc.substring(0, 50)}..."`);
                   } else if (conceptualDescByName[indicatorName]) {
                     conceptualDesc = conceptualDescByName[indicatorName];
-                    console.log(`    ✅ Match por name: "${conceptualDesc.substring(0, 50)}..."`);
-                  } else {
-                    console.log(`    ❌ NENHUMA descrição encontrada!`);
                   }
                   
                   const metaPayload = {
@@ -377,7 +346,6 @@ export default function Results() {
                 }
               });
               
-              console.log('📊 DEBUG Results: metaMap final:', metaMap);
               if (mounted) {
                 setAssessmentRanges(rangesMap);
                 setIndicatorsMeta(metaMap);
@@ -392,7 +360,6 @@ export default function Results() {
               .order('min_score', { ascending: true });
 
             if (!overallError && overallRangesData) {
-              console.log('📊 DEBUG Results: Overall ranges carregados:', overallRangesData);
               if (mounted) setOverallRanges(overallRangesData);
             } else if (overallError) {
               console.warn('⚠️ Aviso ao carregar overall_ranges:', overallError);
@@ -442,10 +409,6 @@ export default function Results() {
   if (loading) return <ResultsSkeleton />;
   if (error) return <div className="p-12 text-center text-red-600">{error}</div>;
   if (!result) return <div className="p-12 text-center">Nenhum assessment encontrado.</div>;
-
-  console.log('📊 DEBUG Results: Dados do resultado:', result);
-  console.log('📊 DEBUG Results: Classification Snapshot:', result.classification_snapshot);
-  console.log('📊 DEBUG Results: Indicator Scores:', result.indicator_scores_snapshot);
 
   const total = result.total_score ?? 0;
   const max = result.max_possible_score ?? 0;

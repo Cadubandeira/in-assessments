@@ -31,7 +31,6 @@ export const useAssessment = (options = {}) => {
   const fetchAssessment = async () => {
     try {
       setLoading(true);
-      console.log('useAssessment: Iniciando busca...');
       
       // 1. Buscar assessment ativo (por slug/id ou default)
       let assessmentData = null;
@@ -69,7 +68,6 @@ export const useAssessment = (options = {}) => {
         assessmentError = error;
       }
 
-      console.log('useAssessment: Assessment Data:', assessmentData, 'Error:', assessmentError);
       if (assessmentError) throw assessmentError;
       if (!assessmentData) throw new Error('Nenhum assessment ativo encontrado.');
 
@@ -98,8 +96,6 @@ export const useAssessment = (options = {}) => {
       if (overallRangesData) {
         setOverallRanges(overallRangesData);
       }
-      console.log('useAssessment: Active Version:', activeVersion);
-      
       setAssessmentVersionId(activeVersion.id);
       setVersionNumber(activeVersion.version_number);
 
@@ -115,7 +111,6 @@ export const useAssessment = (options = {}) => {
         .eq('assessment_version_id', activeVersion.id)
         .order('display_order', { ascending: true });
 
-      console.log('useAssessment: Assessment Indicators:', assessmentIndicators, 'Error:', aiError);
       if (aiError) throw aiError;
 
       // 4. Buscar indicadores (antiga estrutura ainda usada para questions) COM conceptual_description
@@ -125,7 +120,6 @@ export const useAssessment = (options = {}) => {
         .eq('assessment_id', assessmentData.id)
         .order('display_order', { ascending: true });
 
-      console.log('useAssessment: Indicators:', indicatorsData, 'Error:', indicatorsError);
       if (indicatorsError) throw indicatorsError;
       const indicators = indicatorsData || [];
 
@@ -171,24 +165,20 @@ export const useAssessment = (options = {}) => {
       const rangesMap = {}; // { assessmentIndicatorId: [...ranges] }
       if (assessmentIndicators && assessmentIndicators.length > 0) {
         const aiIds = assessmentIndicators.map(ai => ai.id);
-        console.log('🔍 DEBUG useAssessment: Buscando ranges para assessment_indicators:', aiIds);
         const { data: rangesData, error: rangesError } = await supabase
           .from('assessment_indicator_ranges')
           .select('*')
           .in('assessment_indicator_id', aiIds);
 
         if (rangesError) {
-          console.error('❌ DEBUG useAssessment: Erro ao buscar ranges:', rangesError);
           throw rangesError;
         }
-        console.log('🔍 DEBUG useAssessment: Ranges carregadas do banco:', rangesData);
         (rangesData || []).forEach(range => {
           if (!rangesMap[range.assessment_indicator_id]) {
             rangesMap[range.assessment_indicator_id] = [];
           }
           rangesMap[range.assessment_indicator_id].push(range);
         });
-        console.log('📊 DEBUG useAssessment: rangesMap final:', rangesMap);
       }
 
       // 8. Montar estrutura hierárquica com nova arquitetura
@@ -218,7 +208,6 @@ export const useAssessment = (options = {}) => {
         // Nova estrutura: assessment_indicators com ranges
         assessmentIndicators: (assessmentIndicators || []).map(ai => {
           const ranges = rangesMap[ai.id] || [];
-          console.log(`📊 DEBUG useAssessment: Indicador ${ai.indicators_master?.name} (ID: ${ai.id}) tem ${ranges.length} ranges:`, ranges);
           return {
             id: ai.id,
             display_order: ai.display_order,
@@ -228,7 +217,6 @@ export const useAssessment = (options = {}) => {
         })
       };
 
-      console.log('useAssessment: Full Structure:', fullAssessment);
       setAssessment(fullAssessment);
     } catch (err) {
       console.error('Erro ao carregar assessment:', err);
@@ -258,9 +246,6 @@ export const useAssessment = (options = {}) => {
   };
 
   const calculateResults = () => {
-    console.log('📊 DEBUG calculateResults: Iniciando cálculo de resultados');
-    console.log('📊 DEBUG calculateResults: Assessment structure:', assessment);
-    console.log('📊 DEBUG calculateResults: Respostas:', answers);
     
     let totalScore = 0;
     let maxPossibleScore = 0;
@@ -320,8 +305,6 @@ export const useAssessment = (options = {}) => {
 
     // Determinar se usamos a nova arquitetura (Assessment Indicators) ou fallback
     const useNewArchitecture = assessment.assessmentIndicators && assessment.assessmentIndicators.length > 0;
-    console.log(`📊 DEBUG calculateResults: Usando ${useNewArchitecture ? 'NOVA ARQUITETURA' : 'FALLBACK (antiga arquitetura)'}`);
-    console.log('📊 DEBUG calculateResults: Assessment Indicators:', assessment.assessmentIndicators);
 
     if (useNewArchitecture) {
       // NOVA ARQUITETURA: Usar assessment_indicators como fonte da verdade
@@ -353,7 +336,6 @@ export const useAssessment = (options = {}) => {
         });
 
         const classificationData = getClassificationFromRanges(indicatorScore, indicatorMax, ai.ranges, indicator.name);
-        console.log(`📊 DEBUG: ${indicator.name} - Score: ${indicatorScore}/${indicatorMax}, Ranges:`, ai.ranges, 'Resultado:', classificationData);
 
         const indicatorKey = indicator.id || indicator.name;
         indicatorResults[indicatorKey] = {
@@ -404,12 +386,6 @@ export const useAssessment = (options = {}) => {
       });
     }
 
-    console.log('📊 DEBUG calculateResults: Resultados finais calculados:', {
-      totalScore,
-      maxPossibleScore,
-      indicatorResults
-    });
-
     return { totalScore, maxPossibleScore, indicatorResults };
   };
 
@@ -444,9 +420,6 @@ export const useAssessment = (options = {}) => {
         activity_name: assessment.name, // Gamificação: nome descritivo da atividade
         xp_awarded: false, // Marca que XP ainda não foi concedido
       };
-
-      console.log('💾 DEBUG submitAssessment: Salvando payload:', payload);
-      console.log('💾 DEBUG submitAssessment: classification_snapshot que será salvo:', indicatorResults);
 
       const { error: insertError } = await supabase
         .from('assessment_events')

@@ -146,12 +146,12 @@ const Activities = () => {
       }
 
       if (sorted.length > 0) {
-        const { data: userAssessments } = await supabase
-          .from('user_assessments')
+        const { data: assessmentEvents } = await supabase
+          .from('assessment_events')
           .select('assessment_id')
           .eq('user_id', user.id);
 
-        const completedIds = new Set((userAssessments || []).map(item => item.assessment_id));
+        const completedIds = new Set((assessmentEvents || []).map(item => item.assessment_id));
         const missingAssessment = sorted.find(assessment => !completedIds.has(assessment.id));
         setHighlightAssessment(missingAssessment || sorted[0]);
       }

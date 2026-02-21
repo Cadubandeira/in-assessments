@@ -63,11 +63,6 @@ const AssessmentRunner = ({ user }) => {
     } else {
       // Salvar e navegar
       setLoading(true);
-      await supabase.from('user_assessments').insert({
-        user_id: user.id,
-        assessment_id: assessment.id,
-        answers: nextAnswers
-      });
       navigate('/results');
     }
   };
