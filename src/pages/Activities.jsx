@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { ArrowRight, Send, Flame } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import { TOKENS } from '../config/tokens';
+import ActivitiesSkeleton from '../components/skeletons/ActivitiesSkeleton';
 
 const slugify = (value) => value
   .toLowerCase()
@@ -16,6 +17,7 @@ const AssessmentCard = ({ assessment, onStart }) => (
     type="button"
     onClick={() => onStart(assessment)}
     className="group p-6 sm:p-8 border border-white/60 bg-white/80 backdrop-blur-sm rounded-2xl flex flex-col h-full text-left transition-all hover:border-[#4F46E5]/40 shadow-sm hover:shadow-lg"
+    aria-label={`Iniciar assessment: ${assessment.name}`}
   >
     <div className="flex-grow">
       <p className="text-[#4F46E5] text-xs font-bold uppercase tracking-widest mb-2">
@@ -44,6 +46,7 @@ const RealScenarioCard = ({ onOpen }) => (
     type="button"
     onClick={onOpen}
     className="group p-6 sm:p-8 border border-white/60 bg-white/80 backdrop-blur-sm rounded-2xl flex flex-col h-full text-left transition-all hover:border-[#4F46E5]/40 shadow-sm hover:shadow-lg"
+    aria-label="Abrir simulação adaptativa com IA"
   >
     <div className="flex-grow space-y-4">
       <div className="flex flex-wrap items-center gap-3">
@@ -114,6 +117,7 @@ const Activities = () => {
   });
   const [aiLoading, setAiLoading] = useState(true);
   const [aiRequested, setAiRequested] = useState(false);
+  const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -208,16 +212,24 @@ const Activities = () => {
         reason
       });
       setAiLoading(false);
+      setLoading(false);
     };
     fetch();
   }, []);
 
+  if (loading) {
+    return <ActivitiesSkeleton />;
+  }
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#F5F3EC] to-[#EEF2FF] overflow-x-hidden">
+    <div 
+      className="min-h-screen bg-gradient-to-br from-[#F5F3EC] to-[#EEF2FF] overflow-x-hidden"
+      aria-busy={aiLoading}
+    >
       <section className="bg-gradient-to-r from-[#4F46E5] via-[#6366F1] to-[#818CF8] pt-[72px] pb-24 px-4 sm:px-6 relative overflow-hidden">
-        <div className="absolute inset-0 opacity-10 pointer-events-none overflow-hidden">
-          <div className="absolute top-16 -left-10 w-48 h-48 md:w-64 md:h-64 bg-white rounded-full blur-3xl"></div>
-          <div className="absolute bottom-0 -right-20 w-64 h-64 md:w-96 md:h-96 bg-[#312E81] rounded-full blur-3xl"></div>
+        <div className="absolute inset-0 opacity-10 pointer-events-none overflow-hidden" aria-hidden="true">
+          <div className="absolute top-16 -left-10 w-48 h-48 md:w-64 md:h-64 bg-white rounded-full blur-3xl" aria-hidden="true"></div>
+          <div className="absolute bottom-0 -right-20 w-64 h-64 md:w-96 md:h-96 bg-[#312E81] rounded-full blur-3xl" aria-hidden="true"></div>
         </div>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-16 relative z-10 w-full text-left">
           <h2 className={`${TOKENS.fonts.serif} text-3xl sm:text-4xl md:text-5xl font-extrabold text-white mb-4 leading-tight`}>

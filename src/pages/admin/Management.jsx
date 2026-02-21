@@ -23,6 +23,7 @@ import { supabase } from '../../supabaseClient';
 import { TOKENS } from '../../config/tokens';
 import { useUserRole } from '../../hooks/useUserRole';
 import { canUserTakeAssessment } from '../../utils/assessmentRules';
+import ManagementSkeleton from '../../components/skeletons/admin/ManagementSkeleton';
 
 const iconMap = {
   circle: Circle,
@@ -135,7 +136,7 @@ const Management = ({ user }) => {
   }, [assessments]);
 
   if (roleLoading || loading) {
-    return <div className="p-12 text-center">Carregando...</div>;
+    return <ManagementSkeleton />;
   }
 
   if (role !== 'admin') {
@@ -151,12 +152,15 @@ const Management = ({ user }) => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#F5F3EC] to-[#EEF2FF] overflow-x-hidden">
+    <div 
+      className="min-h-screen bg-gradient-to-br from-[#F5F3EC] to-[#EEF2FF] overflow-x-hidden"
+      role="main"
+    >
 
       <section className="bg-gradient-to-r from-[#4F46E5] via-[#6366F1] to-[#818CF8] pt-[72px] pb-24 px-4 sm:px-6 relative overflow-hidden">
-        <div className="absolute inset-0 opacity-10 pointer-events-none overflow-hidden">
-          <div className="absolute top-16 -left-10 w-48 h-48 md:w-64 md:h-64 bg-white rounded-full blur-3xl"></div>
-          <div className="absolute bottom-0 -right-20 w-64 h-64 md:w-96 md:h-96 bg-[#312E81] rounded-full blur-3xl"></div>
+        <div className="absolute inset-0 opacity-10 pointer-events-none overflow-hidden" aria-hidden="true">
+          <div className="absolute top-16 -left-10 w-48 h-48 md:w-64 md:h-64 bg-white rounded-full blur-3xl" aria-hidden="true"></div>
+          <div className="absolute bottom-0 -right-20 w-64 h-64 md:w-96 md:h-96 bg-[#312E81] rounded-full blur-3xl" aria-hidden="true"></div>
         </div>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-16 relative z-10 w-full">
           <p className="text-white/80 font-medium mb-2 tracking-wide uppercase text-xs sm:text-sm">
@@ -183,7 +187,7 @@ const Management = ({ user }) => {
                     onMouseEnter={() => setHoveredTooltip('indicators')}
                     onMouseLeave={() => setHoveredTooltip(null)}
                     className="p-2 text-gray-600 hover:text-[#4F46E5] transition"
-                    title="Configurar"
+                    aria-label="Configurar indicadores"
                   >
                     <Settings className="w-5 h-5" />
                   </button>
@@ -195,17 +199,19 @@ const Management = ({ user }) => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3" role="list" aria-label="Lista de indicadores">
                 {indicators.map((indicator) => {
                   const Icon = iconMap[indicator.icon] || Circle;
                   return (
                     <div
                       key={indicator.id}
                       className="flex items-center gap-3 p-3 rounded-lg border border-gray-100 bg-white"
+                      role="listitem"
                     >
                       <div
                         className="w-10 h-10 rounded-full flex items-center justify-center"
                         style={{ backgroundColor: indicator.color || '#6366F1' }}
+                        aria-hidden="true"
                       >
                         <Icon className="w-5 h-5 text-white" />
                       </div>
@@ -250,7 +256,7 @@ const Management = ({ user }) => {
                     onMouseEnter={() => setHoveredTooltip('assessments')}
                     onMouseLeave={() => setHoveredTooltip(null)}
                     className="p-2 text-gray-600 hover:text-[#4F46E5] transition"
-                    title="Configurar"
+                    aria-label="Configurar assessments"
                   >
                     <Settings className="w-5 h-5" />
                   </button>
@@ -262,7 +268,7 @@ const Management = ({ user }) => {
                 </div>
               </div>
 
-              <div className="space-y-3">
+              <div className="space-y-3" role="list" aria-label="Lista de assessments">
                 {sortedAssessments.map((assessment) => {
                   const stats = statsByAssessment[assessment.id] || {
                     total: 0,
@@ -275,6 +281,7 @@ const Management = ({ user }) => {
                     <div
                       key={assessment.id}
                       className="p-4 rounded-lg border border-gray-100 bg-white"
+                      role="listitem"
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div>

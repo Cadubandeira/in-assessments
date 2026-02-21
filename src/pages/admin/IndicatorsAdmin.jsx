@@ -4,6 +4,7 @@ import { useUserRole } from '../../hooks/useUserRole';
 import { useNavigate } from 'react-router-dom';
 import { Plus, Trash2, ArrowLeft, Edit2, Save, X } from 'lucide-react';
 import { ICON_OPTIONS, COLOR_OPTIONS } from '../../config/tokens';
+import IndicatorsAdminSkeleton from '../../components/skeletons/admin/IndicatorsAdminSkeleton';
 
 export default function IndicatorsAdmin() {
   const navigate = useNavigate();
@@ -153,7 +154,7 @@ export default function IndicatorsAdmin() {
   };
 
   if (roleLoading || loading) {
-    return <div className="p-12 text-center">Carregando...</div>;
+    return <IndicatorsAdminSkeleton />;
   }
 
   if (role !== 'admin') {

@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import { Plus, Trash2, ArrowLeft, Save, GitBranch } from 'lucide-react';
 import IntroductionEditor from '../../components/IntroductionEditor';
 import OverallRangesEditor from '../../components/OverallRangesEditor';
+import AssessmentBuilderSkeleton from '../../components/skeletons/admin/AssessmentBuilderSkeleton';
 import { 
   getActiveAssessmentVersion, 
   createNewAssessmentVersion, 
@@ -1068,7 +1069,7 @@ Deseja continuar?`;
   const isDeactivatingAssessment = assessmentDataEdited?.is_active === false;
 
   if (roleLoading || loading) {
-    return <div className="p-12 text-center">Carregando...</div>;
+    return <AssessmentBuilderSkeleton />;
   }
 
   if (role !== 'admin') {

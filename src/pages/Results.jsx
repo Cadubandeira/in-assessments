@@ -9,6 +9,7 @@ import { useProgressionUpdate } from '../hooks/useProgressionUpdate';
 import { TOKENS } from '../config/tokens';
 import { getLucideIcon } from '../utils/iconUtils';
 import { XP_CONFIG, calculateXP, formatXP } from '../utils/gamificationUtils';
+import ResultsSkeleton from '../components/skeletons/ResultsSkeleton';
 
 // Fallback functions quando não há ranges configuradas
 function classifyFallback(percentage) {
@@ -438,7 +439,7 @@ export default function Results() {
     fetchSuggested();
   }, [assessmentData?.id, result?.assessment_versions?.assessment_id]);
 
-  if (loading) return <div className="p-12 text-center">Carregando...</div>;
+  if (loading) return <ResultsSkeleton />;
   if (error) return <div className="p-12 text-center text-red-600">{error}</div>;
   if (!result) return <div className="p-12 text-center">Nenhum assessment encontrado.</div>;
 
@@ -674,7 +675,34 @@ export default function Results() {
 
                 return (
                   <div key={k} className="bg-white/80 border border-white/60 rounded-2xl p-6 shadow-sm">
-                    <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] items-center gap-4">
+                    {/* Layout Mobile */}
+                    <div className="sm:hidden">
+                      <div className="flex items-center gap-4 mb-3">
+                        <div
+                          className="w-12 h-12 rounded-full flex items-center justify-center shadow"
+                          style={{ backgroundColor: meta.color || '#6366F1' }}
+                        >
+                          {IndicatorIcon ? (
+                            <IndicatorIcon className="w-6 h-6 text-white" strokeWidth={2} />
+                          ) : (
+                            <span className="text-white text-sm font-bold">●</span>
+                          )}
+                        </div>
+                        <div className="flex-1">
+                          <h3 className="text-lg font-semibold text-[#1E1B4B]">{displayName}</h3>
+                        </div>
+                      </div>
+                      {/* Badge mobile: full width */}
+                      <span
+                        className="flex items-center justify-center w-full px-3 py-2 text-xs font-bold rounded-full uppercase"
+                        style={getIndicatorBadgeStyle(v.percentage)}
+                      >
+                        {v.percentage}% • {v.classification}
+                      </span>
+                    </div>
+
+                    {/* Layout Desktop */}
+                    <div className="hidden sm:grid grid-cols-1 sm:grid-cols-[1fr_auto] items-center gap-4">
                       <div className="flex items-center gap-4">
                         <div
                           className="w-12 h-12 rounded-full flex items-center justify-center shadow"
@@ -691,12 +719,14 @@ export default function Results() {
                         </div>
                       </div>
                       <div className="flex flex-col items-end text-right">
+                        {/* Badge desktop: só classification */}
                         <span
                           className="inline-flex px-3 py-1 text-xs font-bold rounded-full uppercase"
                           style={getIndicatorBadgeStyle(v.percentage)}
                         >
                           {v.classification}
                         </span>
+                        {/* Percentage grande: só desktop */}
                         <p className="text-2xl font-semibold text-[#1E1B4B] mt-2">{v.percentage}%</p>
                       </div>
                     </div>
@@ -862,33 +892,63 @@ export default function Results() {
               Carregando sugestoes...
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <>
               {suggestedAssessments.length === 0 ? (
                 <div className="bg-white/80 border border-white/60 rounded-2xl p-6 text-sm text-gray-600">
                   Nenhuma sugestao encontrada agora.
                 </div>
               ) : (
-                suggestedAssessments.map(assessment => (
-                  <button
-                    key={assessment.id}
-                    type="button"
-                    onClick={() => navigate(`/assessment/${assessment.id}`)}
-                    className="group bg-white/80 border border-white/60 rounded-2xl p-6 text-left shadow-sm hover:shadow-lg transition"
-                  >
-                    <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#4F46E5] mb-2">Disponivel</p>
-                    <h3 className={`${TOKENS.fonts.serif} text-xl text-[#1E1B4B] mb-3 leading-tight`}>
-                      {assessment.name}
-                    </h3>
-                    <p className="text-sm text-gray-600 leading-relaxed mb-4">
-                      {assessment.description}
-                    </p>
-                    <span className="inline-flex items-center gap-2 text-sm font-semibold text-[#4F46E5]">
-                      Iniciar agora <ArrowRight className="w-4 h-4" />
-                    </span>
-                  </button>
-                ))
+                <>
+                  {/* Mobile: Carrossel */}
+                  <div className="md:hidden overflow-x-auto snap-x snap-mandatory scrollbar-hide -mx-4 px-4">
+                    <div className="flex gap-4 pb-2 pr-4">
+                      {suggestedAssessments.map(assessment => (
+                        <button
+                          key={assessment.id}
+                          type="button"
+                          onClick={() => navigate(`/assessment/${assessment.id}`)}
+                          className="group bg-white/80 border border-white/60 rounded-2xl p-6 text-left shadow-sm hover:shadow-lg transition flex-shrink-0 w-[85vw] snap-center"
+                        >
+                          <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#4F46E5] mb-2">Disponivel</p>
+                          <h3 className={`${TOKENS.fonts.serif} text-xl text-[#1E1B4B] mb-3 leading-tight`}>
+                            {assessment.name}
+                          </h3>
+                          <p className="text-sm text-gray-600 leading-relaxed mb-4">
+                            {assessment.description}
+                          </p>
+                          <span className="inline-flex items-center gap-2 text-sm font-semibold text-[#4F46E5]">
+                            Iniciar agora <ArrowRight className="w-4 h-4" />
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Desktop: Grid */}
+                  <div className="hidden md:grid grid-cols-1 md:grid-cols-3 gap-6">
+                    {suggestedAssessments.map(assessment => (
+                      <button
+                        key={assessment.id}
+                        type="button"
+                        onClick={() => navigate(`/assessment/${assessment.id}`)}
+                        className="group bg-white/80 border border-white/60 rounded-2xl p-6 text-left shadow-sm hover:shadow-lg transition"
+                      >
+                        <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#4F46E5] mb-2">Disponivel</p>
+                        <h3 className={`${TOKENS.fonts.serif} text-xl text-[#1E1B4B] mb-3 leading-tight`}>
+                          {assessment.name}
+                        </h3>
+                        <p className="text-sm text-gray-600 leading-relaxed mb-4">
+                          {assessment.description}
+                        </p>
+                        <span className="inline-flex items-center gap-2 text-sm font-semibold text-[#4F46E5]">
+                          Iniciar agora <ArrowRight className="w-4 h-4" />
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </>
               )}
-            </div>
+            </>
           )}
         </div>
       </main>

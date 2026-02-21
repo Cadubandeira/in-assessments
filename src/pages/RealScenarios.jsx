@@ -8,6 +8,7 @@ import DecisionNode from '../components/DecisionNode';
 import ConsequenceScreen from '../components/ConsequenceScreen';
 import ScenarioResults from '../components/ScenarioResults';
 import XPRewardWidget from '../components/XPRewardWidget';
+import RealScenariosSkeleton from '../components/skeletons/RealScenariosSkeleton';
 
 const RealScenarios = () => {
   const navigate = useNavigate();
@@ -304,6 +305,10 @@ const RealScenarios = () => {
   }
 
   // Render: List of scenarios (default)
+  if (loadingScenarios) {
+    return <RealScenariosSkeleton />;
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#F5F3EC] to-[#EEF2FF] overflow-x-hidden">
       <section className="bg-gradient-to-r from-[#4F46E5] via-[#6366F1] to-[#818CF8] pt-[72px] pb-24 px-4 sm:px-6 relative overflow-hidden">
@@ -332,11 +337,7 @@ const RealScenarios = () => {
       </section>
 
       <main className="max-w-5xl mx-auto px-4 sm:px-6 -mt-16 relative z-20 w-full pb-16">
-        {loadingScenarios ? (
-          <div className="bg-white/90 backdrop-blur-sm border border-white/60 rounded-2xl p-12 shadow-lg flex items-center justify-center">
-            <Loader2 className="w-8 h-8 text-[#4F46E5] animate-spin" />
-          </div>
-        ) : scenarios.length === 0 ? (
+        {scenarios.length === 0 ? (
           <div className="bg-white/90 backdrop-blur-sm border border-white/60 rounded-2xl p-8 shadow-lg text-center">
             <p className="text-gray-600 mb-4">Nenhum cenário disponível no momento.</p>
             <p className="text-sm text-gray-500">

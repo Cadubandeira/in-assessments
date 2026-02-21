@@ -25,6 +25,7 @@ import {
 import { useUserRanking } from '../hooks/useUserRanking';
 import { useDevelopmentMetrics } from '../hooks/useDevelopmentMetrics';
 import DevelopmentChart from '../components/DevelopmentChart';
+import DashboardSkeleton from '../components/skeletons/DashboardSkeleton';
 
 const Dashboard = ({ user }) => {
   const navigate = useNavigate();
@@ -196,11 +197,7 @@ const Dashboard = ({ user }) => {
   };
 
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="w-12 h-12 border-4 border-[#4F46E5]/20 border-t-[#4F46E5] rounded-full animate-spin"></div>
-      </div>
-    );
+    return <DashboardSkeleton />;
   }
 
   return (
@@ -267,7 +264,7 @@ const Dashboard = ({ user }) => {
                       <div className="flex items-start justify-between gap-4">
                         {/* Ranking Badge - Esquerda */}
                         <div className="inline-flex items-center gap-2 px-4 py-3 bg-gradient-to-r from-[#4F46E5]/10 to-[#6366F1]/10 border border-[#4F46E5]/20 text-[#4F46E5] text-base font-bold rounded-lg">
-                          🏆 Ranking geral: {ranking?.percentileText || 'Carregando...'}
+                          🏆 Ranking geral: {ranking?.percentileText || '...'}
                         </div>
                         
                         {/* Percentagem e XP - Direita */}

@@ -6,6 +6,7 @@ import { Filter, Zap, Circle } from 'lucide-react';
 import { TOKENS } from '../config/tokens';
 import { calculateXP, formatXP, XP_CONFIG } from '../utils/gamificationUtils';
 import { getLucideIcon } from '../utils/iconUtils';
+import HistorySkeleton from '../components/skeletons/HistorySkeleton';
 
 function classifyFallback(percentage) {
   if (percentage <= 40) return 'Crítico';
@@ -208,7 +209,7 @@ export default function History() {
   }, [role, roleLoading]);
 
   if (roleLoading || loading) {
-    return <div className="min-h-screen flex items-center justify-center bg-[#F5F3EC]">Carregando...</div>;
+    return <HistorySkeleton />;
   }
 
   if (roleError) {

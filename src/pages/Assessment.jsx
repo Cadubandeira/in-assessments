@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { useAssessment } from '../hooks/useAssessment';
 import { useXPRewards } from '../hooks/useXPRewards';
@@ -7,6 +7,7 @@ import { ArrowRight, CheckCircle, Zap, Info } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import { getLucideIcon } from '../utils/iconUtils';
 import XPRewardsCard from '../components/XP/XPRewardsCard';
+import AssessmentSkeleton from '../components/skeletons/AssessmentSkeleton';
 
 const Assessment = () => {
   const { id } = useParams();
@@ -29,6 +30,7 @@ const Assessment = () => {
   const [currentIndicatorIndex, setCurrentIndicatorIndex] = useState(0);
   const [currentQuestionIndexInIndicator, setCurrentQuestionIndexInIndicator] = useState(0);
   const [indicatorsMeta, setIndicatorsMeta] = useState({});
+  const nextButtonRef = useRef(null);
 
   console.log('Assessment Page Debug:', { loading, error, assessment });
 
@@ -36,6 +38,17 @@ const Assessment = () => {
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [phase, currentIndicatorIndex, currentQuestionIndexInIndicator]);
+
+  // Wrapper function to handle answer change and scroll to next button
+  const handleAnswerChangeWithScroll = (questionId, value) => {
+    handleAnswerChange(questionId, value);
+    // Small delay to allow the UI to update before scrolling
+    setTimeout(() => {
+      if (nextButtonRef.current) {
+        nextButtonRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }, 100);
+  };
 
   // Defesas contra formatos inesperados vindos do backend
   const indicators = Array.isArray(assessment?.indicators) ? assessment.indicators : [];
@@ -66,14 +79,7 @@ const Assessment = () => {
   }, [indicators]);
 
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#F5F3EC] to-[#EEF2FF]">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#4F46E5] mx-auto mb-4"></div>
-          <p className="text-[#1E1B4B] font-medium animate-pulse">Carregando Assessment...</p>
-        </div>
-      </div>
-    );
+    return <AssessmentSkeleton />;
   }
 
   if (error) {
@@ -286,7 +292,7 @@ const Assessment = () => {
               </span>
             </div>
 
-            <div className="relative bg-gradient-to-br from-white/90 to-white/70 backdrop-blur-md border border-white/60 rounded-3xl p-10 sm:p-12 shadow-sm overflow-hidden">
+            <div className="relative bg-gradient-to-br from-white/90 to-white/70 backdrop-blur-md border border-white/60 rounded-3xl p-4 sm:p-12 shadow-sm overflow-hidden">
               <div className="relative z-10">
                 <div className="flex flex-col sm:flex-row items-center gap-6 mb-8">
                   {IconComponent && indicatorMeta?.color && (
@@ -298,7 +304,7 @@ const Assessment = () => {
                     </div>
                   )}
                   <div className="text-center sm:text-left">
-                    <h2 className={`${TOKENS.fonts.serif} text-3xl sm:text-4xl text-[#1E1B4B] leading-tight mb-2`}>
+                    <h2 className={`${TOKENS.fonts.serif} text-2xl sm:text-4xl text-[#1E1B4B] leading-snug sm:leading-tight mb-2`}>
                       {currentIndicator.name}
                     </h2>
                     {indicatorMeta?.color && (
@@ -311,8 +317,8 @@ const Assessment = () => {
                 </div>
 
                 {currentIndicator.conceptual_description && (
-                  <div className="bg-white/50 backdrop-blur-sm rounded-xl p-6 mb-6">
-                    <p className="text-lg text-gray-700 leading-relaxed">
+                  <div className="bg-white/50 backdrop-blur-sm rounded-xl p-0 sm:p-6 mb-6">
+                    <p className="text-base sm:text-lg text-gray-700 leading-normal sm:leading-relaxed">
                       {currentIndicator.conceptual_description}
                     </p>
                   </div>
@@ -383,35 +389,39 @@ const Assessment = () => {
               </div>
             </div>
 
-            {/* Question Card */}
-            <div className="bg-gradient-to-br from-white/90 to-white/70 backdrop-blur-md border border-white/60 rounded-3xl p-8 sm:p-12 shadow-sm">
-              <h3 className={`${TOKENS.fonts.serif} text-xl sm:text-2xl text-[#1E1B4B] mb-10 leading-tight`}>
-                {currentQuestion.text}
-              </h3>
+            {/* Question Card - Mobile Optimized */}
+            <div className="space-y-5">
+              {/* Question Text - Lighter design on mobile */}
+              <div className="bg-white/60 sm:bg-gradient-to-br sm:from-white/90 sm:to-white/70 backdrop-blur-md border border-white/60 rounded-2xl sm:rounded-3xl p-4 sm:p-8 shadow-sm">
+                <h3 className={`${TOKENS.fonts.serif} text-base sm:text-xl text-[#1E1B4B] leading-relaxed sm:leading-tight`}>
+                  {currentQuestion.text}
+                </h3>
+              </div>
 
-              <div className="space-y-4">
+              {/* Alternatives - Compact design */}
+              <div className="space-y-2.5 sm:space-y-4">
                 {(currentQuestion.alternatives || []).map((alt, idx) => {
                   const isSelected = answers[currentQuestion.id] === alt.score_value;
                   return (
                     <button
                       key={alt.id}
-                      onClick={() => handleAnswerChange(currentQuestion.id, alt.score_value)}
-                      className={`group w-full text-left p-6 rounded-2xl border-2 transition-all duration-300 ${
+                      onClick={() => handleAnswerChangeWithScroll(currentQuestion.id, alt.score_value)}
+                      className={`group w-full text-left p-3 sm:p-6 rounded-xl sm:rounded-2xl border transition-all duration-300 ${
                         isSelected
-                          ? 'border-[#4F46E5] bg-gradient-to-r from-[#EEF2FF] to-[#E0E7FF] shadow-lg scale-[1.02]'
-                          : 'border-gray-200 bg-white/80 hover:border-[#4F46E5]/50 hover:shadow-md hover:scale-[1.01]'
+                          ? 'border-[#4F46E5] bg-gradient-to-r from-[#EEF2FF] to-[#E0E7FF] shadow-md sm:shadow-lg sm:scale-[1.02]'
+                          : 'border-gray-200 bg-white/90 hover:border-[#4F46E5]/50 hover:shadow-sm sm:hover:shadow-md sm:hover:scale-[1.01]'
                       }`}
                     >
-                      <div className="flex items-center gap-4">
-                        <div className={`hidden sm:flex flex-shrink-0 w-10 h-10 rounded-full items-center justify-center font-bold text-sm transition-all ${
+                      <div className="flex items-start sm:items-center gap-3 sm:gap-4">
+                        <div className={`flex-shrink-0 w-7 h-7 sm:w-10 sm:h-10 rounded-full flex items-center justify-center font-bold text-xs sm:text-sm transition-all ${
                           isSelected
                             ? 'bg-[#4F46E5] text-white'
-                            : 'bg-gray-100 text-gray-400 group-hover:bg-[#4F46E5]/10 group-hover:text-[#4F46E5]'
+                            : 'bg-gray-100 text-gray-500 group-hover:bg-[#4F46E5]/10 group-hover:text-[#4F46E5]'
                         }`}>
-                          {isSelected ? <CheckCircle className="w-6 h-6" /> : String.fromCharCode(65 + idx)}
+                          {isSelected ? <CheckCircle className="w-4 h-4 sm:w-6 sm:h-6" /> : String.fromCharCode(65 + idx)}
                         </div>
-                        <span className={`text-lg leading-snug sm:leading-normal transition-colors ${
-                          isSelected ? 'text-[#1E1B4B]' : 'text-gray-700'
+                        <span className={`text-sm sm:text-lg leading-relaxed sm:leading-normal transition-colors flex-1 ${
+                          isSelected ? 'text-[#1E1B4B] font-medium' : 'text-gray-700'
                         }`}>
                           {alt.text}
                         </span>
@@ -423,7 +433,7 @@ const Assessment = () => {
             </div>
 
             {/* Navigation */}
-            <div className="flex justify-center pt-4">
+            <div ref={nextButtonRef} className="flex justify-center pt-4">
               <button
                 onClick={handleNext}
                 disabled={!canProceed() || submitting}
