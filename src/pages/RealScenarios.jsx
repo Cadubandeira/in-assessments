@@ -311,28 +311,18 @@ const RealScenarios = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#F5F3EC] to-[#EEF2FF] overflow-x-hidden">
-      <section className="bg-gradient-to-r from-[#4F46E5] via-[#6366F1] to-[#818CF8] pt-[72px] pb-24 px-4 sm:px-6 relative overflow-hidden">
+      <section className="bg-gradient-to-r from-red-600 to-orange-500 pt-[72px] pb-24 px-4 sm:px-6 relative overflow-hidden">
         <div className="absolute inset-0 opacity-10 pointer-events-none overflow-hidden">
           <div className="absolute top-16 -left-10 w-48 h-48 md:w-64 md:h-64 bg-white rounded-full blur-3xl"></div>
           <div className="absolute bottom-0 -right-20 w-64 h-64 md:w-96 md:h-96 bg-[#312E81] rounded-full blur-3xl"></div>
         </div>
         <div className="max-w-5xl mx-auto px-4 sm:px-6 pt-16 relative z-10 w-full text-left">
-          <button
-            type="button"
-            onClick={handleBackToActivities}
-            className="inline-flex items-center gap-2 text-sm font-semibold text-white/90 mb-6 hover:text-white"
-          >
-            <ArrowLeft className="w-4 h-4" /> Voltar para Atividades
-          </button>
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-white/80">
             Situações Reais
           </p>
           <h2 className={`${TOKENS.fonts.serif} text-3xl sm:text-4xl md:text-5xl font-extrabold text-white mt-2 mb-4 leading-tight`}>
-            Simulação Adaptativa com IA + Pressão Contextual Real
+            Suas ações à prova <br/> em ambiente seguro.
           </h2>
-          <p className="text-white/90 text-base sm:text-lg max-w-3xl">
-            Experiências que evoluem com suas decisões, medindo processo cognitivo e identificando padrões.
-          </p>
         </div>
       </section>
 
@@ -346,33 +336,46 @@ const RealScenarios = () => {
           </div>
         ) : (
           <div className="space-y-6">
-            <div className="bg-white/90 backdrop-blur-sm border border-white/60 rounded-2xl p-6 shadow-lg">
-              <h3 className={`${TOKENS.fonts.serif} text-xl text-[#1E1B4B] mb-4`}>
-                O que são Simulações Adaptativas?
-              </h3>
-              <div className="grid sm:grid-cols-2 gap-4 text-sm text-gray-700">
-                <div>
-                  <p className="font-semibold text-[#4F46E5] mb-2">🧠 Não mede resposta "correta"</p>
-                  <p>Avalia seu processo cognitivo, como você pensa e decide sob pressão.</p>
+            <div className="bg-white backdrop-blur-sm border border-white/80 rounded-3xl p-8 sm:p-10 shadow-lg overflow-hidden relative">
+              <div className="absolute top-0 right-0 w-40 h-40 bg-[#4F46E5]/5 rounded-full blur-3xl -z-10"></div>
+              
+              <div className="mb-8">
+                <h3 className={`${TOKENS.fonts.serif} text-2xl sm:text-3xl text-[#1E1B4B] mb-3`}>
+                  Como funciona?
+                </h3>
+                <p className="text-gray-700 leading-relaxed">
+                  A vida real não tem respostas prontas. Você enfrenta ambiguidade, pressão e consequências. Por isso, nossas simulações <span className="font-semibold text-[#4F46E5]">evoluem com suas decisões</span>, revelando como você realmente pensa e age sob pressão.
+                </p>
+              </div>
+
+              <div className="grid sm:grid-cols-2 gap-6">
+                <div className="bg-white/60 rounded-2xl p-5 border border-[#4F46E5]/10 hover:border-[#4F46E5]/30 transition-all">
+                  <div className="text-3xl mb-3">🧠</div>
+                  <p className="font-bold text-[#1E1B4B] mb-2">Avalia seu processo real</p>
+                  <p className="text-sm text-gray-700">Não julgamos suas respostas, analisamos como você pensa e decide em tempo real.</p>
                 </div>
-                <div>
-                  <p className="font-semibold text-[#4F46E5] mb-2">🔄 Cenário que evolui</p>
-                  <p>Cada decisão altera o contexto, criando pressão e ambiguidade reais.</p>
+                <div className="bg-white/60 rounded-2xl p-5 border border-[#4F46E5]/10 hover:border-[#4F46E5]/30 transition-all">
+                  <div className="text-3xl mb-3">🔄</div>
+                  <p className="font-bold text-[#1E1B4B] mb-2">Ambiente dinâmico e realista</p>
+                  <p className="text-sm text-gray-700">Cada ação muda o contexto, criando a pressão e ambiguidade que você encontra todos os dias.</p>
                 </div>
-                <div>
-                  <p className="font-semibold text-[#4F46E5] mb-2">📊 Mapeia padrões</p>
-                  <p>Identifica heurísticas, vieses e estilo de tomada de decisão.</p>
+                 <div className="bg-white/60 rounded-2xl p-5 border border-[#4F46E5]/10 hover:border-[#4F46E5]/30 transition-all">
+                  <div className="text-3xl mb-3">🏆</div>
+                  <p className="font-bold text-[#1E1B4B] mb-2">Embasamento digno de nobel</p>
+                  <p className="text-sm text-gray-700">Inspirado na obra de D. Kahneman, Prêmio Nobel de Economia. Uma abordagem científica para entender como as pessoas realmente tomam decisões.</p>
                 </div>
-                <div>
-                  <p className="font-semibold text-[#4F46E5] mb-2">🎯 Impacta indicadores</p>
-                  <p>Resultados são mapeados para seus indicadores mestres.</p>
+                <div className="bg-white/60 rounded-2xl p-5 border border-[#4F46E5]/10 hover:border-[#4F46E5]/30 transition-all">
+                  <div className="text-3xl mb-3">📊</div>
+                  <p className="font-bold text-[#1E1B4B] mb-2">Descubra seus padrões</p>
+                  <p className="text-sm text-gray-700">Identifique seus vieses, heurísticas e seu estilo único para tomada de decisão.</p>
                 </div>
+               
               </div>
             </div>
 
-            <div>
+            <div className="mt-10">
               <h3 className={`${TOKENS.fonts.serif} text-2xl text-[#1E1B4B] mb-4`}>
-                Cenários Disponíveis
+                Cenários disponíveis
               </h3>
               <div className="grid gap-4 sm:gap-6">
                 {scenarios.map((scenario) => (

@@ -26,6 +26,7 @@ import { useUserRanking } from '../hooks/useUserRanking';
 import { useDevelopmentMetrics } from '../hooks/useDevelopmentMetrics';
 import DevelopmentChart from '../components/DevelopmentChart';
 import DashboardSkeleton from '../components/skeletons/DashboardSkeleton';
+import CallToActionCard from '../components/CallToActionCard';
 
 const Dashboard = ({ user }) => {
   const navigate = useNavigate();
@@ -314,25 +315,13 @@ const Dashboard = ({ user }) => {
             </div>
 
             {/* BANNER CTA ASSESSMENT */}
-            <div className="bg-gradient-to-r from-[#4F46E5] to-[#6366F1] rounded-xl sm:rounded-2xl p-4 sm:p-6 lg:p-8 shadow-xl flex flex-col md:flex-row items-center justify-between text-white gap-4 sm:gap-6 w-full">
-              <div className="flex items-center gap-3 sm:gap-4 md:gap-6 w-full md:w-auto">
-                <div className="bg-white/20 p-3 sm:p-4 rounded-lg flex-shrink-0">
-                  <BrainCircuit size={32} />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <h4 className="text-lg sm:text-xl font-bold">Pronto para uma novo desafio?</h4>
-                  <p className="text-white/80 text-sm">
-                    Mapeie seu crescimento em competências e desbloqueie novos insights.
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={() => navigate('/activities')}
-                className="bg-white text-[#4F46E5] px-6 sm:px-8 py-2.5 sm:py-3 rounded-lg font-bold text-xs sm:text-sm uppercase tracking-wider hover:scale-105 transition-transform whitespace-nowrap w-full md:w-auto"
-              >
-                Vamos lá!
-              </button>
-            </div>
+            <CallToActionCard
+              icon={<BrainCircuit size={32} />}
+              title="Pronto para uma novo desafio?"
+              description="Mapeie seu crescimento em competências e revele insights."
+              buttonText="Vamos lá!"
+              onButtonClick={() => navigate('/activities')}
+            />
 
             {/* MEU DESENVOLVIMENTO */}
             <div className="bg-white rounded-xl sm:rounded-2xl p-4 sm:p-6 lg:p-8 shadow-sm w-full">

@@ -4,6 +4,7 @@ import { ArrowRight, Send, Flame } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import { TOKENS } from '../config/tokens';
 import ActivitiesSkeleton from '../components/skeletons/ActivitiesSkeleton';
+import CallToActionCard from '../components/CallToActionCard';
 
 const slugify = (value) => value
   .toLowerCase()
@@ -20,9 +21,6 @@ const AssessmentCard = ({ assessment, onStart }) => (
     aria-label={`Iniciar assessment: ${assessment.name}`}
   >
     <div className="flex-grow">
-      <p className="text-[#4F46E5] text-xs font-bold uppercase tracking-widest mb-2">
-        Disponivel
-      </p>
       <h3 className={`${TOKENS.fonts.serif} text-2xl mb-3 leading-tight text-[#1E1B4B]`}>
         {assessment.name}
       </h3>
@@ -30,10 +28,7 @@ const AssessmentCard = ({ assessment, onStart }) => (
         {assessment.description}
       </p>
     </div>
-    <div className="flex items-center justify-between mt-6">
-      <span className="text-xs font-bold text-[#4F46E5] px-2 py-1 bg-[#4F46E5]/10 rounded">
-        Iniciar agora
-      </span>
+    <div className="flex justify-end mt-6">
       <span className="inline-flex items-center gap-2 text-sm font-semibold text-[#4F46E5]">
         Ver detalhes <ArrowRight className="w-4 h-4" />
       </span>
@@ -51,7 +46,7 @@ const RealScenarioCard = ({ onOpen }) => (
     <div className="flex-grow space-y-4">
       <div className="flex flex-wrap items-center gap-3">
         <span className="text-xs font-bold uppercase tracking-[0.2em] text-[#4F46E5]">
-          Situacoes reais
+          Situações reais
         </span>
         <span className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#312E81] bg-[#E0E7FF] px-2 py-1 rounded-full">
           Powered by IA
@@ -107,9 +102,33 @@ const RealScenarioCard = ({ onOpen }) => (
   </button>
 );
 
+const RealScenarioSimpleCard = ({ title, description, scenarioId }) => (
+  <button
+    type="button"
+    onClick={() => window.location.hash = `/activities/real-scenarios/${scenarioId}`}
+    className="group p-6 sm:p-8 border border-white/60 bg-white/80 backdrop-blur-sm rounded-2xl flex flex-col h-full text-left transition-all hover:border-[#4F46E5]/40 shadow-sm hover:shadow-lg"
+    aria-label={`Abrir: ${title}`}
+  >
+    <div className="flex-grow">
+      <h3 className={`${TOKENS.fonts.serif} text-2xl mb-3 leading-tight text-[#1E1B4B]`}>
+        {title}
+      </h3>
+      <p className="text-sm text-gray-600 leading-relaxed">
+        {description}
+      </p>
+    </div>
+    <div className="flex justify-end mt-6">
+      <span className="inline-flex items-center gap-2 text-sm font-semibold text-[#4F46E5]">
+        Ver detalhes <ArrowRight className="w-4 h-4" />
+      </span>
+    </div>
+  </button>
+);
+
 const Activities = () => {
   const [assessments, setAssessments] = useState([]);
   const [highlightAssessment, setHighlightAssessment] = useState(null);
+  const [specificScenario, setSpecificScenario] = useState(null);
   const [aiSuggestion, setAiSuggestion] = useState({
     assessment: null,
     indicatorName: null,
@@ -217,6 +236,21 @@ const Activities = () => {
     fetch();
   }, []);
 
+  useEffect(() => {
+    const fetchScenario = async () => {
+      const { data } = await supabase
+        .from('scenario_simulations')
+        .select('id, title, description')
+        .eq('id', 'a1b2c3d4-e5f6-7890-abcd-ef1234567890')
+        .single();
+
+      if (data) {
+        setSpecificScenario(data);
+      }
+    };
+    fetchScenario();
+  }, []);
+
   if (loading) {
     return <ActivitiesSkeleton />;
   }
@@ -251,9 +285,6 @@ const Activities = () => {
                   <div className="flex items-center gap-2">
                     <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#1E1B4B] bg-[#FDE68A] px-3 py-1 rounded-full">
                       Recomendação
-                    </span>
-                    <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#1E1B4B] bg-[#FDE68A] px-3 py-1 rounded-full">
-                      XP em dobro
                     </span>
                   </div>
                 </div>
@@ -329,10 +360,10 @@ const Activities = () => {
           </div>
         </section>
         <section className="mb-12 sm:mb-16">
-          <div className="mb-6">
-            <h3 className={`${TOKENS.fonts.serif} text-2xl sm:text-3xl text-[#1E1B4B]`}>Assessments</h3>
-            <p className="text-sm text-gray-600 max-w-2xl">
-              Escolha um assessment para mapear suas competencias e evoluir.
+          <div className="mb-8">
+            <h3 className={`${TOKENS.fonts.serif} text-2xl sm:text-3xl text-[#1E1B4B] mb-3`}>Assessments</h3>
+            <p className="text-base text-gray-600 max-w-2xl">
+              Escolha um assessment para mapear suas competências e evoluir.
             </p>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
@@ -347,14 +378,26 @@ const Activities = () => {
         </section>
 
         <section>
-          <div className="mb-6">
-            <h3 className={`${TOKENS.fonts.serif} text-2xl sm:text-3xl text-[#1E1B4B]`}>Situacoes reais</h3>
-            <p className="text-sm text-gray-600 max-w-2xl">
-              Experiêcias guiadas por IA para avaliar sua tomada de decisão nos mais diversos contextos.
-            </p>
+          <div className="mb-8">
+            <CallToActionCard
+              icon={<Flame size={32} />}
+              title="Situações reais desafiadoras"
+              description="Teste suas habilidades em cenários reais com pressão contextual e análise comportamental."
+              buttonText="SAIBA MAIS"
+              onButtonClick={() => navigate('/activities/real-scenarios')}
+              gradientFrom="from-red-600"
+              gradientTo="to-orange-500"
+              buttonTextColor="text-red-600"
+            />
           </div>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8">
-            <RealScenarioCard onOpen={() => navigate('/activities/real-scenarios')} />
+            {specificScenario && (
+              <RealScenarioSimpleCard 
+                title={specificScenario.title}
+                description={specificScenario.description}
+                scenarioId="a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+              />
+            )}
           </div>
         </section>
       </main>

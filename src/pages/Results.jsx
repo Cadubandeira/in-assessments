@@ -872,7 +872,6 @@ export default function Results() {
                           onClick={() => navigate(`/assessment/${assessment.id}`)}
                           className="group bg-white/80 border border-white/60 rounded-2xl p-6 text-left shadow-sm hover:shadow-lg transition flex-shrink-0 w-[85vw] snap-center"
                         >
-                          <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#4F46E5] mb-2">Disponivel</p>
                           <h3 className={`${TOKENS.fonts.serif} text-xl text-[#1E1B4B] mb-3 leading-tight`}>
                             {assessment.name}
                           </h3>
@@ -896,7 +895,6 @@ export default function Results() {
                         onClick={() => navigate(`/assessment/${assessment.id}`)}
                         className="group bg-white/80 border border-white/60 rounded-2xl p-6 text-left shadow-sm hover:shadow-lg transition"
                       >
-                        <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#4F46E5] mb-2">Disponivel</p>
                         <h3 className={`${TOKENS.fonts.serif} text-xl text-[#1E1B4B] mb-3 leading-tight`}>
                           {assessment.name}
                         </h3>
