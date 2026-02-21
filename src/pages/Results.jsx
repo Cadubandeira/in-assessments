@@ -4,7 +4,7 @@ import { Share2, ArrowRight, Zap, Check, X } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import RadarChart from '../components/charts/RadarChart';
 import HorizontalBarChart from '../components/charts/HorizontalBarChart';
-import XPGainOverlay from '../components/XPGainOverlay';
+import ScenarioXPOverlay from '../components/ScenarioXPOverlay';
 import { useProgressionUpdate } from '../hooks/useProgressionUpdate';
 import { TOKENS } from '../config/tokens';
 import { getLucideIcon } from '../utils/iconUtils';
@@ -90,6 +90,7 @@ export default function Results() {
   const [suggestedLoading, setSuggestedLoading] = useState(true);
   const [showXPOverlay, setShowXPOverlay] = useState(false);
   const [xpOverlayData, setXpOverlayData] = useState(null);
+  const [newTotalXP, setNewTotalXP] = useState(0);
 
   useEffect(() => {
     let mounted = true;
@@ -162,39 +163,51 @@ export default function Results() {
                     .update({ xp_awarded: true })
                     .eq('id', data.id);
                   
-                  // Preparar dados do overlay XP
-                  const bonuses = [];
+                  // Preparar dados do overlay XP no formato esperado por ScenarioXPOverlay
                   const xpGained = progressResult.xpGained || 0;
-                  
-                  // Calcular bônus alcançados
                   const xpConfig = XP_CONFIG[activityType] || XP_CONFIG.assessment;
                   const percentage = data.max_possible_score > 0 ? Math.round((data.total_score / data.max_possible_score) * 100) : 0;
                   
+                  // Calcular XP base e bônus
+                  let baseXP = xpConfig.base || 0;
+                  let bonusXP = 0;
+                  
                   if (percentage >= 100 && xpConfig.bonusThresholds?.[100]) {
-                    bonuses.push({
-                      label: 'Resultado 100%',
-                      xp: xpConfig.bonusThresholds[100]
-                    });
+                    bonusXP = xpConfig.bonusThresholds[100];
                   } else if (percentage >= 90 && xpConfig.bonusThresholds?.[90]) {
-                    bonuses.push({
-                      label: 'Resultado 90%+',
-                      xp: xpConfig.bonusThresholds[90]
-                    });
+                    bonusXP = xpConfig.bonusThresholds[90];
                   } else if (percentage >= 80 && xpConfig.bonusThresholds?.[80]) {
-                    bonuses.push({
-                      label: 'Resultado 80%+',
-                      xp: xpConfig.bonusThresholds[80]
+                    bonusXP = xpConfig.bonusThresholds[80];
+                  }
+                  
+                  // Preparar breakdown
+                  const breakdown = [];
+                  if (baseXP > 0) {
+                    breakdown.push({
+                      label: `Completar ${activityType}`,
+                      xp: baseXP,
+                      achieved: true
+                    });
+                  }
+                  if (bonusXP > 0) {
+                    breakdown.push({
+                      label: `Bônus de desempenho (${percentage}%)`,
+                      xp: bonusXP,
+                      achieved: true
                     });
                   }
                   
                   if (mounted) {
+                    // Formato para ScenarioXPOverlay
                     setXpOverlayData({
-                      xpGained,
-                      totalXP: progressResult.totalXP,
-                      newLevel: progressResult.newLevel,
-                      leveledUp: progressResult.leveledUp,
-                      bonuses
+                      baseXP,
+                      bonuses: {
+                        performance: bonusXP > 0 ? percentage : 0
+                      },
+                      breakdown,
+                      totalXP: xpGained
                     });
+                    setNewTotalXP(progressResult.totalXP);
                     setShowXPOverlay(true);
                   }
                   
@@ -560,15 +573,12 @@ export default function Results() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#F5F3EC] to-[#EEF2FF]">
-      {/* XP Gain Overlay */}
+      {/* XP Overlay - Mesmo componente do Assessment */}
       {xpOverlayData && (
-        <XPGainOverlay
+        <ScenarioXPOverlay
           isVisible={showXPOverlay}
-          xpGained={xpOverlayData.xpGained}
-          totalXP={xpOverlayData.totalXP}
-          newLevel={xpOverlayData.newLevel}
-          leveledUp={xpOverlayData.leveledUp}
-          bonuses={xpOverlayData.bonuses}
+          xpData={xpOverlayData}
+          totalXP={newTotalXP}
           onClose={() => setShowXPOverlay(false)}
         />
       )}

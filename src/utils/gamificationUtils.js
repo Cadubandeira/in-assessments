@@ -28,6 +28,16 @@ export const XP_CONFIG = {
       90: 100,
       100: 150
     }
+  },
+  scenario: {
+    base: 250,
+    bonusThresholds: {
+      empathy: 50,      // High System 2 (≥60%) = +50 XP
+      decisiveness: 25, // Fast decisions (<25s avg) = +25 XP
+      balance: 50,      // Balanced System 1/2 (40-60% range) = +50 XP
+      minimizeBias: 25, // Low confidence bias (<2 biases detected) = +25 XP
+      leadership: 75    // Team resolution path completed = +75 XP
+    }
   }
 };
 
@@ -55,6 +65,76 @@ export const calculateXP = (score, maxScore, activityType = 'assessment') => {
   }
 
   return totalXP;
+};
+
+/**
+ * Calculate XP earned for completing a scenario simulation
+ * Based on Kahneman System 1/2 analysis and decision quality
+ * @param {object} kahnemanData - Kahneman analysis results
+ * @param {number} avgDecisionTime - Average decision time in seconds
+ * @param {number} totalDecisions - Total decisions made
+ * @returns {object} XP breakdown { baseXP, bonuses: { empathy, decisiveness, balance, bias, leadership }, totalXP }
+ */
+export const calculateScenarioXP = (kahnemanData, avgDecisionTime = 0, totalDecisions = 0) => {
+  const config = XP_CONFIG.scenario;
+  let baseXP = config.base;
+  let bonuses = {};
+
+  if (!kahnemanData) {
+    return {
+      baseXP,
+      bonuses: {},
+      totalXP: baseXP,
+      breakdown: [`Base: ${baseXP} XP`]
+    };
+  }
+
+  const { system1_score, system2_score, biases = [] } = kahnemanData;
+
+  // Bonus 1: Empathy & Analysis (high System 2)
+  if (system2_score >= 60) {
+    bonuses.empathy = config.bonusThresholds.empathy;
+  }
+
+  // Bonus 2: Decisiveness (fast average decision time)
+  if (avgDecisionTime > 0 && avgDecisionTime < 25) {
+    bonuses.decisiveness = config.bonusThresholds.decisiveness;
+  }
+
+  // Bonus 3: Balanced cognition (both systems 40-60% range)
+  if (system1_score >= 40 && system1_score <= 60 && system2_score >= 40 && system2_score <= 60) {
+    bonuses.balance = config.bonusThresholds.balance;
+  }
+
+  // Bonus 4: Low bias (detected fewer than 2 biases or biases with low confidence)
+  const highConfidenceBiases = biases.filter(b => (b.confidence || 50) > 60).length;
+  if (highConfidenceBiases <= 1) {
+    bonuses.minimizeBias = config.bonusThresholds.minimizeBias;
+  }
+
+  // Bonus 5: Leadership path (if used team-level conflict resolution - indicated by many decisions)
+  if (totalDecisions >= 12) {
+    bonuses.leadership = config.bonusThresholds.leadership;
+  }
+
+  const totalBonus = Object.values(bonuses).reduce((sum, val) => sum + val, 0);
+  const totalXP = baseXP + totalBonus;
+
+  const breakdown = [
+    `Base: ${baseXP} XP`,
+    bonuses.empathy ? `Empatia & Análise: +${bonuses.empathy} XP` : null,
+    bonuses.decisiveness ? `Velocidade: +${bonuses.decisiveness} XP` : null,
+    bonuses.balance ? `Equilíbrio: +${bonuses.balance} XP` : null,
+    bonuses.minimizeBias ? `Redução de Vieses: +${bonuses.minimizeBias} XP` : null,
+    bonuses.leadership ? `Liderança de Time: +${bonuses.leadership} XP` : null
+  ].filter(Boolean);
+
+  return {
+    baseXP,
+    bonuses,
+    totalXP,
+    breakdown
+  };
 };
 
 /**

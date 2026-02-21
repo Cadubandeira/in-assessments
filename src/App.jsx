@@ -206,6 +206,7 @@ export default function App() {
           <Route path="/dashboard" element={<ProtectedLayout user={user}><Dashboard user={user} /></ProtectedLayout>} />
           <Route path="/activities" element={<ProtectedLayout user={user}><Activities /></ProtectedLayout>} />
           <Route path="/activities/real-scenarios" element={<ProtectedLayout user={user}><RealScenarios /></ProtectedLayout>} />
+          <Route path="/activities/real-scenarios/:scenarioId" element={<ProtectedLayout user={user}><RealScenarios /></ProtectedLayout>} />
           <Route path="/assessments" element={<Navigate to="/activities" replace />} />
           <Route path="/assessment/active" element={<ProtectedLayout user={user}><Assessment /></ProtectedLayout>} />
           <Route path="/assessment/:id" element={<ProtectedLayout user={user}><Assessment /></ProtectedLayout>} />

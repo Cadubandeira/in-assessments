@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { useAssessment } from '../hooks/useAssessment';
+import { useXPRewards } from '../hooks/useXPRewards';
 import { TOKENS } from '../config/tokens';
 import { ArrowRight, CheckCircle, Zap, Info } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import { getLucideIcon } from '../utils/iconUtils';
-import { XP_CONFIG } from '../utils/gamificationUtils';
+import XPRewardsCard from '../components/XP/XPRewardsCard';
 
 const Assessment = () => {
   const { id } = useParams();
@@ -19,6 +20,9 @@ const Assessment = () => {
     submitting,
     introductionHtml
   } = useAssessment({ assessmentIdOrSlug: id });
+
+  // XP Hooks
+  const { baseXP, bonusThresholds, rewards } = useXPRewards('assessment');
 
   // Phase state machine: 'intro' | 'indicator-intro' | 'question'
   const [phase, setPhase] = useState('intro');
@@ -139,7 +143,8 @@ const Assessment = () => {
           setPhase('indicator-intro');
           setCurrentQuestionIndexInIndicator(0);
         } else {
-          // Finished entire assessment
+          // Finished entire assessment - submit and redirect to Results
+          console.log('🎯 Assessment finalizado! Submetendo...');
           submitAssessment();
         }
       }
@@ -250,49 +255,13 @@ const Assessment = () => {
                 </div>
 
                 {/* Card de Recompensas XP */}
-                <div className="bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 border border-indigo-200/60 rounded-2xl p-6 sm:p-8 shadow-lg relative overflow-hidden">
-                  <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-indigo-400/10 to-purple-400/10 rounded-full blur-2xl"></div>
-                  <div className="relative z-10">
-                    <div className="flex items-start gap-3 mb-4">
-                      <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg">
-                        <Zap className="w-6 h-6 text-white" strokeWidth={2.5} fill="currentColor" />
-                      </div>
-                      <div className="flex-1">
-                        <p className="text-xs font-bold uppercase tracking-[0.2em] text-indigo-700 mb-1">Ganhe XP</p>
-                        <p className="text-sm text-gray-600">Complete e suba de nível</p>
-                      </div>
-                      <div className="text-right">
-                        <div className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-purple-600">
-                          até {XP_CONFIG.assessment.base + XP_CONFIG.assessment.bonusThresholds[100]} XP
-                        </div>
-                
-                      </div>
-                    </div>
-                    
-                    <div className="space-y-2.5 text-sm">
-                      <div className="flex items-center gap-3 p-2 rounded-lg bg-white/60 backdrop-blur-sm">
-                        <div className="w-2 h-2 rounded-full bg-indigo-400"></div>
-                        <span className="text-gray-600 flex-1">Completar assessment</span>
-                        <span className="font-bold text-indigo-700">+{XP_CONFIG.assessment.base} XP</span>
-                      </div>
-                      <div className="flex items-center gap-3 p-2 rounded-lg bg-white/40">
-                        <div className="w-2 h-2 rounded-full bg-purple-400"></div>
-                        <span className="text-gray-600 flex-1">Resultado de 80 a 89%</span>
-                        <span className="font-semibold text-purple-600">+{XP_CONFIG.assessment.bonusThresholds[80]} XP</span>
-                      </div>
-                      <div className="flex items-center gap-3 p-2 rounded-lg bg-white/40">
-                        <div className="w-2 h-2 rounded-full bg-purple-500"></div>
-                        <span className="text-gray-600 flex-1">Resultado de 90 a 99%</span>
-                        <span className="font-semibold text-purple-600">+{XP_CONFIG.assessment.bonusThresholds[90]} XP</span>
-                      </div>
-                      <div className="flex items-center gap-3 p-2 rounded-lg bg-gradient-to-r from-purple-100 to-pink-100 border border-purple-300/50">
-                        <div className="w-2 h-2 rounded-full bg-gradient-to-r from-purple-600 to-pink-600 animate-pulse"></div>
-                        <span className="text-gray-700 font-medium flex-1">Resultado de 100% 🎯</span>
-                        <span className="font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-pink-600">+{XP_CONFIG.assessment.bonusThresholds[100]} XP</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                <XPRewardsCard 
+                  baseXP={baseXP}
+                  bonusThresholds={bonusThresholds}
+                  title="Ganhe XP"
+                  subtitle="Complete e suba de nível"
+                  rewardsList={rewards}
+                />
               </div>
             </div>
 

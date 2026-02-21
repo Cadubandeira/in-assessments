@@ -70,6 +70,7 @@ CREATE TABLE public.assessment_versions (
   is_active boolean NOT NULL DEFAULT false,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   introduction_html text,
+  visualization_type jsonb DEFAULT '["radar"]'::jsonb,
   CONSTRAINT assessment_versions_pkey PRIMARY KEY (id),
   CONSTRAINT assessment_versions_assessment_id_fkey FOREIGN KEY (assessment_id) REFERENCES public.assessments(id)
 );
@@ -129,6 +130,62 @@ CREATE TABLE public.questions (
   created_at timestamp without time zone DEFAULT now(),
   CONSTRAINT questions_pkey PRIMARY KEY (id),
   CONSTRAINT questions_indicator_id_fkey FOREIGN KEY (indicator_id) REFERENCES public.indicators(id)
+);
+CREATE TABLE public.scenario_decisions (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  session_id uuid NOT NULL,
+  node_id uuid NOT NULL,
+  option_index integer NOT NULL,
+  option_text text NOT NULL,
+  time_to_decide_seconds integer,
+  decision_confidence text CHECK (decision_confidence = ANY (ARRAY['uncertain'::text, 'moderate'::text, 'confident'::text])),
+  cognitive_load_perceived text CHECK (cognitive_load_perceived = ANY (ARRAY['low'::text, 'medium'::text, 'high'::text])),
+  metadata jsonb DEFAULT '{}'::jsonb,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT scenario_decisions_pkey PRIMARY KEY (id),
+  CONSTRAINT scenario_decisions_session_id_fkey FOREIGN KEY (session_id) REFERENCES public.scenario_sessions(id),
+  CONSTRAINT scenario_decisions_node_id_fkey FOREIGN KEY (node_id) REFERENCES public.scenario_nodes(id)
+);
+CREATE TABLE public.scenario_nodes (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  scenario_id uuid NOT NULL,
+  node_type text NOT NULL CHECK (node_type = ANY (ARRAY['initial'::text, 'decision'::text, 'consequence'::text, 'final'::text])),
+  content text NOT NULL,
+  pressure_elements jsonb DEFAULT '{}'::jsonb,
+  decision_options jsonb DEFAULT '[]'::jsonb,
+  cognitive_markers jsonb DEFAULT '{}'::jsonb,
+  display_order integer NOT NULL DEFAULT 0,
+  is_entry_node boolean DEFAULT false,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT scenario_nodes_pkey PRIMARY KEY (id),
+  CONSTRAINT scenario_nodes_scenario_id_fkey FOREIGN KEY (scenario_id) REFERENCES public.scenario_simulations(id)
+);
+CREATE TABLE public.scenario_sessions (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  scenario_id uuid NOT NULL,
+  started_at timestamp with time zone DEFAULT now(),
+  completed_at timestamp with time zone,
+  decision_path jsonb DEFAULT '[]'::jsonb,
+  cognitive_patterns jsonb DEFAULT '{}'::jsonb,
+  indicator_mapping jsonb DEFAULT '{}'::jsonb,
+  total_time_seconds integer,
+  status text DEFAULT 'in_progress'::text CHECK (status = ANY (ARRAY['in_progress'::text, 'completed'::text, 'abandoned'::text])),
+  CONSTRAINT scenario_sessions_pkey PRIMARY KEY (id),
+  CONSTRAINT scenario_sessions_scenario_id_fkey FOREIGN KEY (scenario_id) REFERENCES public.scenario_simulations(id)
+);
+CREATE TABLE public.scenario_simulations (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  title text NOT NULL,
+  description text,
+  initial_context text NOT NULL,
+  target_indicators jsonb NOT NULL DEFAULT '[]'::jsonb,
+  difficulty_level text NOT NULL DEFAULT 'medium'::text CHECK (difficulty_level = ANY (ARRAY['easy'::text, 'medium'::text, 'hard'::text])),
+  estimated_duration_minutes integer DEFAULT 10,
+  is_active boolean DEFAULT true,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT scenario_simulations_pkey PRIMARY KEY (id)
 );
 CREATE TABLE public.user_indicator_history (
   id uuid NOT NULL DEFAULT gen_random_uuid(),

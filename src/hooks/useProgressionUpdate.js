@@ -10,10 +10,10 @@ import { calculateXP, getCurrentLevel } from '../utils/gamificationUtils';
  */
 export const useProgressionUpdate = () => {
   const updateUserProgression = useCallback(
-    async (userId, score, maxScore, activityType = 'assessment') => {
+    async (userId, score, maxScore, activityType = 'assessment', preCalculatedXP = null) => {
       try {
-        // 1. Calcular XP ganho
-        const xpGained = calculateXP(score, maxScore, activityType);
+        // 1. Calcular XP ganho (ou usar XP pré-calculado para scenarios)
+        const xpGained = preCalculatedXP !== null ? preCalculatedXP : calculateXP(score, maxScore, activityType);
 
         // 2. Buscar user_progression atual
         const { data: currentProgression, error: fetchError } = await supabase
