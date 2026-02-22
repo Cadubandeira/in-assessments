@@ -1,13 +1,18 @@
 import React, { useState } from 'react';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 
-const IntroductionEditor = ({ value, onChange, placeholder = 'Digite o conteúdo introdutório (HTML permitido)...' }) => {
+const IntroductionEditor = ({
+  value,
+  onChange,
+  placeholder = 'Digite o conteúdo introdutório (HTML permitido)...',
+  label = 'Introdução do Assessment'
+}) => {
   const [isExpanded, setIsExpanded] = useState(false);
 
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between">
-        <label className="text-sm font-semibold text-gray-700">Introdução do Assessment</label>
+        <label className="text-sm font-semibold text-gray-700">{label}</label>
         <button
           type="button"
           onClick={() => setIsExpanded(!isExpanded)}

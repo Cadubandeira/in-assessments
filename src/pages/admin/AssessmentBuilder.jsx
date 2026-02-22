@@ -28,6 +28,7 @@ export default function AssessmentBuilder() {
   const [ranges, setRanges] = useState({}); // { indicatorId: [{ min, max, label, interpretation }] }
   const [overallRanges, setOverallRanges] = useState([]); // Faixas globais do assessment
   const [introductionHtml, setIntroductionHtml] = useState(''); // Conteúdo introdutório
+  const [finalReflection, setFinalReflection] = useState(''); // Reflexao final opcional
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [showVersionModal, setShowVersionModal] = useState(false);
@@ -149,6 +150,7 @@ export default function AssessmentBuilder() {
     setRanges({});
     setOverallRanges([]);
     setIntroductionHtml('');
+    setFinalReflection('');
     setAssessmentIndicatorsData([]);
     setQuestionsData([]);
   };
@@ -169,15 +171,16 @@ export default function AssessmentBuilder() {
       return;
     }
 
-    // Buscar introduction_html e overall_ranges da versão
+    // Buscar introduction_html, reflexao final e overall_ranges da versão
     const { data: versionData, error: versionError } = await supabase
       .from('assessment_versions')
-      .select('introduction_html')
+      .select('introduction_html, final_reflection')
       .eq('id', versionId)
       .single();
 
     if (!versionError && versionData) {
       setIntroductionHtml(versionData.introduction_html || '');
+      setFinalReflection(versionData.final_reflection || '');
     }
 
     // Buscar overall_ranges
@@ -545,6 +548,7 @@ export default function AssessmentBuilder() {
             version_number: 1,
             is_active: true,
             introduction_html: introductionHtml,
+            final_reflection: finalReflection || null,
             visualization_type: assessmentDataEdited.visualization_type || '["radar"]'
           }])
           .select()
@@ -579,13 +583,16 @@ export default function AssessmentBuilder() {
           }
         }
 
-        // 2.1. Atualizar visualization_type e introduction_html da nova versão
+        // 2.1. Atualizar visualization_type, introduction_html e reflexao final da nova versão
         const versionUpdateFields = {};
         if (assessmentDataEdited?.visualization_type) {
           versionUpdateFields.visualization_type = assessmentDataEdited.visualization_type;
         }
         if (introductionHtml !== undefined) {
           versionUpdateFields.introduction_html = introductionHtml;
+        }
+        if (finalReflection !== undefined) {
+          versionUpdateFields.final_reflection = finalReflection || null;
         }
         
         if (Object.keys(versionUpdateFields).length > 0) {
@@ -715,15 +722,22 @@ export default function AssessmentBuilder() {
           }
         }
 
-        // Atualizar introduction_html na versão
+        // Atualizar introduction_html e reflexao final na versão
+        const versionTextUpdate = {};
         if (introductionHtml !== undefined) {
+          versionTextUpdate.introduction_html = introductionHtml;
+        }
+        if (finalReflection !== undefined) {
+          versionTextUpdate.final_reflection = finalReflection || null;
+        }
+        if (Object.keys(versionTextUpdate).length > 0) {
           const { error: updateVersionError } = await supabase
             .from('assessment_versions')
-            .update({ introduction_html: introductionHtml })
+            .update(versionTextUpdate)
             .eq('id', targetVersionId);
 
           if (updateVersionError) {
-            console.error('❌ Erro ao salvar introduction_html:', updateVersionError);
+            console.error('❌ Erro ao salvar texto da versão:', updateVersionError);
             throw updateVersionError;
           }
         }
@@ -1309,6 +1323,28 @@ Deseja continuar?`;
                 )}
               </div>
 
+              {/* 4. OVERALL RANGES (Faixas de Interpretação Global) */}
+              <div className="bg-white border rounded-lg p-6">
+                <OverallRangesEditor 
+                  ranges={overallRanges}
+                  onChange={setOverallRanges}
+                />
+              </div>
+
+              {/* REFLEXAO FINAL */}
+              <div className="bg-white border rounded-lg p-6">
+                <h2 className="text-lg font-semibold mb-4">Reflexao Final</h2>
+                <p className="text-sm text-gray-500 mb-3">
+                  Texto opcional exibido ao final do resultado do assessment.
+                </p>
+                <IntroductionEditor
+                  value={finalReflection}
+                  onChange={setFinalReflection}
+                  label="Reflexao final"
+                  placeholder="Escreva uma reflexao final para o usuario (HTML permitido)..."
+                />
+              </div>
+
               {/* ADICIONAR INDICADOR */}
               <div className="bg-white border rounded-lg p-6">
                 <h2 className="text-lg font-semibold mb-4">Adicionar Indicador</h2>
@@ -1519,14 +1555,6 @@ Deseja continuar?`;
                   </div>
                 </div>
               )}
-
-              {/* 4. OVERALL RANGES (Faixas de Interpretação Global) */}
-              <div className="bg-white border rounded-lg p-6">
-                <OverallRangesEditor 
-                  ranges={overallRanges}
-                  onChange={setOverallRanges}
-                />
-              </div>
 
               {/* 5. QUESTIONS E ALTERNATIVES AGRUPADAS POR INDICADORES */}
               {questionsEdited.length > 0 && (

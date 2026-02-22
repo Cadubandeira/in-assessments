@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Share2, ArrowRight, Zap, Check, X } from 'lucide-react';
+import { Share2, ArrowRight, Zap, Check, X, ToolCase } from 'lucide-react';
+import CallToActionCardLong from '../components/CallToActionCardLong';
 import { supabase } from '../supabaseClient';
 import RadarChart from '../components/charts/RadarChart';
 import HorizontalBarChart from '../components/charts/HorizontalBarChart';
@@ -104,7 +105,8 @@ export default function Results() {
               is_active,
               created_at,
               assessment_id,
-              visualization_type
+              visualization_type,
+              final_reflection
             )
           `);
 
@@ -245,7 +247,8 @@ export default function Results() {
                 ...data.assessment_versions,
                 name: assessmentInfo?.name || 'Assessment',
                 description: assessmentInfo?.description || '',
-                visualization_type: visualizationType
+                visualization_type: visualizationType,
+                final_reflection: data.assessment_versions?.final_reflection || ''
               });
             }
 
@@ -429,6 +432,7 @@ export default function Results() {
 
   const assessmentName = assessmentData?.name || result?.assessment_versions?.assessment_id || 'Assessment';
   const assessmentDescription = assessmentData?.description || '';
+  const finalReflectionText = assessmentData?.final_reflection || result?.assessment_versions?.final_reflection || '';
 
   const activityType = result.activity_type || 'assessment';
   const xpConfig = XP_CONFIG[activityType] || XP_CONFIG.assessment;
@@ -695,7 +699,7 @@ export default function Results() {
                     </div>
 
                     {v.interpretation && (
-                      <p className="mt-3 text-base text-gray-700 leading-relaxed text-justify [text-align-last:left]">
+                      <p className="mt-6 text-base sm:text-lg text-gray-700 leading-relaxed text-justify [text-align-last:left]">
                         {v.interpretation}
                       </p>
                     )}
@@ -703,6 +707,18 @@ export default function Results() {
                 );
               })}
             </div>
+
+            {finalReflectionText && (
+              <div className="mt-6 bg-white/80 backdrop-blur-sm border border-white/60 rounded-2xl p-6 sm:p-8 shadow-sm">
+                <p className="text-[#4F46E5] font-bold text-xs uppercase tracking-widest mb-3">
+                  Reflexão final
+                </p>
+                <div
+                  className="prose prose-sm mt-6 sm:text-lg sm:prose-base max-w-none text-gray-700 leading-relaxed text-justify [text-align-last:left]"
+                  dangerouslySetInnerHTML={{ __html: finalReflectionText }}
+                />
+              </div>
+            )}
           </div>
 
           {/* Card XP - sticky (apenas desktop) */}
@@ -771,8 +787,19 @@ export default function Results() {
                 </div>
 
               </div>
-            </div>
 
+              
+            </div>
+ {/* Card de chamada para ação para textos longos */}
+              <div>
+                <CallToActionCardLong
+                  icon={<ToolCase size={32} />}
+                  title="Aprofundamento"
+                  description={`Para saber mais sobre o seu ${assessmentName}, você pode acessar os materiais de aprofundamento gratuitos.`}
+                  buttonText="Acessar materiais"
+                  onButtonClick={() => window.open('https://www.innernetworking.com.br/', '_blank')}
+                />
+              </div>
 
           {/* Versão mobile do card mt-8 de XP */}
           <div className="lg:hidden">
@@ -837,6 +864,8 @@ export default function Results() {
               </div>
             </div>
           </div>
+
+          
         </div>
 
         <div className="mt-10">

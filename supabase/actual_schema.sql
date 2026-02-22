@@ -71,6 +71,7 @@ CREATE TABLE public.assessment_versions (
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   introduction_html text,
   visualization_type jsonb DEFAULT '["radar"]'::jsonb,
+  final_reflection text,
   CONSTRAINT assessment_versions_pkey PRIMARY KEY (id),
   CONSTRAINT assessment_versions_assessment_id_fkey FOREIGN KEY (assessment_id) REFERENCES public.assessments(id)
 );

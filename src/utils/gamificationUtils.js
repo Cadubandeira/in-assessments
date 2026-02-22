@@ -24,13 +24,13 @@ export const XP_CONFIG = {
   certification: {
     base: 100,
     bonusThresholds: {
-      80: 50,
-      90: 100,
-      100: 150
+      80: 25,
+      90: 50,
+      100: 100
     }
   },
   scenario: {
-    base: 250,
+    base: 100,
     bonusThresholds: {
       empathy: 50,      // High System 2 (≥60%) = +50 XP
       decisiveness: 25, // Fast decisions (<25s avg) = +25 XP
