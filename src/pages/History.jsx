@@ -324,37 +324,37 @@ export default function History() {
 
         {/* Filtros alinhados à direita */}
         <div className="flex justify-end items-center gap-3 mb-6">
-          <div className="inline-flex items-center gap-2 text-sm text-gray-600">
-            <Filter className="w-4 h-4" />
-            <span>Ordenar</span>
-          </div>
-          <select
-            value={sortOrder}
-            onChange={(e) => setSortOrder(e.target.value)}
-            className="border border-[#E0E7FF] rounded-lg px-3 py-2 text-sm bg-white"
-          >
-            <option value="recent">Mais recente</option>
-            <option value="oldest">Mais antigo</option>
-            <option value="best">Melhor desempenho</option>
-            <option value="worst">Pior desempenho</option>
-          </select>
-          {isAdmin && (
-            <>
-              <div className="inline-flex items-center gap-2 text-sm text-gray-600">
-                <span>Assessment</span>
-              </div>
+          <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-3 w-full">
+            <div className="flex items-center gap-2 text-sm text-gray-600">
+              <Filter className="w-4 h-4" />
+              <span>Ordenar</span>
               <select
-                value={selectedAssessment}
-                onChange={(e) => setSelectedAssessment(e.target.value)}
+                value={sortOrder}
+                onChange={(e) => setSortOrder(e.target.value)}
                 className="border border-[#E0E7FF] rounded-lg px-3 py-2 text-sm bg-white"
               >
-                <option value="all">Todos</option>
-                {uniqueAssessments.map(assessment => (
-                  <option key={assessment.id} value={assessment.id}>{assessment.name}</option>
-                ))}
+                <option value="recent">Mais recente</option>
+                <option value="oldest">Mais antigo</option>
+                <option value="best">Melhor desempenho</option>
+                <option value="worst">Pior desempenho</option>
               </select>
-            </>
-          )}
+            </div>
+            {isAdmin && (
+              <div className="flex items-center gap-2 text-sm text-gray-600 md:ml-3">
+                <span>Assessment</span>
+                <select
+                  value={selectedAssessment}
+                  onChange={(e) => setSelectedAssessment(e.target.value)}
+                  className="border border-[#E0E7FF] rounded-lg px-3 py-2 text-sm bg-white"
+                >
+                  <option value="all">Todos</option>
+                  {uniqueAssessments.map(assessment => (
+                    <option key={assessment.id} value={assessment.id}>{assessment.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </div>
         </div>
 
         {!history || history.length === 0 ? (

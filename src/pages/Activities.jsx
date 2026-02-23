@@ -315,8 +315,56 @@ const Activities = () => {
                 </span>
               </div>
               <div className="space-y-4">
-                <div className="bg-[#2B2450] text-[#EDEBFF] rounded-2xl rounded-bl-md px-4 py-3 text-sm">
-                  Sou a IA da sua jornada. Posso sugerir a proxima atividade com base nos seus indicadores.
+                <div
+                  className="relative h-32 sm:h-36 md:h-40 flex items-center justify-center mb-4"
+                  style={{ minHeight: '8rem', maxHeight: '10rem' }}
+                >
+                  <div
+                    className={`absolute inset-0 transition-opacity duration-500 ${aiRequested ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
+                  >
+                    <div className="bg-[#2B2450] text-[#EDEBFF] rounded-2xl rounded-bl-md px-4 py-3 text-sm flex items-center h-full">
+                      Sou a IAssessment. Posso sugerir a próxima atividade com base nos seus indicadores.
+                    </div>
+                  </div>
+                  <div
+                    className={`absolute inset-0 transition-opacity duration-500 ${aiRequested ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+                  >
+                    <div className="bg-[#2B2450] border border-[#3B3560] rounded-2xl px-4 py-3 text-sm text-[#F2F0FF] flex flex-col justify-center h-full">
+                      {aiLoading ? (
+                        <span className="animate-pulse">Analisando seus indicadores para encontrar a melhor próxima atividade.</span>
+                      ) : (
+                        <>
+                          <span className="block mb-2 animate-fade-in">{aiSuggestion.assessment
+                            ? `Recomendação: ${aiSuggestion.assessment.name} (${aiSuggestion.indicatorName}).`
+                            : `Recomendação: indicador ${aiSuggestion.indicatorName || 'em definição'}.`}</span>
+                          {aiSuggestion.reason && (
+                            <span className="block mt-1 text-[#EDEBFF] font-semibold animate-fade-in">
+                              {aiSuggestion.reason}
+                            </span>
+                          )}
+                          {aiSuggestion.assessment && (
+                            <button
+                              type="button"
+                              onClick={() => navigate(`/assessment/${slugify(aiSuggestion.assessment.name || '')}`)}
+                              className="mt-3 inline-flex items-center gap-2 text-sm font-semibold text-[#B7A6FF] animate-fade-in"
+                            >
+                              Ir para a atividade <ArrowRight className="w-4 h-4" />
+                            </button>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  </div>
+                  {/* Animations */}
+                  <style>{`
+                    .animate-fade-in {
+                      animation: fadeInChat 0.6s ease;
+                    }
+                    @keyframes fadeInChat {
+                      from { opacity: 0; transform: translateY(20px); }
+                      to { opacity: 1; transform: translateY(0); }
+                    }
+                  `}</style>
                 </div>
                 <div className="relative">
                   <div className="bg-[#221C3F] border border-[#3B3560] rounded-full px-4 py-2.5 text-sm text-[#C8C1F5] pr-12">
@@ -331,30 +379,6 @@ const Activities = () => {
                     <Send className="w-4 h-4" />
                   </button>
                 </div>
-
-                {aiRequested && (
-                  <div className="bg-[#2B2450] border border-[#3B3560] rounded-2xl rounded-br-md px-4 py-3 text-sm text-[#F2F0FF]">
-                    {aiLoading ? 'Analisando seus indicadores para encontrar a melhor proxima atividade.' : (
-                      aiSuggestion.assessment
-                        ? `Recomendacao: ${aiSuggestion.assessment.name} (${aiSuggestion.indicatorName}).`
-                        : `Recomendacao: indicador ${aiSuggestion.indicatorName || 'em definicao'}.`
-                    )}
-                    {aiSuggestion.reason && !aiLoading && (
-                      <span className="block mt-2 text-[#EDEBFF] font-semibold">
-                        {aiSuggestion.reason}
-                      </span>
-                    )}
-                    {aiSuggestion.assessment && !aiLoading && (
-                      <button
-                        type="button"
-                        onClick={() => navigate(`/assessment/${slugify(aiSuggestion.assessment.name || '')}`)}
-                        className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-[#B7A6FF]"
-                      >
-                        Ir para a atividade <ArrowRight className="w-4 h-4" />
-                      </button>
-                    )}
-                  </div>
-                )}
               </div>
             </div>
           </div>
