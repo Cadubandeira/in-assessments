@@ -305,20 +305,20 @@ export default function History() {
             <p className={`${TOKENS.fonts.serif} text-2xl text-[#1E1B4B] mt-2`}>{totalCount}</p>
             <p className="text-xs text-gray-500 mt-1">Resultados exibidos</p>
           </div>
-          <div className="bg-white/90 backdrop-blur-sm border border-white/60 rounded-2xl p-5 shadow-sm">
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#4F46E5]">Media</p>
-            <p className={`${TOKENS.fonts.serif} text-2xl text-[#1E1B4B] mt-2`}>{averageScore}%</p>
-            <p className="text-xs text-gray-500 mt-1">Desempenho geral</p>
-          </div>
+          {isAdmin && (
+            <div className="bg-white/90 backdrop-blur-sm border border-white/60 rounded-2xl p-5 shadow-sm">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#4F46E5]">Média</p>
+              <p className={`${TOKENS.fonts.serif} text-2xl text-[#1E1B4B] mt-2`}>{averageScore}%</p>
+              <p className="text-xs text-gray-500 mt-1">Desempenho geral</p>
+            </div>
+          )}
           <div className="bg-white/90 backdrop-blur-sm border border-white/60 rounded-2xl p-5 shadow-sm">
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#4F46E5]">Melhor resultado</p>
             <p className={`${TOKENS.fonts.serif} text-2xl text-[#1E1B4B] mt-2`}>{totals.best}%</p>
-            <p className="text-xs text-gray-500 mt-1">Seu pico recente</p>
           </div>
           <div className="bg-white/90 backdrop-blur-sm border border-white/60 rounded-2xl p-5 shadow-sm">
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#4F46E5]">Ultima atividade</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#4F46E5]">Última atividade</p>
             <p className={`${TOKENS.fonts.serif} text-2xl text-[#1E1B4B] mt-2`}>{latestDateLabel}</p>
-            <p className="text-xs text-gray-500 mt-1">Data mais recente</p>
           </div>
         </section>
 
@@ -400,17 +400,12 @@ export default function History() {
                         <h3 className={`${TOKENS.fonts.serif} text-xl text-[#1E1B4B] font-bold leading-tight`}>
                           {assessmentName}
                         </h3>
-                        {isAdmin && (
-                          <div className="flex items-center gap-2 text-sm text-gray-500 mt-1">
-                            <span>{new Date(item.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })}</span>
-                            <span>•</span>
-                            <span>{new Date(item.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
-                            <span>•</span>
-                            <span>v{versionNumber}</span>
-                            <span>•</span>
-                            <span>{performedBy}</span>
-                          </div>
-                        )}
+                        <div className="flex items-center gap-2 text-sm text-gray-500 mt-1">
+                          <span>{new Date(item.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })}</span>
+                          <span>•</span>
+                          <span>{new Date(item.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
+                          {isAdmin && <><span>•</span><span>v{versionNumber}</span><span>•</span><span>{performedBy}</span></>}
+                        </div>
                       </div>
 
                       {/* Linha 1 - Direita: Percentual */}
