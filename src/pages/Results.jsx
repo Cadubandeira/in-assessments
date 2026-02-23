@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Share2, ArrowRight, Zap, Check, X, ToolCase } from 'lucide-react';
+import { Share2, ArrowRight, ToolCase, Zap, Check, X, Download } from 'lucide-react';
+import XPRewardWidget from '../components/XPRewardWidget';
 import CallToActionCardLong from '../components/CallToActionCardLong';
 import { supabase } from '../supabaseClient';
 import RadarChart from '../components/charts/RadarChart';
@@ -562,6 +563,43 @@ export default function Results() {
           <p className="text-xl text-gray-600 max-w-2xl mx-auto leading-relaxed">
             {assessmentDescription}
           </p>
+
+          {/* Botões de ação: Compartilhar e Download */}
+          <div className="flex flex-row items-center justify-center gap-3 mt-6">
+            <button
+              type="button"
+              aria-label="Compartilhar resultado"
+              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-white text-indigo-700 font-semibold shadow-sm hover:bg-indigo-50 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-indigo-300"
+              onClick={() => {
+                if (navigator.share) {
+                  navigator.share({
+                    title: assessmentName,
+                    text: `Veja meu resultado no assessment: ${assessmentName}!`,
+                    url: window.location.href
+                  });
+                } else {
+                  if (navigator.clipboard) {
+                    navigator.clipboard.writeText(window.location.href);
+                    alert('Link copiado para a área de transferência!');
+                  } else {
+                    window.prompt('Copie o link do resultado:', window.location.href);
+                  }
+                }
+              }}
+            >
+              <Share2 className="w-5 h-5" />
+              Compartilhar
+            </button>
+            <button
+              type="button"
+              aria-label="Baixar PDF do resultado"
+              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-white text-indigo-700 font-semibold shadow-sm hover:bg-indigo-50 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-indigo-300"
+              onClick={() => { /* ação futura para baixar PDF */ }}
+            >
+              <Download className="w-5 h-5" />
+              Download
+            </button>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_400px] gap-6 items-start">
@@ -722,74 +760,38 @@ export default function Results() {
           </div>
 
           {/* Card XP - sticky (apenas desktop) */}
-          <div 
-            className="hidden lg:block bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 border border-indigo-200/60 rounded-2xl p-6 sm:p-8 shadow-lg self-start overflow-hidden"
-            style={{
-              position: 'sticky',
-              top: '5rem'
-            }}
-          >
-            <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-indigo-400/10 to-purple-400/10 rounded-full blur-2xl -z-10"></div>
-            <div className="relative">
-              <div className="flex items-start gap-3 mb-4">
-                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg">
-                    <Zap className="w-6 h-6 text-white" strokeWidth={2.5} fill="currentColor" />
-                  </div>
-                  <div className="flex-1">
-                    <p className="text-xs font-bold uppercase tracking-[0.2em] text-indigo-700 mb-1">XP conquistada</p>
-                    <p className="text-sm text-gray-600">Com base no seu resultado para esta atividade</p>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-purple-600">
-                      {formatXP(totalXp)}
-                    </div>
-                    {bonusXp > 0 && (
-                      <div className="text-xs font-semibold text-indigo-700">+{bonusXp} XP bonus</div>
-                    )}
-                  </div>
-                </div>
+          <div className="hidden lg:flex flex-col gap-6">
+            <XPRewardWidget
+              totalXp={totalXp}
+              bonusXp={bonusXp}
+              xpConfig={xpConfig}
+              reached80={reached80}
+              reached90={reached90}
+              reached100={reached100}
+              bonus80={bonus80}
+              bonus90={bonus90}
+              bonus100={bonus100}
+              formatXP={formatXP}
+            />
+          </div>
 
-                <div className="space-y-2.5 text-sm">
-                  <div className="flex items-center gap-3 p-2 rounded-lg bg-white/90 border border-indigo-200/70 shadow-sm">
-                    <div className="w-5 h-5 rounded-full flex items-center justify-center bg-[#E0E7FF] text-[#4F46E5]">
-                      <Check className="w-3 h-3" />
-                    </div>
-                    <span className="text-[#1E1B4B] font-semibold flex-1">Completar assessment</span>
-                    <span className="font-semibold text-indigo-700">+{xpConfig.base} XP</span>
-                  </div>
-                  <div className={`flex items-center gap-3 p-2 rounded-lg ${reached80 ? 'bg-white/70' : 'bg-white/40 opacity-60'}`}>
-                    <div className={`w-5 h-5 rounded-full flex items-center justify-center ${reached80 ? 'bg-[#E0E7FF] text-[#4F46E5]' : 'bg-[#F1F5FF] text-[#6366F1]'}`}>
-                      {reached80 ? <Check className="w-3 h-3" /> : <X className="w-3 h-3" />}
-                    </div>
-                    <span className={`flex-1 ${reached80 ? 'text-gray-700' : 'text-gray-500'}`}>Resultado de 80 a 89%</span>
-                    <span className={`font-semibold ${reached80 ? 'text-purple-600' : 'text-gray-500 line-through'}`}>
-                      +{bonus80} XP
-                    </span>
-                  </div>
-                  <div className={`flex items-center gap-3 p-2 rounded-lg ${reached90 ? 'bg-white/70' : 'bg-white/40 opacity-60'}`}>
-                    <div className={`w-5 h-5 rounded-full flex items-center justify-center ${reached90 ? 'bg-[#E0E7FF] text-[#4F46E5]' : 'bg-[#F1F5FF] text-[#6366F1]'}`}>
-                      {reached90 ? <Check className="w-3 h-3" /> : <X className="w-3 h-3" />}
-                    </div>
-                    <span className={`flex-1 ${reached90 ? 'text-gray-700' : 'text-gray-500'}`}>Resultado de 90 a 99%</span>
-                    <span className={`font-semibold ${reached90 ? 'text-purple-600' : 'text-gray-500 line-through'}`}>
-                      +{bonus90} XP
-                    </span>
-                  </div>
-                  <div className={`flex items-center gap-3 p-2 rounded-lg ${reached100 ? 'bg-gradient-to-r from-purple-100 to-pink-100 border border-purple-300/50' : 'bg-white/40 opacity-60'}`}>
-                    <div className={`w-5 h-5 rounded-full flex items-center justify-center ${reached100 ? 'bg-[#E0E7FF] text-[#4F46E5]' : 'bg-[#F1F5FF] text-[#6366F1]'}`}>
-                      {reached100 ? <Check className="w-3 h-3" /> : <X className="w-3 h-3" />}
-                    </div>
-                    <span className={`flex-1 ${reached100 ? 'text-gray-700 font-medium' : 'text-gray-500'}`}>Resultado de 100%</span>
-                    <span className={`font-semibold ${reached100 ? 'text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-pink-600' : 'text-gray-500 line-through'}`}>
-                      +{bonus100} XP
-                    </span>
-                  </div>
-                </div>
+{/* Versão mobile do card mt-8 de XP */}
+          <div className="lg:hidden">
+            <XPRewardWidget
+              totalXp={totalXp}
+              bonusXp={bonusXp}
+              xpConfig={xpConfig}
+              reached80={reached80}
+              reached90={reached90}
+              reached100={reached100}
+              bonus80={bonus80}
+              bonus90={bonus90}
+              bonus100={bonus100}
+              formatXP={formatXP}
+            />
+          </div>
+          
 
-              </div>
-
-              
-            </div>
  {/* Card de chamada para ação para textos longos */}
               <div>
                 <CallToActionCardLong
@@ -801,69 +803,7 @@ export default function Results() {
                 />
               </div>
 
-          {/* Versão mobile do card mt-8 de XP */}
-          <div className="lg:hidden">
-            <div className="bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 border border-indigo-200/60 rounded-2xl p-6 sm:p-8 shadow-lg relative overflow-hidden">
-              <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-indigo-400/10 to-purple-400/10 rounded-full blur-2xl"></div>
-              <div className="relative z-10">
-                <div className="flex items-start gap-3 mb-4">
-                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg">
-                    <Zap className="w-6 h-6 text-white" strokeWidth={2.5} fill="currentColor" />
-                  </div>
-                  <div className="flex-1">
-                    <p className="text-xs font-bold uppercase tracking-[0.2em] text-indigo-700 mb-1">XP conquistada</p>
-                    <p className="text-sm text-gray-600">Com base no seu resultado para esta atividade</p>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-purple-600">
-                      {formatXP(totalXp)}
-                    </div>
-                    {bonusXp > 0 && (
-                      <div className="text-xs font-semibold text-indigo-700">+{bonusXp} XP bonus</div>
-                    )}
-                  </div>
-                </div>
-
-                <div className="space-y-2.5 text-sm">
-                  <div className="flex items-center gap-3 p-2 rounded-lg bg-white/90 border border-indigo-200/70 shadow-sm">
-                    <div className="w-5 h-5 rounded-full flex items-center justify-center bg-[#E0E7FF] text-[#4F46E5]">
-                      <Check className="w-3 h-3" />
-                    </div>
-                    <span className="text-[#1E1B4B] font-semibold flex-1">Completar assessment</span>
-                    <span className="font-semibold text-indigo-700">+{xpConfig.base} XP</span>
-                  </div>
-                  <div className={`flex items-center gap-3 p-2 rounded-lg ${reached80 ? 'bg-white/70' : 'bg-white/40 opacity-60'}`}>
-                    <div className={`w-5 h-5 rounded-full flex items-center justify-center ${reached80 ? 'bg-[#E0E7FF] text-[#4F46E5]' : 'bg-[#F1F5FF] text-[#6366F1]'}`}>
-                      {reached80 ? <Check className="w-3 h-3" /> : <X className="w-3 h-3" />}
-                    </div>
-                    <span className={`flex-1 ${reached80 ? 'text-gray-700' : 'text-gray-500'}`}>Resultado de 80 a 89%</span>
-                    <span className={`font-semibold ${reached80 ? 'text-purple-600' : 'text-gray-500 line-through'}`}>
-                      +{bonus80} XP
-                    </span>
-                  </div>
-                  <div className={`flex items-center gap-3 p-2 rounded-lg ${reached90 ? 'bg-white/70' : 'bg-white/40 opacity-60'}`}>
-                    <div className={`w-5 h-5 rounded-full flex items-center justify-center ${reached90 ? 'bg-[#E0E7FF] text-[#4F46E5]' : 'bg-[#F1F5FF] text-[#6366F1]'}`}>
-                      {reached90 ? <Check className="w-3 h-3" /> : <X className="w-3 h-3" />}
-                    </div>
-                    <span className={`flex-1 ${reached90 ? 'text-gray-700' : 'text-gray-500'}`}>Resultado de 90 a 99%</span>
-                    <span className={`font-semibold ${reached90 ? 'text-purple-600' : 'text-gray-500 line-through'}`}>
-                      +{bonus90} XP
-                    </span>
-                  </div>
-                  <div className={`flex items-center gap-3 p-2 rounded-lg ${reached100 ? 'bg-gradient-to-r from-purple-100 to-pink-100 border border-purple-300/50' : 'bg-white/40 opacity-60'}`}>
-                    <div className={`w-5 h-5 rounded-full flex items-center justify-center ${reached100 ? 'bg-[#E0E7FF] text-[#4F46E5]' : 'bg-[#F1F5FF] text-[#6366F1]'}`}>
-                      {reached100 ? <Check className="w-3 h-3" /> : <X className="w-3 h-3" />}
-                    </div>
-                    <span className={`flex-1 ${reached100 ? 'text-gray-700 font-medium' : 'text-gray-500'}`}>Resultado de 100%</span>
-                    <span className={`font-semibold ${reached100 ? 'text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-pink-600' : 'text-gray-500 line-through'}`}>
-                      +{bonus100} XP
-                    </span>
-                  </div>
-                </div>
-
-              </div>
-            </div>
-          </div>
+          
 
           
         </div>

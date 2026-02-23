@@ -30,6 +30,17 @@ import CallToActionCard from '../components/CallToActionCard';
 
 const Dashboard = ({ user }) => {
   const navigate = useNavigate();
+
+  // Mapeamento de indicadores para links de conteúdo
+  const indicatorLinks = {
+    'Liderança': 'https://open.spotify.com/episode/5MzWj3Z9ncd1PwLEZtgCfm?si=kU-llnAEQYOV5wWwW15EPg',
+    'Agradabilidade': 'https://open.spotify.com/episode/3kQZQwK8vQwF5J8h2ZbQ9T?si=abc123',
+    'Confiança': 'https://open.spotify.com/episode/1a2b3c4d5e6f7g8h9i0j?si=def456',
+    'Visibilidade': 'https://open.spotify.com/episode/7h8i9j0k1l2m3n4o5p6q?si=ghi789',
+    'Colaboração': 'https://open.spotify.com/episode/2b3c4d5e6f7g8h9i0j1k?si=jkl012',
+    'Expertise': 'https://open.spotify.com/episode/4d5e6f7g8h9i0j1k2l3m?si=mno345',
+    'Networking': 'https://open.spotify.com/episode/4bOWea00ODcatY660OOjuc'
+  };
   const { role } = useUserRole();
   const [loading, setLoading] = useState(true);
   const [animateXPBar, setAnimateXPBar] = useState(false);
@@ -148,7 +159,7 @@ const Dashboard = ({ user }) => {
       // Se não existirem, Supabase ignorará e retornará apenas colunas disponíveis
       const { data: assessmentEvents, error } = await supabase
         .from('assessment_events')
-        .select('total_score, max_possible_score, executed_at, indicator_scores_snapshot, activity_type, activity_name')
+        .select('id, total_score, max_possible_score, executed_at, created_at, indicator_scores_snapshot, activity_type, activity_name')
         .eq('user_id', user.id)
         .order('executed_at', { ascending: false })
         .limit(10);
@@ -265,7 +276,7 @@ const Dashboard = ({ user }) => {
                       <div className="flex items-start justify-between gap-4">
                         {/* Ranking Badge - Esquerda */}
                         <div className="inline-flex items-center gap-2 px-4 py-3 bg-gradient-to-r from-[#4F46E5]/10 to-[#6366F1]/10 border border-[#4F46E5]/20 text-[#4F46E5] text-base font-bold rounded-lg">
-                          🏆 Ranking geral: {ranking?.percentileText || '...'}
+                          🏆 Ranking: {ranking?.percentileText || '...'}
                         </div>
                         
                         {/* Percentagem e XP - Direita */}
@@ -348,10 +359,8 @@ const Dashboard = ({ user }) => {
                     const percentage = result.max_possible_score > 0 
                       ? Math.round((result.total_score / result.max_possible_score) * 100)
                       : 0;
-                    const date = new Date(result.executed_at).toLocaleDateString('pt-BR', { 
-                      day: '2-digit', 
-                      month: 'short' 
-                    });
+                    const date = new Date(result.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+                    const time = new Date(result.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
                     
                     // Get activity configuration based on type (defaults to assessment)
                     const activityType = result.activity_type || 'assessment';
@@ -361,17 +370,18 @@ const Dashboard = ({ user }) => {
                     return (
                       <div 
                         key={idx}
-                        className="flex items-center gap-4 p-3 rounded-lg bg-gray-50 border border-transparent hover:border-[#4F46E5]/20 transition-colors"
+                        className="flex items-center gap-4 p-3 rounded-lg bg-gray-50 border border-transparent hover:border-[#4F46E5]/20 transition-colors cursor-pointer"
+                        onClick={() => navigate(`/results/${result.id || result.assessment_id}`)}
                       >
                         <div 
                           className={`w-12 h-12 rounded-full flex items-center justify-center text-white font-bold`}
                           style={{ backgroundColor: config.bgColor }}
                         >
-                          {percentage}%
+                          {percentage}
                         </div>
                         <div className="flex-1">
                           <p className="text-sm font-bold text-[#1E1B4B]">{activityName}</p>
-                          <p className="text-xs text-gray-500">{date}</p>
+                          <p className="text-xs text-gray-500">{date} • {time}</p>
                         </div>
                       </div>
                     );
@@ -395,26 +405,60 @@ const Dashboard = ({ user }) => {
             {/* RECOMENDA\u00c7\u00d5ES */}
             <div className="bg-white rounded-xl sm:rounded-2xl shadow-sm p-4 sm:p-6 w-full">
               <h3 className="text-lg font-bold text-[#1E1B4B] mb-4">Próximos Passos</h3>
-              <div className="group cursor-pointer" onClick={handleStart}>
-                <div className="w-full aspect-video bg-gradient-to-br from-[#4F46E5] to-[#818CF8] rounded-lg mb-4 flex items-center justify-center text-white/20">
-                  <Sparkles size={64} />
-                </div>
-                <h4 className="font-bold text-[#1E1B4B] group-hover:text-[#4F46E5] transition-colors">
-                  Aprenda sobre {developmentIndicators.length > 0 
-                    ? developmentIndicators.reduce((min, ind) => ind.percentage < min.percentage ? ind : min, developmentIndicators[0]).name
-                    : 'Indicadores'}
-                </h4>
-                <p className="text-sm text-gray-500 mt-1 mb-3">
-                  Escute o podcast sobre {developmentIndicators.length > 0 
-                    ? developmentIndicators.reduce((min, ind) => ind.percentage < min.percentage ? ind : min, developmentIndicators[0]).name
-                    : 'indicadores'} e aumente sua compreensão sobre o tema. Após isso você poderá testar seu conhecimento com uma atividade..
-                </p>
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-[#4F46E5] px-2 py-1 bg-[#4F46E5]/10 rounded">
-                    ~15 min
-                  </span>
-                </div>
-              </div>
+              {/* Card de próximos passos como link para conteúdo */}
+              {(() => {
+                // Seleciona o indicador com menor percentage
+                const indicator = developmentIndicators.length > 0
+                  ? developmentIndicators.reduce((min, ind) => ind.percentage < min.percentage ? ind : min, developmentIndicators[0])
+                  : null;
+                const indicatorName = indicator ? indicator.name : 'Indicadores';
+                const link = indicator && indicatorLinks[indicatorName] ? indicatorLinks[indicatorName] : null;
+                // Imagem de capa do podcast para Liderança
+                const coverImages = {
+                  'Liderança': 'https://image-cdn-ak.spotifycdn.com/image/ab6772ab000015bef26f30d81cec7cbb9ccea5cc'
+                  // Adicione outras imagens de capa conforme necessário
+                };
+                const cover = indicatorName && coverImages[indicatorName] ? coverImages[indicatorName] : null;
+                                // Duração dos episódios em minutos
+                                const episodeDurations = {
+                                  'Liderança': 47,
+                                  'Networking': 51
+                                  // Adicione outras durações conforme necessário
+                                };
+                                const duration = indicatorName && episodeDurations[indicatorName] ? episodeDurations[indicatorName] : 15;
+                return (
+                  <a
+                    href={link || '#'}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="group block cursor-pointer"
+                    style={{ textDecoration: link ? 'none' : 'line-through' }}
+                  >
+                    {cover ? (
+                      <img
+                        src={cover}
+                        alt={`Capa do podcast sobre ${indicatorName}`}
+                        className="w-full aspect-video object-cover rounded-lg mb-4"
+                      />
+                    ) : (
+                      <div className="w-full aspect-video bg-gradient-to-br from-[#4F46E5] to-[#818CF8] rounded-lg mb-4 flex items-center justify-center text-white/20">
+                        <Sparkles size={64} />
+                      </div>
+                    )}
+                    <h4 className="font-bold text-[#1E1B4B] group-hover:text-[#4F46E5] transition-colors">
+                      Aprenda sobre {indicatorName}
+                    </h4>
+                    <p className="text-sm text-gray-500 mt-1 mb-3">
+                      Escute o podcast sobre {indicatorName} e aumente sua compreensão sobre o tema. Após isso você poderá testar seu conhecimento com uma atividade.
+                    </p>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-[#4F46E5] px-2 py-1 bg-[#4F46E5]/10 rounded">
+                        ~{duration} min
+                      </span>
+                    </div>
+                  </a>
+                );
+              })()}
             </div>
           </div>
         </div>
@@ -445,7 +489,7 @@ const Dashboard = ({ user }) => {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 md:p-8 max-h-[80vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-2xl font-bold text-[#1E1B4B]">Ranking Geral</h2>
+              <h2 className="text-2xl font-bold text-[#1E1B4B]">Ranking</h2>
               <button
                 onClick={() => setShowRankingModal(false)}
                 className="text-gray-400 hover:text-gray-600 transition-colors"
