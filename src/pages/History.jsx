@@ -409,7 +409,7 @@ export default function History() {
                       </div>
 
                       {/* Linha 1 - Direita: Percentual */}
-                      <div className="flex items-start">
+                      <div className="flex items-start justify-end">
                         <span className="text-4xl font-black text-[#1E1B4B] leading-none">{percentage}%</span>
                       </div>
 
