@@ -136,7 +136,7 @@ const XPGainOverlay = ({
           {bonuses && bonuses.length > 0 && (
             <div className="mb-8 space-y-2">
               <p className="text-xs font-bold uppercase tracking-widest text-indigo-700 mb-3">Bônus Alcançados</p>
-              {bonuses.map((bonus, idx) => (
+              {bonuses.filter(bonus => bonus.xp > 0).map((bonus, idx) => (
                 <div 
                   key={idx}
                   className="flex items-center gap-3 p-3 rounded-lg bg-white/70 border border-indigo-200/50"
