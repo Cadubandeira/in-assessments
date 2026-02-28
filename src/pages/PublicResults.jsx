@@ -7,7 +7,6 @@ import { supabase } from '../supabaseClient';
 import RadarChart from '../components/charts/RadarChart';
 import HorizontalBarChart from '../components/charts/HorizontalBarChart';
 import ScenarioXPOverlay from '../components/ScenarioXPOverlay';
-import { useProgressionUpdate } from '../hooks/useProgressionUpdate';
 import { TOKENS } from '../config/tokens';
 import { getLucideIcon } from '../utils/iconUtils';
 import { XP_CONFIG, calculateXP, formatXP } from '../utils/gamificationUtils';
@@ -68,10 +67,9 @@ const getClassificationFromRanges = (score, maxScore, ranges, indicatorName) => 
   };
 };
 
-export default function Results() {
+export default function PublicResults() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { updateUserProgression } = useProgressionUpdate();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [result, setResult] = useState(null);
@@ -86,16 +84,10 @@ export default function Results() {
   const [newTotalXP, setNewTotalXP] = useState(0);
 
   useEffect(() => {
-    let mounted = true;
+    // Removido: let mounted = true; (não necessário para página pública)
     const fetchResult = async () => {
       setLoading(true);
       try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) {
-          if (mounted) setError('Usuário não autenticado.');
-          return;
-        }
-
         let query = supabase
           .from('assessment_events')
           .select(`
@@ -111,10 +103,15 @@ export default function Results() {
             )
           `);
 
-        // If id provided, fetch specific record; otherwise fetch last for current user
         if (id) {
           query = query.eq('id', id);
         } else {
+          const { data: { user } } = await supabase.auth.getUser();
+          if (!user) {
+            setError('Usuário não autenticado. Faça login para ver seu último resultado.');
+            setLoading(false);
+            return;
+          }
           query = query.eq('user_id', user.id).order('created_at', { ascending: false }).limit(1);
         }
 
@@ -123,95 +120,12 @@ export default function Results() {
         if (error) {
           const msg = String(error.message || error);
           if (/0 rows|No rows|Results contain 0/i.test(msg)) {
-            if (mounted) setResult(null);
+            setResult(null);
           } else {
             throw error;
           }
         } else {
-          if (mounted) setResult(data);
-
-          // Verificar se XP já foi concedido anteriormente
-          const isFirstVisit = data.xp_awarded === false || data.xp_awarded === null;
-          
-          // Atualizar progressão do usuário apenas na primeira visita
-          if (isFirstVisit) {
-            try {
-              if (data?.total_score !== undefined && data?.max_possible_score !== undefined) {
-                const activityType = data.activity_type || 'assessment';
-                const progressResult = await updateUserProgression(
-                  user.id,
-                  data.total_score,
-                  data.max_possible_score,
-                  activityType
-                );
-                
-                if (progressResult.success) {
-                  
-                  // Marcar XP como concedido
-                  await supabase
-                    .from('assessment_events')
-                    .update({ xp_awarded: true })
-                    .eq('id', data.id);
-                  
-                  // Preparar dados do overlay XP no formato esperado por ScenarioXPOverlay
-                  const xpGained = progressResult.xpGained || 0;
-                  const xpConfig = XP_CONFIG[activityType] || XP_CONFIG.assessment;
-                  const percentage = data.max_possible_score > 0 ? Math.round((data.total_score / data.max_possible_score) * 100) : 0;
-                  
-                  // Calcular XP base e bônus
-                  let baseXP = xpConfig.base || 0;
-                  let bonusXP = 0;
-                  
-                  if (percentage >= 100 && xpConfig.bonusThresholds?.[100]) {
-                    bonusXP = xpConfig.bonusThresholds[100];
-                  } else if (percentage >= 90 && xpConfig.bonusThresholds?.[90]) {
-                    bonusXP = xpConfig.bonusThresholds[90];
-                  } else if (percentage >= 80 && xpConfig.bonusThresholds?.[80]) {
-                    bonusXP = xpConfig.bonusThresholds[80];
-                  }
-                  
-                  // Preparar breakdown
-                  const breakdown = [];
-                  if (baseXP > 0) {
-                    breakdown.push({
-                      label: `Completar ${activityType}`,
-                      xp: baseXP,
-                      achieved: true
-                    });
-                  }
-                  if (bonusXP > 0) {
-                    breakdown.push({
-                      label: `Bônus de desempenho (${percentage}%)`,
-                      xp: bonusXP,
-                      achieved: true
-                    });
-                  }
-                  
-                  if (mounted) {
-                    // Formato para ScenarioXPOverlay
-                    setXpOverlayData({
-                      baseXP,
-                      bonuses: {
-                        performance: bonusXP > 0 ? percentage : 0
-                      },
-                      breakdown,
-                      totalXP: xpGained
-                    });
-                    setNewTotalXP(progressResult.totalXP);
-                    setShowXPOverlay(true);
-                  }
-                  
-                } else {
-                  console.warn('⚠️ Erro ao atualizar progressão:', progressResult.error);
-                }
-              } else {
-                console.warn('⚠️ Dados de score não encontrados em assessment_events:', { total_score: data?.total_score, max_possible_score: data?.max_possible_score });
-              }
-            } catch (progressError) {
-            console.error('❌ Erro crítico ao atualizar progressão:', progressError);
-          }
-          }
-
+          setResult(data);
           // Usar visualization_type da versão específica do assessment
           if (data?.assessment_versions) {
             // Normalizar visualization_type para array
@@ -243,15 +157,13 @@ export default function Results() {
               .eq('id', data.assessment_versions.assessment_id)
               .single();
             
-            if (mounted) {
-              setAssessmentData({
-                ...data.assessment_versions,
-                name: assessmentInfo?.name || 'Assessment',
-                description: assessmentInfo?.description || '',
-                visualization_type: visualizationType,
-                final_reflection: data.assessment_versions?.final_reflection || ''
-              });
-            }
+            setAssessmentData({
+              ...data.assessment_versions,
+              name: assessmentInfo?.name || 'Assessment',
+              description: assessmentInfo?.description || '',
+              visualization_type: visualizationType,
+              final_reflection: data.assessment_versions?.final_reflection || ''
+            });
 
             // Buscar as ranges e metadados dos indicadores
             const { data: indicatorsData, error: indError } = await supabase
@@ -350,10 +262,8 @@ export default function Results() {
                 }
               });
               
-              if (mounted) {
-                setAssessmentRanges(rangesMap);
-                setIndicatorsMeta(metaMap);
-              }
+              setAssessmentRanges(rangesMap);
+              setIndicatorsMeta(metaMap);
             }
 
             // Buscar overall_ranges para interpretação do resultado geral
@@ -364,21 +274,21 @@ export default function Results() {
               .order('min_score', { ascending: true });
 
             if (!overallError && overallRangesData) {
-              if (mounted) setOverallRanges(overallRangesData);
+              setOverallRanges(overallRangesData);
             } else if (overallError) {
               console.warn('⚠️ Aviso ao carregar overall_ranges:', overallError);
             }
           }
         }
       } catch (err) {
-        if (mounted) setError(err.message || String(err));
+        setError(err.message || String(err));
       } finally {
-        if (mounted) setLoading(false);
+        setLoading(false);
       }
     };
 
     fetchResult();
-    return () => { mounted = false; };
+    return () => {};
   }, [id]);
 
   useEffect(() => {
@@ -513,7 +423,6 @@ export default function Results() {
       const ranges = assessmentRanges[k] || assessmentRanges[v?.indicator_id] || assessmentRanges[v?.name] || [];
       const indicatorLabel = v?.name || k;
       const classificationData = getClassificationFromRanges(score, maxForIndicator, ranges, indicatorLabel);
-      console.log(`📊 DEBUG Results - ${k}: Score ${score}/${maxForIndicator}, Ranges:`, ranges, 'Classificação:', classificationData);
       
       out[k] = {
         indicator_id: v?.indicator_id || (isUuid(k) ? k : null),
@@ -697,187 +606,76 @@ export default function Results() {
                           )}
                         </div>
                         <div className="flex-1">
-                          <h3 className="text-lg font-semibold text-[#1E1B4B]">{displayName}</h3>
+                           {/* Código de progressão do usuário removido para acesso público */}
                         </div>
-                      </div>
-                      {/* Badge mobile: full width */}
-                      <span
-                        className="flex items-center justify-center w-full px-3 py-2 text-xs font-bold rounded-full uppercase"
-                        style={getIndicatorBadgeStyle(v.percentage)}
-                      >
-                        {v.percentage}% • {v.classification}
-                      </span>
-                    </div>
-
-                    {/* Layout Desktop */}
-                    <div className="hidden sm:grid grid-cols-1 sm:grid-cols-[1fr_auto] items-center gap-4">
-                      <div className="flex items-center gap-4">
-                        <div
-                          className="w-12 h-12 rounded-full flex items-center justify-center shadow"
-                          style={{ backgroundColor: meta.color || '#6366F1' }}
-                        >
-                          {IndicatorIcon ? (
-                            <IndicatorIcon className="w-6 h-6 text-white" strokeWidth={2} />
-                          ) : (
-                            <span className="text-white text-sm font-bold">●</span>
-                          )}
-                        </div>
-                        <div>
-                          <h3 className="text-lg font-semibold text-[#1E1B4B]">{displayName}</h3>
-                        </div>
-                      </div>
-                      <div className="flex flex-col items-end text-right">
-                        {/* Badge desktop: só classification */}
-                        <span
-                          className="inline-flex px-3 py-1 text-xs font-bold rounded-full uppercase"
-                          style={getIndicatorBadgeStyle(v.percentage)}
-                        >
-                          {v.classification}
-                        </span>
-                        {/* Percentage grande: só desktop */}
-                        <p className="text-2xl font-semibold text-[#1E1B4B] mt-2">{v.percentage}%</p>
                       </div>
                     </div>
-
-                    {v.interpretation && (
-                      <p className="mt-6 text-base sm:text-lg text-gray-700 leading-relaxed text-justify [text-align-last:left]">
-                        {v.interpretation}
-                      </p>
-                    )}
                   </div>
                 );
               })}
             </div>
-
-            {finalReflectionText && (
-              <div className="mt-6 bg-white/80 backdrop-blur-sm border border-white/60 rounded-2xl p-6 sm:p-8 shadow-sm">
-                <p className="text-[#4F46E5] font-bold text-xs uppercase tracking-widest mb-3">
-                  Reflexão final
-                </p>
-                <div
-                  className="prose prose-sm mt-6 sm:text-lg sm:prose-base max-w-none text-gray-700 leading-relaxed text-justify [text-align-last:left]"
-                  dangerouslySetInnerHTML={{ __html: finalReflectionText }}
-                />
-              </div>
-            )}
           </div>
 
-          {/* Card XP - sticky (apenas desktop) */}
-          <div className="hidden lg:flex flex-col gap-6">
-            <XPRewardWidget
-              totalXp={totalXp}
-              bonusXp={bonusXp}
-              xpConfig={xpConfig}
-              reached80={reached80}
-              reached90={reached90}
-              reached100={reached100}
-              bonus80={bonus80}
-              bonus90={bonus90}
-              bonus100={bonus100}
-              formatXP={formatXP}
-            />
-          </div>
-
-{/* Versão mobile do card mt-8 de XP */}
-          <div className="lg:hidden">
-            <XPRewardWidget
-              totalXp={totalXp}
-              bonusXp={bonusXp}
-              xpConfig={xpConfig}
-              reached80={reached80}
-              reached90={reached90}
-              reached100={reached100}
-              bonus80={bonus80}
-              bonus90={bonus90}
-              bonus100={bonus100}
-              formatXP={formatXP}
-            />
-          </div>
-          
-
- {/* Card de chamada para ação para textos longos */}
-              <div>
-                <CallToActionCardLong
-                  icon={<ToolCase size={32} />}
-                  title="Aprofundamento"
-                  description={`Para saber mais sobre o seu ${assessmentName}, você pode acessar os materiais de aprofundamento gratuitos.`}
-                  buttonText="Acessar materiais"
-                  onButtonClick={() => window.open('https://www.innernetworking.com.br/', '_blank')}
-                />
-              </div>
-
-          
-
-          
-        </div>
-
-        <div className="mt-10">
-          <div className="flex items-center justify-between gap-4 mb-6">
-            <h2 className={`${TOKENS.fonts.serif} text-2xl text-[#1E1B4B]`}>Atividades a seguir</h2>
-            <button
-              type="button"
-              onClick={() => navigate('/activities')}
-              className="text-sm font-semibold text-[#4F46E5] hover:underline"
-            >
-              Ver todas
-            </button>
-          </div>
-          {suggestedLoading ? (
-            <div className="bg-white/80 border border-white/60 rounded-2xl p-6 text-sm text-gray-600">
-              Carregando sugestoes...
-            </div>
-          ) : (
+          {/* Coluna Lateral (aderente no desktop) */}
+          {Object.keys(indicatorResults).length > 0 && (
             <>
-              {suggestedAssessments.length === 0 ? (
-                <div className="bg-white/80 border border-white/60 rounded-2xl p-6 text-sm text-gray-600">
-                  Nenhuma sugestao encontrada agora.
+              {id ? (
+                // Versão pública/compartilhada
+                <div className="sticky top-6 space-y-6">
+                  <CallToActionCardLong
+                    title="Pronto para o próximo nível?"
+                    description="Crie sua conta e comece a acompanhar seu progresso em diversos assessments."
+                    buttonText="Criar minha conta"
+                    onButtonClick={() => navigate('/register')}
+                  />
+                  <XPRewardWidget
+                    totalXp={totalXp}
+                    bonusXp={bonusXp}
+                    xpConfig={xpConfig}
+                    reached80={reached80}
+                    reached90={reached90}
+                    reached100={reached100}
+                    bonus80={bonus80}
+                    bonus90={bonus90}
+                    bonus100={bonus100}
+                    formatXP={formatXP}
+                  />
                 </div>
               ) : (
+                // Versão para usuário logado
                 <>
-                  {/* Mobile: Carrossel */}
-                  <div className="md:hidden overflow-x-auto snap-x snap-mandatory scrollbar-hide -mx-4 px-4">
-                    <div className="flex gap-4 pb-2 pr-4">
-                      {suggestedAssessments.map(assessment => (
-                        <button
-                          key={assessment.id}
-                          type="button"
-                          onClick={() => navigate(`/assessment/${assessment.id}`)}
-                          className="group bg-white/80 border border-white/60 rounded-2xl p-6 text-left shadow-sm hover:shadow-lg transition flex-shrink-0 w-[85vw] snap-center"
-                        >
-                          <h3 className={`${TOKENS.fonts.serif} text-xl text-[#1E1B4B] mb-3 leading-tight`}>
-                            {assessment.name}
-                          </h3>
-                          <p className="text-sm text-gray-600 leading-relaxed mb-4">
-                            {assessment.description}
-                          </p>
-                          <span className="inline-flex items-center gap-2 text-sm font-semibold text-[#4F46E5]">
-                            Iniciar agora <ArrowRight className="w-4 h-4" />
-                          </span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Desktop: Grid */}
-                  <div className="hidden md:grid grid-cols-1 md:grid-cols-3 gap-6">
-                    {suggestedAssessments.map(assessment => (
-                      <button
-                        key={assessment.id}
-                        type="button"
-                        onClick={() => navigate(`/assessment/${assessment.id}`)}
-                        className="group bg-white/80 border border-white/60 rounded-2xl p-6 text-left shadow-sm hover:shadow-lg transition"
-                      >
-                        <h3 className={`${TOKENS.fonts.serif} text-xl text-[#1E1B4B] mb-3 leading-tight`}>
-                          {assessment.name}
-                        </h3>
-                        <p className="text-sm text-gray-600 leading-relaxed mb-4">
-                          {assessment.description}
-                        </p>
-                        <span className="inline-flex items-center gap-2 text-sm font-semibold text-[#4F46E5]">
-                          Iniciar agora <ArrowRight className="w-4 h-4" />
-                        </span>
-                      </button>
-                    ))}
+                  <div className="sticky top-6 space-y-6">
+                    <XPRewardWidget
+                      totalXp={totalXp}
+                      bonusXp={bonusXp}
+                      xpConfig={xpConfig}
+                      reached80={reached80}
+                      reached90={reached90}
+                      reached100={reached100}
+                      bonus80={bonus80}
+                      bonus90={bonus90}
+                      bonus100={bonus100}
+                      formatXP={formatXP}
+                    />
+                    
+                    {/* Sugestão de Assessments */}
+                    {!suggestedLoading && suggestedAssessments.length > 0 && (
+                      <div className="bg-white/80 border-white/60 rounded-2xl p-6 shadow-sm">
+                        <h3 className="text-lg font-bold text-gray-800 mb-4">Próximos Passos</h3>
+                        <div className="space-y-3">
+                          {suggestedAssessments.map(sa => (
+                            <button
+                              key={sa.id}
+                              onClick={() => navigate(`/assessment/${sa.id}`)}
+                              className="w-full text-left p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+                            >
+                              <p className="font-semibold text-gray-700">{sa.name}</p>
+                              <p className="text-sm text-gray-500 line-clamp-2">{sa.description}</p>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </>
               )}

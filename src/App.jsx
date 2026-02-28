@@ -20,6 +20,7 @@ import LoginScreen from './pages/LoginScreen';
 import Dashboard from './pages/Dashboard';
 import Assessment from './pages/Assessment';
 import Results from './pages/Results';
+import PublicResults from './pages/PublicResults';
 import History from './pages/History';
 import Activities from './pages/Activities';
 import RealScenarios from './pages/RealScenarios';
@@ -195,6 +196,8 @@ export default function App() {
       <div className={`min-h-screen ${TOKENS.colors.bg} ${TOKENS.colors.ink} selection:bg-[#4F46E5] selection:text-white`}>
         
         <Routes>
+          {/* Public results page, no authentication required */}
+          <Route path="/public-results/:assessmentId" element={<PublicResults />} />
           <Route path="/login" element={!user ? <LoginScreen /> : <Navigate to="/dashboard" />} />
           <Route path="/" element={<Navigate to={user ? "/dashboard" : "/login"} />} />
           
