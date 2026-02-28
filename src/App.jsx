@@ -197,7 +197,7 @@ export default function App() {
         
         <Routes>
           {/* Public results page, no authentication required */}
-          <Route path="/public-results/:assessmentId" element={<PublicResults />} />
+          <Route path="/public-results/:id" element={<PublicResults />} />
           <Route path="/login" element={!user ? <LoginScreen /> : <Navigate to="/dashboard" />} />
           <Route path="/" element={<Navigate to={user ? "/dashboard" : "/login"} />} />
           

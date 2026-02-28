@@ -476,7 +476,7 @@ export default function PublicResults() {
             {assessmentDescription}
           </p>
 
-          {/* Botões de ação: Compartilhar e Download */}
+          {/* Botões de ação: Compartilhar */}
           <div className="flex flex-row items-center justify-center gap-3 mt-6">
             <button
               type="button"
@@ -504,15 +504,6 @@ export default function PublicResults() {
             >
               <Share2 className="w-5 h-5" />
               Compartilhar
-            </button>
-            <button
-              type="button"
-              aria-label="Baixar PDF do resultado"
-              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-white text-indigo-700 font-semibold shadow-sm hover:bg-indigo-50 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-indigo-300"
-              onClick={() => { /* ação futura para baixar PDF */ }}
-            >
-              <Download className="w-5 h-5" />
-              Download
             </button>
           </div>
         </div>
@@ -588,34 +579,70 @@ export default function PublicResults() {
             <div className="mt-8 grid gap-4">
               {Object.entries(indicatorResults)
                 .sort(([, a], [, b]) => (b?.percentage ?? 0) - (a?.percentage ?? 0))
-                .map(([k, v]) => {
-                const meta = resolveMeta(k, v);
-                const displayName = resolveName(k, v);
-                const IndicatorIcon = meta?.icon ? getLucideIcon(meta.icon) : null;
-
-                return (
-                  <div key={k} className="bg-white/80 border border-white/60 rounded-2xl p-6 shadow-sm">
-                    {/* Layout Mobile */}
-                    <div className="sm:hidden">
-                      <div className="flex items-center gap-4 mb-3">
-                        <div
-                          className="w-12 h-12 rounded-full flex items-center justify-center shadow"
-                          style={{ backgroundColor: meta.color || '#6366F1' }}
-                        >
-                          {IndicatorIcon ? (
-                            <IndicatorIcon className="w-6 h-6 text-white" strokeWidth={2} />
-                          ) : (
-                            <span className="text-white text-sm font-bold">●</span>
-                          )}
+                .map(([key, value]) => {
+                  const meta = resolveMeta(key, value);
+                  const displayName = resolveName(key, value);
+                  const IndicatorIcon = meta?.icon ? getLucideIcon(meta.icon) : null;
+                  const badgeStyle = getIndicatorBadgeStyle(value.percentage);
+                  return (
+                    <div key={key} className="bg-white/80 border border-white/60 rounded-2xl p-6 shadow-sm">
+                      {/* Mobile layout */}
+                      <div className="sm:hidden">
+                        <div className="flex items-center gap-4 mb-3">
+                          <div
+                            className="w-12 h-12 rounded-full flex items-center justify-center shadow"
+                            style={{ backgroundColor: meta.color || '#6366F1' }}
+                          >
+                            {IndicatorIcon ? (
+                              <IndicatorIcon className="w-6 h-6 text-white" strokeWidth={2} />
+                            ) : (
+                              <span className="text-white text-sm font-bold">●</span>
+                            )}
+                          </div>
+                          <div className="flex-1">
+                            <h3 className="text-lg font-semibold text-[#1E1B4B]">{displayName}</h3>
+                          </div>
                         </div>
-                        <div className="flex-1">
-                           {/* Código de progressão do usuário removido para acesso público */}
+                        <span
+                          className="flex items-center justify-center w-full px-3 py-2 text-xs font-bold rounded-full uppercase"
+                          style={badgeStyle}
+                        >
+                          {value.percentage}% • {value.classification}
+                        </span>
+                      </div>
+                      {/* Desktop layout */}
+                      <div className="hidden sm:grid grid-cols-1 sm:grid-cols-[1fr_auto] items-center gap-4">
+                        <div className="flex items-center gap-4">
+                          <div
+                            className="w-12 h-12 rounded-full flex items-center justify-center shadow"
+                            style={{ backgroundColor: meta.color || '#6366F1' }}
+                          >
+                            {IndicatorIcon ? (
+                              <IndicatorIcon className="w-6 h-6 text-white" strokeWidth={2} />
+                            ) : (
+                              <span className="text-white text-sm font-bold">●</span>
+                            )}
+                          </div>
+                          <div>
+                            <h3 className="text-lg font-semibold text-[#1E1B4B]">{displayName}</h3>
+                          </div>
+                        </div>
+                        <div className="flex flex-col items-end text-right">
+                          <span
+                            className="inline-flex px-3 py-1 text-xs font-bold rounded-full uppercase"
+                            style={badgeStyle}
+                          >
+                            {value.classification}
+                          </span>
+                          <p className="text-2xl font-semibold text-[#1E1B4B] mt-2">{value.percentage}%</p>
                         </div>
                       </div>
+                      <p className="mt-6 text-base sm:text-lg text-gray-700 leading-relaxed text-justify [text-align-last:left]">
+                        {value.interpretation}
+                      </p>
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                })}
             </div>
           </div>
 
@@ -629,19 +656,7 @@ export default function PublicResults() {
                     title="Pronto para o próximo nível?"
                     description="Crie sua conta e comece a acompanhar seu progresso em diversos assessments."
                     buttonText="Criar minha conta"
-                    onButtonClick={() => navigate('/register')}
-                  />
-                  <XPRewardWidget
-                    totalXp={totalXp}
-                    bonusXp={bonusXp}
-                    xpConfig={xpConfig}
-                    reached80={reached80}
-                    reached90={reached90}
-                    reached100={reached100}
-                    bonus80={bonus80}
-                    bonus90={bonus90}
-                    bonus100={bonus100}
-                    formatXP={formatXP}
+                    onButtonClick={() => navigate('/login')}
                   />
                 </div>
               ) : (
