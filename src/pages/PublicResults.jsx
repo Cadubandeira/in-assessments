@@ -292,6 +292,9 @@ export default function PublicResults() {
   }, [id]);
 
   useEffect(() => {
+    // Só buscar sugestões se não estivermos vendo um resultado público específico
+    if (id) return;
+
     const fetchSuggested = async () => {
       const currentAssessmentId = assessmentData?.id || result?.assessment_versions?.assessment_id;
       if (!currentAssessmentId) return;
