@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { supabase } from '../supabaseClient';
 import { TOKENS } from '../config/tokens';
 import Button from '../components/ui/Button';
 import Logo from '../components/ui/Logo';
 import { ArrowRight } from 'lucide-react';
+import HCaptcha from '@hcaptcha/react-hcaptcha';
 
 const LoginScreen = () => {
   const [email, setEmail] = useState('');
@@ -11,6 +12,8 @@ const LoginScreen = () => {
   const [loading, setLoading] = useState(false);
   const [isSignUp, setIsSignUp] = useState(false);
   const [emailMode, setEmailMode] = useState(false);
+  const [captchaToken, setCaptchaToken] = useState(null);
+  const captchaRef = useRef(null);
 
   const handleGoogleLogin = async () => {
     setLoading(true);
@@ -33,17 +36,33 @@ const LoginScreen = () => {
 
   const handleAuth = async (e) => {
     e.preventDefault();
+    
+    if (isSignUp && !captchaToken) {
+      alert('Por favor, complete o desafio de segurança (Captcha).');
+      return;
+    }
+
     setLoading(true);
     let error;
     if (isSignUp) {
-      const { error: signUpError } = await supabase.auth.signUp({ email, password });
+      const { error: signUpError } = await supabase.auth.signUp({ 
+        email, 
+        password,
+        options: { captchaToken }
+      });
       error = signUpError;
-      if (!error) alert('Verifique seu e-mail para confirmar o cadastro!');
+      if (!error) {
+        alert('Verifique seu e-mail para confirmar o cadastro!');
+        if (captchaRef.current) captchaRef.current.resetCaptcha();
+      }
     } else {
       const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
       error = signInError;
     }
-    if (error) alert(error.message);
+    if (error) {
+      alert(error.message);
+      if (isSignUp && captchaRef.current) captchaRef.current.resetCaptcha();
+    }
     setLoading(false);
   };
 
@@ -137,6 +156,17 @@ const LoginScreen = () => {
                   type="password" placeholder="Senha" value={password} onChange={e => setPassword(e.target.value)}
                   className="w-full p-4 rounded-xl border border-[#C7D2FE] bg-white/50 focus:bg-white focus:ring-2 focus:ring-[#4F46E5]/20 focus:border-[#4F46E5] outline-none transition-all" required
                 />
+                
+                {isSignUp && (
+                  <div className="flex justify-center py-2">
+                    <HCaptcha
+                      sitekey="49f4e796-2740-44ce-8d9a-c13849044de6" // Coloque sua chave real aqui
+                      onVerify={(token) => setCaptchaToken(token)}
+                      ref={captchaRef}
+                    />
+                  </div>
+                )}
+
                 <Button type="submit" className="w-full py-4 text-lg shadow-lg" icon={ArrowRight}>
                   {isSignUp ? 'Cadastrar' : 'Acessar'}
                 </Button>
