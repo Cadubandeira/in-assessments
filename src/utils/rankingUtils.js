@@ -78,15 +78,63 @@ const getFallbackRankingInfo = async (userId) => {
  */
 export const getTopUsers = async (limit = 10) => {
   try {
-    const { data, error } = await supabase
-      .rpc('get_top_users', { limit_count: limit });
+    // Buscar top users diretamente da tabela user_progression
+    const { data: progressionData, error: progressionError } = await supabase
+      .from('user_progression')
+      .select('user_id, level, total_xp')
+      .order('total_xp', { ascending: false })
+      .limit(limit);
 
-    if (error) {
-      console.warn('Erro ao buscar top users:', error);
+    if (progressionError) {
+      console.warn('Erro ao buscar progressão:', progressionError);
       return [];
     }
 
-    return data || [];
+    if (!progressionData || progressionData.length === 0) {
+      console.log('Nenhum dado de progressão encontrado');
+      return [];
+    }
+
+    console.log('Progression data:', progressionData);
+
+    // Buscar user_display_name de assessment_events para cada usuário
+    const userIds = progressionData.map(p => p.user_id);
+    
+    const { data: eventsData, error: eventsError } = await supabase
+      .from('assessment_events')
+      .select('user_id, user_display_name')
+      .in('user_id', userIds)
+      .order('created_at', { ascending: false });
+
+    if (eventsError) {
+      console.warn('Erro ao buscar eventos para display names:', eventsError);
+    }
+
+    console.log('Events data for display names:', eventsData);
+
+    // Criar um mapa de user_id -> display_name a partir dos eventos
+    const displayNameMap = {};
+    if (eventsData) {
+      eventsData.forEach(event => {
+        if (event.user_id && event.user_display_name && !displayNameMap[event.user_id]) {
+          displayNameMap[event.user_id] = event.user_display_name;
+        }
+      });
+    }
+
+    // Combinar dados de progressão com display_name dos eventos
+    const enrichedData = progressionData.map((p, index) => {
+      return {
+        rank: index + 1,
+        user_id: p.user_id,
+        display_name: displayNameMap[p.user_id],
+        level: p.level,
+        total_xp: p.total_xp
+      };
+    });
+
+    console.log('Enriched data:', enrichedData);
+    return enrichedData;
   } catch (err) {
     console.error('Erro ao buscar top users:', err);
     return [];

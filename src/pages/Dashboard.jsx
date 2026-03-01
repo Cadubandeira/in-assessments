@@ -12,6 +12,7 @@ import {
 import { supabase } from '../supabaseClient';
 import { TOKENS } from '../config/tokens';
 import { useUserRole } from '../hooks/useUserRole';
+import { useTopRanking } from '../hooks/useTopRanking';
 import { canUserTakeAssessment } from '../utils/assessmentRules';
 import { 
   formatActivityName, 
@@ -32,6 +33,20 @@ import CallToActionCard from '../components/CallToActionCard';
 
 const Dashboard = ({ user }) => {
   const navigate = useNavigate();
+
+  // Função para formatar nome do usuário com fallback
+  const getDisplayUserName = (userData) => {
+    if (!userData) return 'Usuário';
+    
+    // Tentar diversos campos possíveis que podem vir do backend
+    return userData.display_name || 
+           userData.user_display_name ||
+           userData.full_name || 
+           userData.name ||
+           userData.email?.split('@')[0] || 
+           userData.user_email?.split('@')[0] ||
+           'Usuário';
+  };
 
   // Mapeamento de indicadores para links de conteúdo
   const indicatorLinks = {
@@ -71,8 +86,27 @@ const Dashboard = ({ user }) => {
   // Hook para carregar ranking do usuário
   const { ranking } = useUserRanking(user?.id);
 
+  // Hook para carregar top 10 ranking global
+  const { topUsers } = useTopRanking();
+
   // Hook para carregar métricas de desenvolvimento
   const { indicators: developmentIndicators } = useDevelopmentMetrics(user?.id);
+
+  // Controlar scroll do body quando ranking modal está aberto
+  useEffect(() => {
+    if (showRankingModal) {
+      document.documentElement.style.overflow = 'hidden';
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.documentElement.style.overflow = 'auto';
+      document.body.style.overflow = 'auto';
+    }
+
+    return () => {
+      document.documentElement.style.overflow = 'auto';
+      document.body.style.overflow = 'auto';
+    };
+  }, [showRankingModal]);
 
   useEffect(() => {
     // Atualiza nome base do metadata ao mudar usuário
@@ -492,24 +526,166 @@ const Dashboard = ({ user }) => {
         </div>
       )}
 
-      {/* MODAL DE RANKING */}
+      {/* RANKING MODAL - Side Sheet (Desktop) / Bottom Sheet (Mobile) */}
       {showRankingModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 md:p-8 max-h-[80vh] overflow-y-auto">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-2xl font-bold text-[#1E1B4B]">Ranking</h2>
-              <button
-                onClick={() => setShowRankingModal(false)}
-                className="text-gray-400 hover:text-gray-600 transition-colors"
-              >
-                ✕
-              </button>
+        <>
+          {/* Backdrop - Fica entre a página e o sheet */}
+          <div 
+            className="fixed inset-0 bg-black/40 z-[59] transition-opacity"
+            onClick={() => setShowRankingModal(false)}
+          />
+
+          {/* Sheet Container - Fica acima do backdrop */}
+          <div className="fixed inset-0 z-[60] pointer-events-none">
+            {/* Desktop - Side Sheet (Direita) */}
+            <div className="hidden md:flex md:fixed md:right-0 md:top-0 md:h-screen md:w-96 md:pointer-events-auto md:flex-col md:bg-white md:shadow-2xl md:animate-in md:slide-in-from-right">
+              {/* Header */}
+              <div className="flex items-center justify-between p-6 border-b border-gray-100">
+                <h2 className="text-2xl font-bold text-[#1E1B4B]">🏆 Ranking</h2>
+                <button
+                  onClick={() => setShowRankingModal(false)}
+                  className="text-gray-400 hover:text-gray-600 transition-colors text-xl"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* Content */}
+              <div className="flex-1 overflow-y-auto">
+                {topUsers && topUsers.length > 0 ? (
+                  <div className="p-6 space-y-6">
+                    {/* TOP 3 - Destacado */}
+                    <div>
+                      <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-4">Pódio</h3>
+                      <div className="space-y-3">
+                        {topUsers.slice(0, 3).map((user, index) => {
+                          const medals = ['🥇', '🥈', '🥉'];
+                          return (
+                            <div
+                              key={user.user_id || index}
+                              className="p-4 rounded-lg bg-gradient-to-r from-[#4F46E5]/5 to-transparent border border-[#4F46E5]/20"
+                            >
+                              <div className="flex items-center gap-3">
+                                <span className="text-3xl">{medals[index]}</span>
+                                <div className="flex-1 min-w-0">
+                                  <p className="font-bold text-[#1E1B4B] truncate">{getDisplayUserName(user)}</p>
+                                  <p className="text-xs text-gray-500 mt-1">
+                                    Lv. {user.level} • {user.total_xp?.toLocaleString('pt-BR')} XP
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* RESTANTE - 4 a 30 */}
+                    {topUsers.length > 3 && (
+                      <div>
+                        <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-4">Ranking</h3>
+                        <div className="space-y-2">
+                          {topUsers.slice(3).map((user, index) => (
+                            <div
+                              key={user.user_id || index}
+                              className="flex items-center gap-3 p-3 rounded-lg text-sm transition-colors hover:bg-gray-50 border border-transparent"
+                            >
+                              <span className="font-bold text-gray-400 w-6">{index + 4}</span>
+                              <div className="flex-1 min-w-0">
+                                <p className="font-medium text-[#1E1B4B] truncate">{getDisplayUserName(user)}</p>
+                                <p className="text-xs text-gray-500">{user.total_xp?.toLocaleString('pt-BR')} XP</p>
+                              </div>
+                              <span className="text-xs font-bold text-[#4F46E5] flex-shrink-0">Lv. {user.level}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center h-full text-gray-400">
+                    <Trophy size={48} className="mb-3" />
+                    <p className="text-sm">Nenhum dado disponível</p>
+                  </div>
+                )}
+              </div>
             </div>
-            <p className="text-gray-600 text-center py-8">
-              Conteúdo do ranking em desenvolvimento...
-            </p>
+
+            {/* Mobile - Bottom Sheet */}
+            <div className="md:hidden fixed bottom-0 left-0 right-0 max-h-[90vh] w-full pointer-events-auto bg-white rounded-t-3xl shadow-2xl animate-in slide-in-from-bottom">
+              {/* Header */}
+              <div className="flex items-center justify-between p-6 border-b border-gray-100">
+                <h2 className="text-2xl font-bold text-[#1E1B4B]">🏆 Ranking</h2>
+                <button
+                  onClick={() => setShowRankingModal(false)}
+                  className="text-gray-400 hover:text-gray-600 transition-colors text-xl"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* Content */}
+              <div className="overflow-y-auto max-h-[calc(90vh-80px)]">
+                {topUsers && topUsers.length > 0 ? (
+                  <div className="p-6 space-y-6">
+                    {/* TOP 3 - Destacado */}
+                    <div>
+                      <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-4">Pódio</h3>
+                      <div className="space-y-3">
+                        {topUsers.slice(0, 3).map((user, index) => {
+                          const medals = ['🥇', '🥈', '🥉'];
+                          return (
+                            <div
+                              key={user.user_id || index}
+                              className="p-4 rounded-lg bg-gradient-to-r from-[#4F46E5]/5 to-transparent border border-[#4F46E5]/20"
+                            >
+                              <div className="flex items-center gap-3">
+                                <span className="text-3xl">{medals[index]}</span>
+                                <div className="flex-1 min-w-0">
+                                  <p className="font-bold text-[#1E1B4B] truncate">{getDisplayUserName(user)}</p>
+                                  <p className="text-xs text-gray-500 mt-1">
+                                    Lv. {user.level} • {user.total_xp?.toLocaleString('pt-BR')} XP
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* RESTANTE - 4 a 30 */}
+                    {topUsers.length > 3 && (
+                      <div>
+                        <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-4">Ranking</h3>
+                        <div className="space-y-2">
+                          {topUsers.slice(3).map((user, index) => (
+                            <div
+                              key={user.user_id || index}
+                              className="flex items-center gap-3 p-3 rounded-lg text-sm transition-colors hover:bg-gray-50 border border-transparent"
+                            >
+                              <span className="font-bold text-gray-400 w-6">{index + 4}</span>
+                              <div className="flex-1 min-w-0">
+                                <p className="font-medium text-[#1E1B4B] truncate">{getDisplayUserName(user)}</p>
+                                <p className="text-xs text-gray-500">{user.total_xp?.toLocaleString('pt-BR')} XP</p>
+                              </div>
+                              <span className="text-xs font-bold text-[#4F46E5] flex-shrink-0">Lv. {user.level}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center py-12 text-gray-400">
+                    <Trophy size={48} className="mb-3" />
+                    <p className="text-sm">Nenhum dado disponível</p>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
-        </div>
+        </>
       )}
 
       {/* MODAL DE INDICADOR */}
