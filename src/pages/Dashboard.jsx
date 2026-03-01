@@ -138,8 +138,8 @@ const Dashboard = ({ user }) => {
   const loadUserStats = async () => {
     if (!user) return;
 
-    // Usar display_name do user_metadata ou email
-    const name = user?.user_metadata?.display_name || user?.email?.split('@')[0] || 'Usuário';
+    // Usar display_name e full_name do user_metadata, email (sem domínio) como último recurso
+    const name = user?.user_metadata?.display_name || user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'Usuário';
     setDisplayName(name);
 
     try {
