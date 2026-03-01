@@ -7,7 +7,7 @@ import React, { useMemo } from 'react';
 import { Circle } from 'lucide-react';
 import { getLucideIcon } from '../utils/iconUtils';
 
-const DevelopmentChart = ({ indicators, user }) => {
+const DevelopmentChart = ({ indicators, user, onIndicatorClick }) => {
   // Configurações do gráfico radial
   const AVATAR_RADIUS = 44; // Raio do avatar (px)
   const CIRCLE_RADIUS = 30; // Raio de cada círculo de progresso (px)
@@ -140,7 +140,11 @@ const DevelopmentChart = ({ indicators, user }) => {
               circumference - (indicator.percentage / 100) * circumference;
 
             return (
-              <g key={indicator.id}>
+              <g 
+                key={indicator.id}
+                onClick={() => onIndicatorClick && onIndicatorClick(indicator)}
+                style={{ cursor: 'pointer' }}
+              >
                 {/* Linha conectando ao avatar (opcional, remove para minimalista) */}
                 <line
                   x1={ringConfig.center}
@@ -225,7 +229,8 @@ const DevelopmentChart = ({ indicators, user }) => {
             return (
               <div
                 key={indicator.id}
-                className="flex items-center gap-3 p-3 rounded-lg border border-gray-100 bg-white"
+                onClick={() => onIndicatorClick && onIndicatorClick(indicator)}
+                className="flex items-center gap-3 p-3 rounded-lg border border-gray-100 bg-white cursor-pointer hover:border-[#4F46E5] hover:bg-[#4F46E5]/5 transition-all"
               >
                 {/* Icone + Cor */}
                 <div

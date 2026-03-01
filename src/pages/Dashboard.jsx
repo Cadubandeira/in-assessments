@@ -6,7 +6,8 @@ import {
   History, 
   Trophy,
   Target,
-  Sparkles
+  Sparkles,
+  Circle
 } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import { TOKENS } from '../config/tokens';
@@ -24,6 +25,7 @@ import {
 } from '../utils/gamificationUtils';
 import { useUserRanking } from '../hooks/useUserRanking';
 import { useDevelopmentMetrics } from '../hooks/useDevelopmentMetrics';
+import { getLucideIcon } from '../utils/iconUtils';
 import DevelopmentChart from '../components/DevelopmentChart';
 import DashboardSkeleton from '../components/skeletons/DashboardSkeleton';
 import CallToActionCard from '../components/CallToActionCard';
@@ -49,6 +51,7 @@ const Dashboard = ({ user }) => {
   const [animationTrigger, setAnimationTrigger] = useState(0);
   const [showAchievementsModal, setShowAchievementsModal] = useState(false);
   const [showRankingModal, setShowRankingModal] = useState(false);
+  const [selectedIndicator, setSelectedIndicator] = useState(null);
   const [userStats, setUserStats] = useState({
     totalAssessments: 0,
     lastScore: 0,
@@ -340,7 +343,11 @@ const Dashboard = ({ user }) => {
                 <div className="flex justify-between items-center mb-8">
                   <h3 className="text-2xl font-bold text-[#1E1B4B]">Meu Desenvolvimento</h3>
                 </div>
-                <DevelopmentChart indicators={developmentIndicators} user={user} />
+                <DevelopmentChart 
+                  indicators={developmentIndicators} 
+                  user={user} 
+                  onIndicatorClick={setSelectedIndicator}
+                />
               </div>
             </div>
           </div>
@@ -501,6 +508,70 @@ const Dashboard = ({ user }) => {
             <p className="text-gray-600 text-center py-8">
               Conteúdo do ranking em desenvolvimento...
             </p>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DE INDICADOR */}
+      {selectedIndicator && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setSelectedIndicator(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 md:p-8" onClick={(e) => e.stopPropagation()}>
+            {/* Header */}
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-2xl font-bold text-[#1E1B4B]">{selectedIndicator.name}</h2>
+              <button
+                onClick={() => setSelectedIndicator(null)}
+                className="text-gray-400 hover:text-gray-600 transition-colors text-2xl leading-none"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Indicador com Ícone */}
+            <div className="flex flex-col items-center mb-8">
+              <div
+                className="w-24 h-24 rounded-full flex items-center justify-center mb-4 shadow-lg"
+                style={{ backgroundColor: selectedIndicator.color }}
+              >
+                {(() => {
+                  const Icon = getLucideIcon(selectedIndicator.icon);
+                  return Icon ? (
+                    <Icon className="w-12 h-12 text-white" />
+                  ) : (
+                    <Circle className="w-12 h-12 text-white" />
+                  );
+                })()}
+              </div>
+              <p className="text-md text-gray-600 mb-4">Desempenho: {selectedIndicator.percentage}%</p>
+              <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
+                <div
+                  className="h-3 rounded-full transition-all duration-700"
+                  style={{
+                    width: `${selectedIndicator.percentage}%`,
+                    backgroundColor: selectedIndicator.color
+                  }}
+                />
+              </div>
+            </div>
+
+            {/* Descrição */}
+            <div className="space-y-4">
+              <div>
+                <h3 className="text-md font-bold text-[#1E1B4B] mb-2">Sobre este indicador</h3>
+                <p className="text-md text-gray-800 leading-relaxed">
+                  {selectedIndicator.description || 'Indicador de desenvolvimento profissional.'}
+                </p>
+              </div>
+
+            </div>
+
+            {/* Button */}
+            <button
+              onClick={() => setSelectedIndicator(null)}
+              className="w-full mt-6 px-4 py-2 bg-[#4F46E5] text-white font-bold rounded-lg hover:bg-[#4F46E5]/90 transition-colors"
+            >
+              Fechar
+            </button>
           </div>
         </div>
       )}

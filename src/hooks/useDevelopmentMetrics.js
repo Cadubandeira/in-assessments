@@ -40,7 +40,7 @@ export const useDevelopmentMetrics = (userId) => {
         // 1) Fonte principal: user_indicator_scores (estado atual por indicador)
         const { data: consolidated, error: consolidatedError } = await supabase
           .from('user_indicator_scores')
-          .select('indicator_name, indicator_id, score, max_score, percentage, updated_at, indicators_master (id, name, color, icon)')
+          .select('indicator_name, indicator_id, score, max_score, percentage, updated_at, indicators_master (id, name, color, icon, description)')
           .eq('user_id', userId)
           .order('indicator_name', { ascending: true });
 
@@ -57,7 +57,7 @@ export const useDevelopmentMetrics = (userId) => {
           if (missingNames.length > 0) {
             const { data: byName, error: byNameError } = await supabase
               .from('indicators_master')
-              .select('id, name, color, icon')
+              .select('id, name, color, icon, description')
               .in('name', missingNames);
 
             if (byNameError) throw byNameError;
@@ -77,6 +77,7 @@ export const useDevelopmentMetrics = (userId) => {
             return {
               id: row.indicator_id || masterData?.id || row.indicator_name,
               name: masterData?.name || row.indicator_name || 'Indicador Desconhecido',
+              description: masterData?.description || '',
               color: masterData?.color || '#6366F1',
               icon: masterData?.icon || 'circle',
               score: normalized.score,
@@ -141,7 +142,7 @@ export const useDevelopmentMetrics = (userId) => {
         if (indicatorIds.length > 0) {
           const { data, error: masterByIdError } = await supabase
             .from('indicators_master')
-            .select('id, name, color, icon')
+            .select('id, name, color, icon, description')
             .in('id', indicatorIds);
 
           if (masterByIdError) throw masterByIdError;
@@ -151,7 +152,7 @@ export const useDevelopmentMetrics = (userId) => {
         if (indicatorNames.length > 0) {
           const { data, error: masterByNameError } = await supabase
             .from('indicators_master')
-            .select('id, name, color, icon')
+            .select('id, name, color, icon, description')
             .in('name', indicatorNames);
 
           if (masterByNameError) throw masterByNameError;
@@ -168,6 +169,7 @@ export const useDevelopmentMetrics = (userId) => {
           return {
             id: masterData?.id || latest?.indicatorId || indicatorKey,
             name: masterData?.name || latest?.indicatorName || indicatorKey,
+            description: masterData?.description || '',
             color: masterData?.color || '#6366F1',
             icon: masterData?.icon || 'circle',
             score: normalized.score,
