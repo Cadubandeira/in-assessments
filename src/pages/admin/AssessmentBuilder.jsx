@@ -29,6 +29,7 @@ export default function AssessmentBuilder() {
   const [overallRanges, setOverallRanges] = useState([]); // Faixas globais do assessment
   const [introductionHtml, setIntroductionHtml] = useState(''); // Conteúdo introdutório
   const [finalReflection, setFinalReflection] = useState(''); // Reflexao final opcional
+  const [resultIntroduction, setResultIntroduction] = useState(''); // Introdução ao resultado opcional
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [showVersionModal, setShowVersionModal] = useState(false);
@@ -174,13 +175,14 @@ export default function AssessmentBuilder() {
     // Buscar introduction_html, reflexao final e overall_ranges da versão
     const { data: versionData, error: versionError } = await supabase
       .from('assessment_versions')
-      .select('introduction_html, final_reflection')
+      .select('introduction_html, final_reflection, result_introduction')
       .eq('id', versionId)
       .single();
 
     if (!versionError && versionData) {
       setIntroductionHtml(versionData.introduction_html || '');
       setFinalReflection(versionData.final_reflection || '');
+      setResultIntroduction(versionData.result_introduction || '');
     }
 
     // Buscar overall_ranges
@@ -549,6 +551,7 @@ export default function AssessmentBuilder() {
             is_active: true,
             introduction_html: introductionHtml,
             final_reflection: finalReflection || null,
+            result_introduction: resultIntroduction || null,
             visualization_type: assessmentDataEdited.visualization_type || '["radar"]'
           }])
           .select()
@@ -590,6 +593,9 @@ export default function AssessmentBuilder() {
         }
         if (introductionHtml !== undefined) {
           versionUpdateFields.introduction_html = introductionHtml;
+        }
+        if (resultIntroduction !== undefined) {
+          versionUpdateFields.result_introduction = resultIntroduction || null;
         }
         if (finalReflection !== undefined) {
           versionUpdateFields.final_reflection = finalReflection || null;
@@ -1328,6 +1334,20 @@ Deseja continuar?`;
                 <OverallRangesEditor 
                   ranges={overallRanges}
                   onChange={setOverallRanges}
+                />
+              </div>
+
+              {/* INTRODUÇÃO AO RESULTADO */}
+              <div className="bg-white border rounded-lg p-6">
+                <h2 className="text-lg font-semibold mb-4">Introdução ao resultado</h2>
+                <p className="text-sm text-gray-500 mb-3">
+                  Texto opcional exibido no topo da página de resultado do assessment.
+                </p>
+                <IntroductionEditor
+                  value={resultIntroduction}
+                  onChange={setResultIntroduction}
+                  label="Introdução ao resultado"
+                  placeholder="Escreva uma introdução para o resultado (HTML permitido)..."
                 />
               </div>
 
