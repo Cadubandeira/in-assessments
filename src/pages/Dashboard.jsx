@@ -432,7 +432,6 @@ const Dashboard = ({ user }) => {
                     target="_blank"
                     rel="noopener noreferrer"
                     className="group block cursor-pointer"
-                    style={{ textDecoration: link ? 'none' : 'line-through' }}
                   >
                     {cover ? (
                       <img
