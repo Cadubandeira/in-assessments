@@ -335,11 +335,13 @@ const Dashboard = ({ user }) => {
             />
 
             {/* MEU DESENVOLVIMENTO */}
-            <div className="bg-white rounded-xl sm:rounded-2xl p-4 sm:p-6 lg:p-8 shadow-sm w-full">
-              <div className="flex justify-between items-center mb-8">
-                <h3 className="text-2xl font-bold text-[#1E1B4B]">Meu Desenvolvimento</h3>
+            <div className={`bg-white rounded-xl sm:rounded-2xl p-4 sm:p-6 lg:p-8 shadow-sm w-full overflow-hidden ${developmentIndicators.length > 7 ? 'lg:min-h-[950px]' : ''}`}>
+              <div className="flex flex-col h-full">
+                <div className="flex justify-between items-center mb-8">
+                  <h3 className="text-2xl font-bold text-[#1E1B4B]">Meu Desenvolvimento</h3>
+                </div>
+                <DevelopmentChart indicators={developmentIndicators} user={user} />
               </div>
-              <DevelopmentChart indicators={developmentIndicators} user={user} />
             </div>
           </div>
 

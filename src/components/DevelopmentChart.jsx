@@ -11,32 +11,81 @@ const DevelopmentChart = ({ indicators, user }) => {
   // Configurações do gráfico radial
   const AVATAR_RADIUS = 44; // Raio do avatar (px)
   const CIRCLE_RADIUS = 30; // Raio de cada círculo de progresso (px)
-  const ORBITAL_DISTANCE = 110; // Distância do avatar ao centro dos círculos (px)
-  const SVG_SIZE = 320; // Tamanho do SVG
-  const CENTER = SVG_SIZE / 2;
+  const ORBITAL_DISTANCE_BASE = 110; // Distância base do avatar ao centro dos círculos (px)
+  const SVG_BASE_SIZE = 320; // Tamanho base do SVG
+  const CENTER_BASE = SVG_BASE_SIZE / 2;
 
   const displayName = user?.user_metadata?.display_name || user?.email?.split('@')[0] || 'Usuário';
   const userInitial = displayName.charAt(0).toUpperCase();
 
-  // Calcular posições dos círculos ao redor do avatar
+  // Calcular configuração dos anéis baseado na quantidade de indicadores
+  const ringConfig = useMemo(() => {
+    const count = indicators.length;
+    
+    if (count <= 7) {
+      // 1 anel
+      return {
+        rings: [{ distância: ORBITAL_DISTANCE_BASE, start: 0, end: count }],
+        svgSize: SVG_BASE_SIZE,
+        center: CENTER_BASE,
+        hasMultipleRings: false
+      };
+    } else if (count <= 15) {
+      // 2 anéis - espaçamento maior para evitar sobreposição
+      const ring1Count = Math.ceil(count / 2);
+      return {
+        rings: [
+          { distância: 100, start: 0, end: ring1Count },
+          { distância: 185, start: ring1Count, end: count }
+        ],
+        svgSize: 430,
+        center: 215,
+        hasMultipleRings: true
+      };
+    } else {
+      // 3 anéis - espaçamento ainda maior
+      const ring1Count = Math.ceil(count / 3);
+      const ring2Count = Math.ceil((count - ring1Count) / 2);
+      return {
+        rings: [
+          { distância: 95, start: 0, end: ring1Count },
+          { distância: 175, start: ring1Count, end: ring1Count + ring2Count },
+          { distância: 265, start: ring1Count + ring2Count, end: count }
+        ],
+        svgSize: 540,
+        center: 270,
+        hasMultipleRings: true
+      };
+    }
+  }, [indicators.length]);
+
+  // Calcular posições dos círculos ao redor do avatar com suporte a múltiplos anéis
   const indicatorPositions = useMemo(() => {
     if (indicators.length === 0) return [];
 
-    const angleSlice = (Math.PI * 2) / indicators.length;
+    const { rings, center } = ringConfig;
+    const positions = [];
 
-    return indicators.map((indicator, index) => {
-      const angle = angleSlice * index - Math.PI / 2;
-      const x = CENTER + ORBITAL_DISTANCE * Math.cos(angle);
-      const y = CENTER + ORBITAL_DISTANCE * Math.sin(angle);
+    rings.forEach((ring) => {
+      const ringIndicators = indicators.slice(ring.start, ring.end);
+      const angleSlice = (Math.PI * 2) / ringIndicators.length;
 
-      return {
-        ...indicator,
-        x,
-        y,
-        angle: (angle * 180) / Math.PI
-      };
+      ringIndicators.forEach((indicator, index) => {
+        const angle = angleSlice * index - Math.PI / 2;
+        const x = center + ring.distância * Math.cos(angle);
+        const y = center + ring.distância * Math.sin(angle);
+
+        positions.push({
+          ...indicator,
+          x,
+          y,
+          angle: (angle * 180) / Math.PI
+        });
+      });
     });
-  }, [indicators]);
+
+    return positions;
+  }, [indicators, ringConfig]);
 
   if (indicators.length === 0) {
     return (
@@ -48,27 +97,28 @@ const DevelopmentChart = ({ indicators, user }) => {
   }
 
   return (
-    <div className="flex flex-col items-center gap-8">
+    <div className="flex flex-col items-center gap-8 w-full">
       {/* Grafico Radial */}
-      <div className="flex justify-center w-full">
+      <div className="flex justify-center w-full overflow-visible">
         <svg
-          width={SVG_SIZE}
-          height={SVG_SIZE}
-          viewBox={`0 0 ${SVG_SIZE} ${SVG_SIZE}`}
+          width={ringConfig.svgSize}
+          height={ringConfig.svgSize}
+          viewBox={`0 0 ${ringConfig.svgSize} ${ringConfig.svgSize}`}
           className="drop-shadow-lg"
+          style={{ display: 'block' }}
         >
           {/* Avatar no Centro */}
           <g>
             <circle
-              cx={CENTER}
-              cy={CENTER}
+              cx={ringConfig.center}
+              cy={ringConfig.center}
               r={AVATAR_RADIUS}
               fill="url(#avatarGradient)"
               className="drop-shadow-md"
             />
             <foreignObject
-              x={CENTER - AVATAR_RADIUS}
-              y={CENTER - AVATAR_RADIUS}
+              x={ringConfig.center - AVATAR_RADIUS}
+              y={ringConfig.center - AVATAR_RADIUS}
               width={AVATAR_RADIUS * 2}
               height={AVATAR_RADIUS * 2}
             >
@@ -93,8 +143,8 @@ const DevelopmentChart = ({ indicators, user }) => {
               <g key={indicator.id}>
                 {/* Linha conectando ao avatar (opcional, remove para minimalista) */}
                 <line
-                  x1={CENTER}
-                  y1={CENTER}
+                  x1={ringConfig.center}
+                  y1={ringConfig.center}
                   x2={indicator.x}
                   y2={indicator.y}
                   stroke={indicator.color}
