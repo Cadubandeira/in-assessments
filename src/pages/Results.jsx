@@ -84,6 +84,7 @@ export default function Results() {
   const [showXPOverlay, setShowXPOverlay] = useState(false);
   const [xpOverlayData, setXpOverlayData] = useState(null);
   const [newTotalXP, setNewTotalXP] = useState(0);
+  const [expandedIntroduction, setExpandedIntroduction] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -107,7 +108,8 @@ export default function Results() {
               created_at,
               assessment_id,
               visualization_type,
-              final_reflection
+              final_reflection,
+              result_introduction
             )
           `);
 
@@ -170,6 +172,21 @@ export default function Results() {
                     bonusXP = xpConfig.bonusThresholds[80];
                   }
                   
+                  // Preparar bonuses com rótulos corretos baseado na faixa de performance
+                  const bonusesObj = {};
+                  let bonusLabel = '';
+                  
+                  if (percentage >= 100) {
+                    bonusLabel = 'Resultado de 100%';
+                    bonusesObj[bonusLabel] = bonusXP;
+                  } else if (percentage >= 90) {
+                    bonusLabel = 'Resultado de 90 a 99%';
+                    bonusesObj[bonusLabel] = bonusXP;
+                  } else if (percentage >= 80) {
+                    bonusLabel = 'Resultado de 80 a 89%';
+                    bonusesObj[bonusLabel] = bonusXP;
+                  }
+                  
                   // Preparar breakdown
                   const breakdown = [];
                   if (baseXP > 0) {
@@ -181,7 +198,7 @@ export default function Results() {
                   }
                   if (bonusXP > 0) {
                     breakdown.push({
-                      label: `Bônus de desempenho (${percentage}%)`,
+                      label: bonusLabel,
                       xp: bonusXP,
                       achieved: true
                     });
@@ -191,9 +208,7 @@ export default function Results() {
                     // Formato para ScenarioXPOverlay
                     setXpOverlayData({
                       baseXP,
-                      bonuses: {
-                        performance: bonusXP > 0 ? percentage : 0
-                      },
+                      bonuses: bonusesObj,
                       breakdown,
                       totalXP: xpGained
                     });
@@ -249,7 +264,8 @@ export default function Results() {
                 name: assessmentInfo?.name || 'Assessment',
                 description: assessmentInfo?.description || '',
                 visualization_type: visualizationType,
-                final_reflection: data.assessment_versions?.final_reflection || ''
+                final_reflection: data.assessment_versions?.final_reflection || '',
+                result_introduction: data.assessment_versions?.result_introduction || ''
               });
             }
 
@@ -433,6 +449,7 @@ export default function Results() {
 
   const assessmentName = assessmentData?.name || result?.assessment_versions?.assessment_id || 'Assessment';
   const assessmentDescription = assessmentData?.description || '';
+  const introductionText = assessmentData?.result_introduction || result?.assessment_versions?.result_introduction || '';
   const finalReflectionText = assessmentData?.final_reflection || result?.assessment_versions?.final_reflection || '';
 
   const activityType = result.activity_type || 'assessment';
@@ -608,9 +625,45 @@ export default function Results() {
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_400px] gap-6 items-start">
           {/* Coluna principal - rola normalmente */}
           <div>
+            {introductionText && (
+              <div className="mb-8 bg-white/80 backdrop-blur-sm border border-white/60 rounded-2xl p-6 sm:p-8 shadow-sm">
+                <p className="text-[#4F46E5] font-bold text-xs uppercase tracking-widest mb-3">
+                  Introdução
+                </p>
+                <div className="relative">
+                  <div
+                    className={`prose prose-sm mt-6 sm:text-lg sm:prose-base max-w-none text-gray-700 leading-relaxed text-justify [text-align-last:left] overflow-hidden transition-all duration-300 ${
+                      expandedIntroduction ? '' : 'line-clamp-5'
+                    }`}
+                    dangerouslySetInnerHTML={{ __html: introductionText }}
+                  />
+                  {!expandedIntroduction && (
+                    <>
+                      <div className="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-white/80 to-transparent pointer-events-none rounded-lg"></div>
+                      <button
+                        type="button"
+                        onClick={() => setExpandedIntroduction(true)}
+                        className="absolute bottom-6 left-1/2 transform -translate-x-1/2 px-4 py-2 bg-[#4F46E5] text-white font-semibold rounded-lg hover:bg-[#4338CA] transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-[#6366F1]"
+                      >
+                        Ver mais
+                      </button>
+                    </>
+                  )}
+                  {expandedIntroduction && (
+                    <button
+                      type="button"
+                      onClick={() => setExpandedIntroduction(false)}
+                      className="mt-4 mx-auto block px-4 py-2 bg-gray-200 text-gray-700 font-semibold rounded-lg hover:bg-gray-300 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-gray-400"
+                    >
+                      Ver menos
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
             <div className="bg-white/80 backdrop-blur-sm border border-white/60 rounded-2xl p-6 sm:p-8 shadow-sm">
               <div className="flex items-start justify-between gap-6">
-                <div className="text-center md:text-left">
+                <div className="text-left">
                   <p className="text-[#4F46E5] font-bold text-xs uppercase tracking-widest mb-1">
                     Resultado do assessment
                   </p>
@@ -644,7 +697,6 @@ export default function Results() {
               {overallInterpretation || 'Este resultado reflete seu desempenho geral no assessment.'}
             </p>
             </div>
-
             {assessmentData && Array.isArray(assessmentData.visualization_type) && assessmentData.visualization_type.length > 0 && (
               <div className="mt-8 grid gap-6">
                 {/* Se ambos os gráficos estão selecionados, renderizar no mesmo card */}
