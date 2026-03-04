@@ -33,15 +33,12 @@ export default function XPRewardWidget({
           </div>
           <div className="flex-1">
             <p className="text-xs font-bold uppercase tracking-[0.2em] text-indigo-700 mb-1">XP conquistada</p>
-            <p className="text-sm text-gray-600">Com base no seu resultado para esta atividade</p>
+            <p className="text-sm text-gray-600">Nessa atividade</p>
           </div>
           <div className="text-right">
             <div className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-purple-600">
               {formatXP(totalXp)}
             </div>
-            {bonusXp > 0 && (
-              <div className="text-xs font-semibold text-indigo-700">+{bonusXp} XP bonus</div>
-            )}
           </div>
         </div>
         <div className="space-y-2.5 text-sm">

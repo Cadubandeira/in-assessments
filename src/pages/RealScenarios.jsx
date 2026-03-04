@@ -7,7 +7,6 @@ import { useScenarioSession } from '../hooks/useScenarioSession';
 import DecisionNode from '../components/DecisionNode';
 import ConsequenceScreen from '../components/ConsequenceScreen';
 import ScenarioResults from '../components/ScenarioResults';
-import XPRewardWidget from '../components/XPRewardWidget';
 import RealScenariosSkeleton from '../components/skeletons/RealScenariosSkeleton';
 
 const RealScenarios = () => {
@@ -23,8 +22,11 @@ const RealScenarios = () => {
   const [consequenceData, setConsequenceData] = useState(null);
   const [completionData, setCompletionData] = useState(null);
   const [userTotalXP, setUserTotalXP] = useState(0);
+  
+  // Flag para evitar glitch quando há scenarioId na URL
+  const [isInitializingFromUrl] = useState(!!scenarioId);
 
-  // Hook de sessão (só ativa quando scenarioId está presente)
+
   const {
     loading: sessionLoading,
     error: sessionError,
@@ -233,19 +235,12 @@ const RealScenarios = () => {
   if (phase === 'intro' && selectedScenario) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-[#F5F3EC] to-[#EEF2FF] overflow-x-hidden">
-        <section className="bg-gradient-to-r from-[#4F46E5] via-[#6366F1] to-[#818CF8] pt-[72px] pb-24 px-4 sm:px-6 relative overflow-hidden">
+        <section className="bg-gradient-to-r from-red-600 to-orange-500 pt-[72px] pb-24 px-4 sm:px-6 relative overflow-hidden">
           <div className="absolute inset-0 opacity-10 pointer-events-none overflow-hidden">
             <div className="absolute top-16 -left-10 w-48 h-48 md:w-64 md:h-64 bg-white rounded-full blur-3xl"></div>
             <div className="absolute bottom-0 -right-20 w-64 h-64 md:w-96 md:h-96 bg-[#312E81] rounded-full blur-3xl"></div>
           </div>
           <div className="max-w-5xl mx-auto px-4 sm:px-6 pt-16 relative z-10 w-full text-left">
-            <button
-              type="button"
-              onClick={handleBackToList}
-              className="inline-flex items-center gap-2 text-sm font-semibold text-white/90 mb-6 hover:text-white"
-            >
-              <ArrowLeft className="w-4 h-4" /> Voltar
-            </button>
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-white/80">
               Simulação Adaptativa
             </p>
@@ -283,10 +278,6 @@ const RealScenarios = () => {
               </div>
             </div>
 
-            <XPRewardWidget 
-              difficulty={selectedScenario.difficulty_level}
-            />
-
             <div className="flex justify-end pt-4">
               <button
                 type="button"
@@ -304,12 +295,19 @@ const RealScenarios = () => {
     );
   }
 
-  // Render: List of scenarios (default)
-  if (loadingScenarios) {
+  // Render: Loading skeleton (quando há scenarioId na URL)
+  if (isInitializingFromUrl && phase !== 'intro') {
     return <RealScenariosSkeleton />;
   }
 
-  return (
+  // Render: List of scenarios (default)
+  if (loadingScenarios && !isInitializingFromUrl) {
+    return <RealScenariosSkeleton />;
+  }
+
+  // Renderizar apenas lista se não há scenarioId e loading terminou
+  if (!isInitializingFromUrl && !loadingScenarios) {
+    return (
     <div className="min-h-screen bg-gradient-to-br from-[#F5F3EC] to-[#EEF2FF] overflow-x-hidden">
       <section className="bg-gradient-to-r from-red-600 to-orange-500 pt-[72px] pb-24 px-4 sm:px-6 relative overflow-hidden">
         <div className="absolute inset-0 opacity-10 pointer-events-none overflow-hidden">
@@ -432,7 +430,11 @@ const RealScenarios = () => {
         )}
       </main>
     </div>
-  );
+    );
+  }
+
+  // Fallback: mostrar skeleton se estiver em estado indefido
+  return <RealScenariosSkeleton />;
 };
 
 export default RealScenarios;
