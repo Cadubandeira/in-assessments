@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   ArrowRight, 
-  BrainCircuit, 
+  Zap, 
   History, 
   Trophy,
   Target,
@@ -364,7 +364,7 @@ const Dashboard = ({ user }) => {
 
             {/* BANNER CTA ASSESSMENT */}
             <CallToActionCard
-              icon={<BrainCircuit size={32} />}
+              icon={<Zap size={32} />}
               title="Pronto para uma novo desafio?"
               description="Mapeie seu crescimento em competências e revele insights."
               buttonText="Vamos lá!"

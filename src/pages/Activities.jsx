@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowRight, Send, Flame } from 'lucide-react';
+import { ArrowRight, Send, Zap } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import { TOKENS } from '../config/tokens';
 import ActivitiesSkeleton from '../components/skeletons/ActivitiesSkeleton';
@@ -290,7 +290,7 @@ const Activities = () => {
                 </div>
                 <div className="flex items-center gap-4 mb-4">
                   <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-[#4F46E5]/15 text-[#4F46E5] flex items-center justify-center">
-                    <Flame className="w-7 h-7 sm:w-8 sm:h-8" fill="currentColor" strokeWidth={0} />
+                    <Zap className="w-7 h-7 sm:w-8 sm:h-8" fill="currentColor" strokeWidth={0} />
                   </div>
                   <div>
                     <h3 className={`${TOKENS.fonts.serif}`}>
@@ -404,7 +404,7 @@ const Activities = () => {
         <section>
           <div className="mb-8">
             <CallToActionCard
-              icon={<Flame size={32} />}
+              icon={<Zap size={32} />}
               title="Situações reais desafiadoras"
               description="Teste suas habilidades em cenários reais com pressão contextual e análise comportamental."
               buttonText="SAIBA MAIS"

@@ -17,7 +17,7 @@ import React from 'react';
  * 
  * @example
  * <CallToActionCard
- *   icon={<BrainCircuit size={32} />}
+ *   icon={<Zap size={32} />}
  *   title="Pronto para um novo desafio?"
  *   description="Mapeie seu crescimento em competências e desbloqueie novos insights."
  *   buttonText="Vamos lá!"
