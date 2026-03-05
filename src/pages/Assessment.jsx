@@ -52,10 +52,16 @@ const Assessment = () => {
 
   // Defesas contra formatos inesperados vindos do backend
   const indicators = Array.isArray(assessment?.indicators) ? assessment.indicators : [];
+  const levels = Array.isArray(assessment?.levels) ? assessment.levels : [];
+  const isNiveisSchema = assessment?.schema === 'niveis';
+
+  // Usar níveis ou indicadores dependendo do schema
+  const items = isNiveisSchema ? levels : indicators;
+  const itemType = isNiveisSchema ? 'level' : 'indicator';
 
   // Fetch indicator metadata (color, icon) from indicators_master
   useEffect(() => {
-    if (!indicators.length) return;
+    if (isNiveisSchema || !indicators.length) return;
     const fetchMeta = async () => {
       const masterIds = indicators
         .map(ind => ind.indicator_master_id)
@@ -116,17 +122,19 @@ const Assessment = () => {
   }
 
   const currentIndicator = indicators[currentIndicatorIndex];
-  const currentQuestions = currentIndicator?.questions || [];
+  const currentLevel = levels[currentIndicatorIndex]; // Usar o mesmo índice para níveis
+  const currentItem = isNiveisSchema ? currentLevel : currentIndicator;
+  const currentQuestions = currentItem?.questions || [];
   const currentQuestion = currentQuestions[currentQuestionIndexInIndicator];
   const indicatorMeta = currentIndicator?.indicator_master_id ? indicatorsMeta[currentIndicator.indicator_master_id] : null;
   const IconComponent = indicatorMeta?.icon ? getLucideIcon(indicatorMeta.icon) : null;
 
   // Calculate progress
-  const totalQuestions = indicators.reduce((sum, ind) => sum + (ind.questions?.length || 0), 0);
+  const totalQuestions = items.reduce((sum, item) => sum + (item.questions?.length || 0), 0);
   let answeredQuestions = 0;
-  indicators.forEach((ind, iIdx) => {
+  items.forEach((item, iIdx) => {
     if (iIdx < currentIndicatorIndex) {
-      answeredQuestions += ind.questions?.length || 0;
+      answeredQuestions += item.questions?.length || 0;
     } else if (iIdx === currentIndicatorIndex) {
       answeredQuestions += currentQuestionIndexInIndicator;
     }
@@ -143,8 +151,8 @@ const Assessment = () => {
       if (currentQuestionIndexInIndicator < currentQuestions.length - 1) {
         setCurrentQuestionIndexInIndicator(prev => prev + 1);
       } else {
-        // Finished all questions for current indicator
-        if (currentIndicatorIndex < indicators.length - 1) {
+        // Finished all questions for current item (indicator or level)
+        if (currentIndicatorIndex < items.length - 1) {
           setCurrentIndicatorIndex(prev => prev + 1);
           setPhase('indicator-intro');
           setCurrentQuestionIndexInIndicator(0);
@@ -234,15 +242,19 @@ const Assessment = () => {
 
               {/* Coluna direita: Indicadores e Perguntas */}
               <div className="space-y-6">
-                {/* Card de Indicadores */}
+                {/* Card de Indicadores / Níveis */}
                 <div className="bg-gradient-to-br from-white/80 to-white/60 backdrop-blur-sm border border-white/60 rounded-2xl p-6 sm:p-8 shadow-sm">
                   <div className="flex items-center gap-3">
                     <div className="w-12 h-12 rounded-xl bg-[#4F46E5]/10 flex items-center justify-center">
-                      <span className="text-2xl font-bold text-[#4F46E5]">{indicators.length}</span>
+                      <span className="text-2xl font-bold text-[#4F46E5]">{items.length}</span>
                     </div>
                     <div>
-                      <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#4F46E5] mb-1">Indicadores</p>
-                      <p className="text-sm text-gray-600">Avaliados ao longo do assessment</p>
+                      <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#4F46E5] mb-1">
+                        {isNiveisSchema ? 'Níveis' : 'Indicadores'}
+                      </p>
+                      <p className="text-sm text-gray-600">
+                        {isNiveisSchema ? 'Níveis de conquista' : 'Avaliados ao longo do assessment'}
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -284,18 +296,18 @@ const Assessment = () => {
         )}
 
         {/* INDICATOR INTRO PHASE */}
-        {phase === 'indicator-intro' && currentIndicator && (
+        {phase === 'indicator-intro' && currentItem && (
           <div className="space-y-10 pt-8">
             <div className="text-center">
               <span className="inline-block text-xs font-bold uppercase tracking-[0.2em] text-[#4F46E5] bg-[#4F46E5]/10 px-4 py-2 rounded-full">
-                Indicador {currentIndicatorIndex + 1} de {indicators.length}
+                {isNiveisSchema ? 'Nível' : 'Indicador'} {currentIndicatorIndex + 1} de {items.length}
               </span>
             </div>
 
             <div className="relative bg-gradient-to-br from-white/90 to-white/70 backdrop-blur-md border border-white/60 rounded-3xl p-4 sm:p-12 shadow-sm overflow-hidden">
               <div className="relative z-10">
                 <div className="flex flex-col sm:flex-row items-center gap-6 mb-8">
-                  {IconComponent && indicatorMeta?.color && (
+                  {!isNiveisSchema && IconComponent && indicatorMeta?.color && (
                     <div 
                       className="w-20 h-20 rounded-full flex items-center justify-center shadow-xl"
                       style={{ backgroundColor: indicatorMeta.color }}
@@ -305,9 +317,9 @@ const Assessment = () => {
                   )}
                   <div className="text-center sm:text-left">
                     <h2 className={`${TOKENS.fonts.serif} text-2xl sm:text-4xl text-[#1E1B4B] leading-snug sm:leading-tight mb-2`}>
-                      {currentIndicator.name}
+                      {currentItem.name}
                     </h2>
-                    {indicatorMeta?.color && (
+                    {!isNiveisSchema && indicatorMeta?.color && (
                       <div 
                         className="inline-block h-1.5 w-24 rounded-full"
                         style={{ backgroundColor: indicatorMeta.color }}
@@ -316,17 +328,20 @@ const Assessment = () => {
                   </div>
                 </div>
 
-                {currentIndicator.conceptual_description && (
+                {currentItem.conceptual_description || currentItem.description ? (
                   <div className="bg-white/50 backdrop-blur-sm rounded-xl p-0 sm:p-6 mb-6">
                     <p className="text-base sm:text-lg text-gray-700 leading-normal sm:leading-relaxed">
-                      {currentIndicator.conceptual_description}
+                      {currentItem.conceptual_description || currentItem.description}
                     </p>
                   </div>
-                )}
+                ) : null}
 
                 <div className="flex items-center gap-3 pt-6 border-t border-gray-200">
                   <div className="flex-shrink-0 rounded-lg bg-[#EEF2FF] px-4 py-2 flex items-center justify-center">
-                    <span className="text-sm font-bold text-[#4F46E5] whitespace-nowrap">{currentQuestions.length} {currentQuestions.length === 1 ? 'pergunta' : 'perguntas'} neste indicador</span>
+                    <span className="text-sm font-bold text-[#4F46E5] whitespace-nowrap">
+                      {currentQuestions.length} {currentQuestions.length === 1 ? 'pergunta' : 'perguntas'} 
+                      {isNiveisSchema ? ' neste nível' : ' neste indicador'}
+                    </span>
                   </div>
               
                 </div>
@@ -352,7 +367,7 @@ const Assessment = () => {
             <div className="bg-white/80 backdrop-blur-sm border border-white/60 rounded-2xl p-6 shadow-sm">
               <div className="flex items-center justify-between flex-wrap gap-4">
                 <div className="flex items-center gap-4">
-                  {IconComponent && indicatorMeta?.color && (
+                  {!isNiveisSchema && IconComponent && indicatorMeta?.color && (
                     <div 
                       className="w-12 h-12 rounded-full flex items-center justify-center"
                       style={{ backgroundColor: indicatorMeta.color }}
@@ -362,7 +377,7 @@ const Assessment = () => {
                   )}
                   <div>
                     <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#4F46E5] mb-1">
-                      {currentIndicator.name}
+                      {currentItem?.name || 'Sem nome'}
                     </p>
                     <p className="text-sm text-gray-600">
                       Pergunta {currentQuestionIndexInIndicator + 1} de {currentQuestions.length}
@@ -370,7 +385,9 @@ const Assessment = () => {
                   </div>
                 </div>
                 <div className="text-right">
-                  <p className="text-xs font-bold uppercase tracking-[0.2em] text-gray-500 mb-1">Progresso do indicador</p>
+                  <p className="text-xs font-bold uppercase tracking-[0.2em] text-gray-500 mb-1">
+                    Progresso {isNiveisSchema ? 'do nível' : 'do indicador'}
+                  </p>
                   <div className="flex items-center gap-2">
                     {Array.from({ length: currentQuestions.length }).map((_, idx) => (
                       <div

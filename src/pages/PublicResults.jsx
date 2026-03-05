@@ -7,6 +7,7 @@ import { supabase } from '../supabaseClient';
 import RadarChart from '../components/charts/RadarChart';
 import HorizontalBarChart from '../components/charts/HorizontalBarChart';
 import ScenarioXPOverlay from '../components/ScenarioXPOverlay';
+import LevelsResultsDisplay from '../components/LevelsResultsDisplay';
 import { TOKENS } from '../config/tokens';
 import { getLucideIcon } from '../utils/iconUtils';
 import { XP_CONFIG, calculateXP, formatXP } from '../utils/gamificationUtils';
@@ -83,6 +84,12 @@ export default function PublicResults() {
   const [xpOverlayData, setXpOverlayData] = useState(null);
   const [newTotalXP, setNewTotalXP] = useState(0);
   const [expandedIntroduction, setExpandedIntroduction] = useState(false);
+  const [assessmentSchema, setAssessmentSchema] = useState(null);
+  const [levelMode, setLevelMode] = useState(null);
+  const [levels, setLevels] = useState([]);
+  const [levelResults, setLevelResults] = useState({});
+  const [noLevelAchievedTitle, setNoLevelAchievedTitle] = useState('');
+  const [noLevelAchievedDescription, setNoLevelAchievedDescription] = useState('');
 
   useEffect(() => {
     // Removido: let mounted = true; (não necessário para página pública)
@@ -99,9 +106,13 @@ export default function PublicResults() {
               is_active,
               created_at,
               assessment_id,
+              schema,
+              level_mode,
               visualization_type,
               final_reflection,
-              result_introduction
+              result_introduction,
+              no_level_achieved_title,
+              no_level_achieved_description
             )
           `);
 
@@ -168,7 +179,102 @@ export default function PublicResults() {
               result_introduction: data.assessment_versions?.result_introduction || ''
             });
 
-            // Buscar as ranges e metadados dos indicadores
+            setAssessmentSchema(data.assessment_versions?.schema || 'indicadores');
+            setLevelMode(data.assessment_versions?.level_mode || 'single');
+            setNoLevelAchievedTitle(data.assessment_versions?.no_level_achieved_title || '');
+            setNoLevelAchievedDescription(data.assessment_versions?.no_level_achieved_description || '');
+
+            // Se for assessment de níveis, buscar dados dos níveis
+            if (data.assessment_versions.schema === 'niveis') {
+              const { data: levelsData, error: levelsError } = await supabase
+                .from('assessment_levels')
+                .select('*')
+                .eq('assessment_version_id', data.assessment_version_id)
+                .order('display_order', { ascending: true });
+
+              if (!levelsError && levelsData) {
+                setLevels(levelsData);
+
+                // Calcular resultados de níveis
+                const levelResultsMap = {};
+                const answersData = data.answers_snapshot || {};
+                
+                if (levelsData.length > 0) {
+                  for (const level of levelsData) {
+                    const { data: questionsData } = await supabase
+                      .from('questions')
+                      .select(`
+                        id,
+                        display_order,
+                        alternatives (
+                          id,
+                          score_value,
+                          score_target
+                        )
+                      `)
+                      .eq('level_id', level.id);
+
+                    let levelScore = 0;
+                    let potentialScore = 0;
+                    let maxLevelScore = 0;
+                    let maxPotentialScore = 0;
+
+                    if (questionsData) {
+                      questionsData.forEach(question => {
+                        const answer = answersData[question.id];
+                        
+                        let questionMaxLevel = 0;
+                        let questionMaxPotential = 0;
+                        
+                        question.alternatives.forEach(alt => {
+                          const altTarget = alt.score_target || 'level';
+                          const altScore = parseFloat(alt.score_value) || 0;
+                          
+                          if (altTarget === 'level' && altScore > questionMaxLevel) {
+                            questionMaxLevel = altScore;
+                          } else if (altTarget === 'potential' && altScore > questionMaxPotential) {
+                            questionMaxPotential = altScore;
+                          }
+                        });
+                        
+                        maxLevelScore += questionMaxLevel;
+                        maxPotentialScore += questionMaxPotential;
+
+                        if (answer !== undefined && answer !== null) {
+                          const selectedAlternative = question.alternatives.find(alt => alt.score_value == answer);
+                          if (selectedAlternative) {
+                            const scoreValue = parseFloat(selectedAlternative.score_value) || 0;
+                            const scoreTarget = selectedAlternative.score_target || 'level';
+
+                            if (scoreTarget === 'level') {
+                              levelScore += scoreValue;
+                            } else if (scoreTarget === 'potential') {
+                              potentialScore += scoreValue;
+                            }
+                          }
+                        }
+                      });
+                    }
+
+                    levelResultsMap[level.id] = {
+                      level_id: level.id,
+                      name: level.name,
+                      description: level.description,
+                      levelScore,
+                      potentialScore,
+                      maxLevelScore,
+                      maxPotentialScore,
+                      display_order: level.display_order,
+                      acquire_threshold: level.acquire_threshold
+                    };
+                  }
+                }
+
+                setLevelResults(levelResultsMap);
+              }
+            } else {
+              // Lógica original para indicadores
+              // Buscar as ranges e metadados dos indicadores
             const { data: indicatorsData, error: indError } = await supabase
               .from('assessment_indicators')
               .select(`
@@ -268,6 +374,7 @@ export default function PublicResults() {
               setAssessmentRanges(rangesMap);
               setIndicatorsMeta(metaMap);
             }
+            }
 
             // Buscar overall_ranges para interpretação do resultado geral
             const { data: overallRangesData, error: overallError } = await supabase
@@ -332,13 +439,18 @@ export default function PublicResults() {
 
   const total = result.total_score ?? 0;
   const max = result.max_possible_score ?? 0;
-  const percentage = max > 0 ? Math.round((total / max) * 100) : 0;
+  const percentageRaw = max > 0 ? (total / max) * 100 : 0;
+  const percentage = Math.round(percentageRaw);
   
   // Calcular interpretação geral usar as overall_ranges
   let overallInterpretation = '';
   let overallLabel = classifyFallback(percentage);
   if (overallRanges.length > 0) {
-    const range = overallRanges.find(r => percentage >= r.min_score && percentage <= r.max_score);
+    const range = overallRanges.find((r) => {
+      const min = Number(r.min_score);
+      const maxRange = Number(r.max_score);
+      return percentageRaw >= min && percentageRaw <= maxRange;
+    });
     if (range) {
       overallLabel = range.label;
       overallInterpretation = range.interpretation || '';
@@ -588,7 +700,19 @@ export default function PublicResults() {
             </p>
             </div>
 
-            {assessmentData && Array.isArray(assessmentData.visualization_type) && assessmentData.visualization_type.length > 0 && (
+            {/* RESULTADOS DE NÍVEIS */}
+            {assessmentSchema === 'niveis' && (
+              <LevelsResultsDisplay
+                levelResults={levelResults}
+                levelMode={levelMode}
+                levels={levels}
+                noLevelAchievedTitle={noLevelAchievedTitle}
+                noLevelAchievedDescription={noLevelAchievedDescription}
+              />
+            )}
+
+            {/* RESULTADOS DE INDICADORES */}
+            {assessmentSchema !== 'niveis' && assessmentData && Array.isArray(assessmentData.visualization_type) && assessmentData.visualization_type.length > 0 && (
               <div className="mt-8 grid gap-6">
                 {/* Se ambos os gráficos estão selecionados, renderizar no mesmo card */}
                 {assessmentData.visualization_type.includes('radar') && assessmentData.visualization_type.includes('horizontal-bar') ? (
@@ -616,6 +740,7 @@ export default function PublicResults() {
               </div>
             )}
 
+            {assessmentSchema !== 'niveis' && (
             <div className="mt-8 grid gap-4">
               {Object.entries(indicatorResults)
                 .sort(([, a], [, b]) => (b?.percentage ?? 0) - (a?.percentage ?? 0))
@@ -684,6 +809,7 @@ export default function PublicResults() {
                   );
                 })}
             </div>
+            )}
           </div>
 
           {/* Coluna Lateral (aderente no desktop) */}

@@ -2,10 +2,12 @@ import React, { useEffect, useState } from 'react';
 import { supabase } from '../../supabaseClient';
 import { useUserRole } from '../../hooks/useUserRole';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Trash2, ArrowLeft, Save, GitBranch } from 'lucide-react';
+import { Plus, Trash2, ArrowLeft, Save, GitBranch, Sparkles, X } from 'lucide-react';
 import IntroductionEditor from '../../components/IntroductionEditor';
 import OverallRangesEditor from '../../components/OverallRangesEditor';
+import AssessmentElementsModal from '../../components/AssessmentElementsModal';
 import AssessmentBuilderSkeleton from '../../components/skeletons/admin/AssessmentBuilderSkeleton';
+import { TOKENS } from '../../config/tokens';
 import { 
   getActiveAssessmentVersion, 
   createNewAssessmentVersion, 
@@ -43,6 +45,28 @@ export default function AssessmentBuilder() {
   const [assessmentIndicatorsEdited, setAssessmentIndicatorsEdited] = useState([]);
   const [questionsEdited, setQuestionsEdited] = useState([]);
   const [indicatorToAdd, setIndicatorToAdd] = useState('');
+  
+  // Novos estados para schema e elementos opcionais
+  const [assessmentSchema, setAssessmentSchema] = useState('indicadores'); // 'indicadores' | 'niveis'
+  const [showElementsModal, setShowElementsModal] = useState(false);
+  const [assessmentElements, setAssessmentElements] = useState({
+    introduction: false,
+    preAssessment: false,
+    resultIntroduction: false,
+    finalReflection: false
+  });
+  const [preAssessmentFields, setPreAssessmentFields] = useState([]);
+  const [levels, setLevels] = useState([]); // Para schema 'niveis'
+  const [levelMode, setLevelMode] = useState('single'); // 'single' | 'multi'
+  
+  // Para mode='single': mensagem quando não conquista nenhum nível
+  const [noLevelAchievedTitle, setNoLevelAchievedTitle] = useState('');
+  const [noLevelAchievedDescription, setNoLevelAchievedDescription] = useState('');
+  
+  // Modal de confirmação de remoção de elemento
+  const [showRemoveElementModal, setShowRemoveElementModal] = useState(false);
+  const [elementToRemove, setElementToRemove] = useState(null);
+  const [removeConfirmed, setRemoveConfirmed] = useState(false);
 
 
 
@@ -123,8 +147,24 @@ export default function AssessmentBuilder() {
       const allVersions = await listAssessmentVersions(assessmentId);
       setVersions(allVersions);
 
-      // 4. Carregar indicadores e ranges da versão ativa
-      await loadVersionIndicators(activeVer.id, assessmentId);
+      // 4. Verificar se é schema 'niveis' ou 'indicadores'
+      const { data: versionData, error: versionError } = await supabase
+        .from('assessment_versions')
+        .select('schema, level_mode')
+        .eq('id', activeVer.id)
+        .single();
+
+      const schema = versionData?.schema || assData.schema || 'indicadores';
+      setAssessmentSchema(schema);
+
+      if (schema === 'niveis') {
+        // Carregar níveis
+        setLevelMode(versionData?.level_mode || 'single');
+        await loadVersionLevels(activeVer.id);
+      } else {
+        // Carregar indicadores (existente)
+        await loadVersionIndicators(activeVer.id, assessmentId);
+      }
     } catch (err) {
       console.error('Erro ao carregar assessment:', err);
       alert('Erro ao carregar assessment: ' + err.message);
@@ -284,6 +324,101 @@ export default function AssessmentBuilder() {
     setRanges(rangesMap);
   };
 
+  const loadVersionLevels = async (versionId) => {
+    try {
+      // Buscar introduction_html, reflexao final e campos de não conquista da versão
+      const { data: versionData, error: versionError } = await supabase
+        .from('assessment_versions')
+        .select('introduction_html, final_reflection, result_introduction, no_level_achieved_title, no_level_achieved_description, level_mode')
+        .eq('id', versionId)
+        .single();
+
+      if (!versionError && versionData) {
+        setIntroductionHtml(versionData.introduction_html || '');
+        setFinalReflection(versionData.final_reflection || '');
+        setResultIntroduction(versionData.result_introduction || '');
+        setNoLevelAchievedTitle(versionData.no_level_achieved_title || '');
+        setNoLevelAchievedDescription(versionData.no_level_achieved_description || '');
+        if (versionData.level_mode) {
+          setLevelMode(versionData.level_mode);
+        }
+      }
+
+      // Buscar overall_ranges
+      const { data: overallRangesData, error: overallRangesError } = await supabase
+        .from('assessment_overall_ranges')
+        .select('*')
+        .eq('assessment_version_id', versionId)
+        .order('min_score', { ascending: true });
+
+      if (!overallRangesError && overallRangesData) {
+        setOverallRanges(overallRangesData);
+        console.log('✅ Overall ranges carregados:', overallRangesData);
+      }
+
+      // Buscar níveis
+      const { data: levelsData, error: levelsError } = await supabase
+        .from('assessment_levels')
+        .select('*')
+        .eq('assessment_version_id', versionId)
+        .order('display_order', { ascending: true });
+
+      if (levelsError) {
+        console.error('Erro ao carregar níveis:', levelsError);
+        return;
+      }
+
+      // Para cada nível, buscar questões e alternativas
+      const levelsWithQuestions = await Promise.all(
+        (levelsData || []).map(async (level) => {
+          // Buscar questions do nível
+          const { data: questionsData, error: questionsError } = await supabase
+            .from('questions')
+            .select('*')
+            .eq('level_id', level.id)
+            .order('display_order', { ascending: true });
+
+          if (questionsError) {
+            console.error(`Erro ao carregar questões do nível ${level.name}:`, questionsError);
+            return { ...level, questions: [] };
+          }
+
+          // Para cada questão, buscar alternativas
+          const questionsWithAlternatives = await Promise.all(
+            (questionsData || []).map(async (question) => {
+              const { data: alternativesData, error: alternativesError } = await supabase
+                .from('alternatives')
+                .select('*')
+                .eq('question_id', question.id)
+                .order('display_order', { ascending: true });
+
+              if (alternativesError) {
+                console.error(`Erro ao carregar alternativas da questão ${question.id}:`, alternativesError);
+                return { ...question, alternatives: [] };
+              }
+
+              return {
+                ...question,
+                alternatives: alternativesData || []
+              };
+            })
+          );
+
+          return {
+            ...level,
+            questions: questionsWithAlternatives
+          };
+        })
+      );
+
+      setLevels(levelsWithQuestions);
+      console.log('✅ Níveis carregados:', levelsWithQuestions);
+    } catch (err) {
+      console.error('Erro ao carregar níveis:', err);
+      alert('Erro ao carregar níveis: ' + err.message);
+    }
+  };
+
   const handleAddIndicator = (indicatorId) => {
     if (!selectedIndicators.includes(indicatorId)) {
       setSelectedIndicators([...selectedIndicators, indicatorId]);
@@ -395,6 +530,76 @@ export default function AssessmentBuilder() {
     setQuestionsEdited(updated);
   };
 
+  const handleAddLevel = () => {
+    const newLevel = {
+      id: makeTempId(),
+      name: `Nível ${levels.length + 1}`,
+      description: '',
+      display_order: levels.length + 1,
+      acquire_threshold: 0, // Pontos necessários para obter o nível
+      not_acquired_title: '', // Para mode='multi': título quando não conquista
+      not_acquired_description: '', // Para mode='multi': descrição quando não conquista
+      questions: []
+    };
+    setLevels(prev => [...prev, newLevel]);
+  };
+
+  const handleRemoveLevel = (levelIndex) => {
+    setLevels(prev => prev
+      .filter((_, idx) => idx !== levelIndex)
+      .map((level, idx) => ({ ...level, display_order: idx + 1 }))
+    );
+  };
+
+  const handleAddQuestionToLevel = (levelIndex) => {
+    const updated = [...levels];
+    const level = updated[levelIndex];
+    const newQuestion = {
+      id: makeTempId(),
+      text: '',
+      response_type: 'single_choice',
+      is_required: true,
+      display_order: (level.questions?.length || 0) + 1,
+      alternatives: []
+    };
+    level.questions = [...(level.questions || []), newQuestion];
+    updated[levelIndex] = { ...level };
+    setLevels(updated);
+  };
+
+  const handleRemoveQuestionFromLevel = (levelIndex, questionIndex) => {
+    const updated = [...levels];
+    const level = updated[levelIndex];
+    level.questions = (level.questions || [])
+      .filter((_, idx) => idx !== questionIndex)
+      .map((question, idx) => ({ ...question, display_order: idx + 1 }));
+    updated[levelIndex] = { ...level };
+    setLevels(updated);
+  };
+
+  const handleAddAlternativeToLevelQuestion = (levelIndex, questionIndex) => {
+    const updated = [...levels];
+    const question = updated[levelIndex].questions[questionIndex];
+    const newAlt = {
+      id: makeTempId(),
+      text: '',
+      score_value: 0,
+      score_target: 'level',
+      display_order: (question.alternatives?.length || 0) + 1
+    };
+    question.alternatives = [...(question.alternatives || []), newAlt];
+    setLevels(updated);
+  };
+
+  const handleRemoveAlternativeFromLevelQuestion = (levelIndex, questionIndex, altIndex) => {
+    const updated = [...levels];
+    const question = updated[levelIndex].questions[questionIndex];
+    question.alternatives = (question.alternatives || [])
+      .filter((_, idx) => idx !== altIndex)
+      .map((alt, idx) => ({ ...alt, display_order: idx + 1 }));
+    setLevels(updated);
+  };
+
   const handleAddRangeToIndicator = (indicatorIndex) => {
     const updated = [...assessmentIndicatorsEdited];
     const indicator = updated[indicatorIndex];
@@ -421,75 +626,147 @@ export default function AssessmentBuilder() {
   const validateBeforeSave = () => {
     const issues = [];
 
-    if (!assessmentIndicatorsEdited.length) {
-      issues.push('Adicione pelo menos um indicador.');
-    }
-
-    if (!questionsEdited.length) {
-      issues.push('Adicione pelo menos um indicador com questoes.');
-    }
-
-    questionsEdited.forEach((indicator, indIdx) => {
-      const indicatorLabel = indicator.name || `Indicador ${indIdx + 1}`;
-      const displayOrder = Number(indicator.display_order || 0);
-      const hasMatchingIndicator = assessmentIndicatorsEdited.some(ai =>
-        ai.indicator_master_id === indicator.indicator_master_id ||
-        ai.indicators_master?.name === indicator.name
-      );
-
-      if (!indicator.name || !indicator.name.trim()) {
-        issues.push(`Indicador ${indIdx + 1}: nome obrigatorio.`);
+    if (assessmentSchema === 'niveis') {
+      if (!levels.length) {
+        issues.push('Adicione pelo menos um nível.');
       }
 
-      if (!hasMatchingIndicator) {
-        issues.push(`${indicatorLabel}: nao esta vinculado aos indicadores do assessment.`);
-      }
+      levels.forEach((level, levelIdx) => {
+        const levelLabel = level.name || `Nível ${levelIdx + 1}`;
+        const displayOrder = Number(level.display_order || 0);
 
-      if (!Number.isFinite(displayOrder) || displayOrder <= 0) {
-        issues.push(`${indicatorLabel}: ordem do indicador deve ser maior que 0.`);
-      }
-
-      const questions = indicator.questions || [];
-      if (!questions.length) {
-        issues.push(`${indicatorLabel}: adicione pelo menos uma questao.`);
-      }
-
-      questions.forEach((question, qIdx) => {
-        const questionLabel = `${indicatorLabel} - Questao ${qIdx + 1}`;
-        const questionOrder = Number(question.display_order || 0);
-
-        if (!question.text || !question.text.trim()) {
-          issues.push(`${questionLabel}: texto obrigatorio.`);
+        if (!level.name || !level.name.trim()) {
+          issues.push(`Nível ${levelIdx + 1}: nome obrigatório.`);
         }
 
-        if (!Number.isFinite(questionOrder) || questionOrder <= 0) {
-          issues.push(`${questionLabel}: ordem da questao deve ser maior que 0.`);
+        if (!Number.isFinite(displayOrder) || displayOrder <= 0) {
+          issues.push(`${levelLabel}: ordem do nível deve ser maior que 0.`);
         }
 
-        const alternatives = question.alternatives || [];
-        if (!alternatives.length) {
-          issues.push(`${questionLabel}: adicione pelo menos uma alternativa.`);
+        // Validar acquire_threshold (pontos necessários)
+        const acquireThreshold = Number(level.acquire_threshold);
+        if (!Number.isFinite(acquireThreshold) || acquireThreshold < 0) {
+          issues.push(`${levelLabel}: pontos necessários deve ser um número maior ou igual a 0.`);
         }
 
-        alternatives.forEach((alt, aIdx) => {
-          const altLabel = `${questionLabel} - Alternativa ${aIdx + 1}`;
-          const altOrder = Number(alt.display_order || 0);
-          const altScore = Number(alt.score_value);
+        const questions = level.questions || [];
+        if (!questions.length) {
+          issues.push(`${levelLabel}: adicione pelo menos uma questão.`);
+        }
 
-          if (!alt.text || !alt.text.trim()) {
-            issues.push(`${altLabel}: texto obrigatorio.`);
+        questions.forEach((question, qIdx) => {
+          const questionLabel = `${levelLabel} - Questão ${qIdx + 1}`;
+          const questionOrder = Number(question.display_order || 0);
+
+          if (!question.text || !question.text.trim()) {
+            issues.push(`${questionLabel}: texto obrigatório.`);
           }
 
-          if (!Number.isFinite(altOrder) || altOrder <= 0) {
-            issues.push(`${altLabel}: ordem da alternativa deve ser maior que 0.`);
+          if (!Number.isFinite(questionOrder) || questionOrder <= 0) {
+            issues.push(`${questionLabel}: ordem da questão deve ser maior que 0.`);
           }
 
-          if (!Number.isFinite(altScore)) {
-            issues.push(`${altLabel}: score deve ser numerico.`);
+          const alternatives = question.alternatives || [];
+          if (!alternatives.length) {
+            issues.push(`${questionLabel}: adicione pelo menos uma alternativa.`);
           }
+
+          alternatives.forEach((alt, aIdx) => {
+            const altLabel = `${questionLabel} - Alternativa ${aIdx + 1}`;
+            const altOrder = Number(alt.display_order || 0);
+            const altScore = Number(alt.score_value);
+            // Tratar score_target: se vazio/undefined, assumir 'level' como padrão
+            const altTarget = (alt.score_target || 'level').trim();
+
+            if (!alt.text || !alt.text.trim()) {
+              issues.push(`${altLabel}: texto obrigatório.`);
+            }
+
+            if (!Number.isFinite(altOrder) || altOrder <= 0) {
+              issues.push(`${altLabel}: ordem da alternativa deve ser maior que 0.`);
+            }
+
+            if (!Number.isFinite(altScore)) {
+              issues.push(`${altLabel}: score deve ser numérico.`);
+            }
+
+            if (!['level', 'potential'].includes(altTarget)) {
+              issues.push(`${altLabel}: selecione se pontua para nível ou potencial.`);
+            }
+          });
         });
       });
-    });
+    } else {
+      if (!assessmentIndicatorsEdited.length) {
+        issues.push('Adicione pelo menos um indicador.');
+      }
+
+      if (!questionsEdited.length) {
+        issues.push('Adicione pelo menos um indicador com questoes.');
+      }
+
+      questionsEdited.forEach((indicator, indIdx) => {
+        const indicatorLabel = indicator.name || `Indicador ${indIdx + 1}`;
+        const displayOrder = Number(indicator.display_order || 0);
+        const hasMatchingIndicator = assessmentIndicatorsEdited.some(ai =>
+          ai.indicator_master_id === indicator.indicator_master_id ||
+          ai.indicators_master?.name === indicator.name
+        );
+
+        if (!indicator.name || !indicator.name.trim()) {
+          issues.push(`Indicador ${indIdx + 1}: nome obrigatorio.`);
+        }
+
+        if (!hasMatchingIndicator) {
+          issues.push(`${indicatorLabel}: nao esta vinculado aos indicadores do assessment.`);
+        }
+
+        if (!Number.isFinite(displayOrder) || displayOrder <= 0) {
+          issues.push(`${indicatorLabel}: ordem do indicador deve ser maior que 0.`);
+        }
+
+        const questions = indicator.questions || [];
+        if (!questions.length) {
+          issues.push(`${indicatorLabel}: adicione pelo menos uma questao.`);
+        }
+
+        questions.forEach((question, qIdx) => {
+          const questionLabel = `${indicatorLabel} - Questao ${qIdx + 1}`;
+          const questionOrder = Number(question.display_order || 0);
+
+          if (!question.text || !question.text.trim()) {
+            issues.push(`${questionLabel}: texto obrigatorio.`);
+          }
+
+          if (!Number.isFinite(questionOrder) || questionOrder <= 0) {
+            issues.push(`${questionLabel}: ordem da questao deve ser maior que 0.`);
+          }
+
+          const alternatives = question.alternatives || [];
+          if (!alternatives.length) {
+            issues.push(`${questionLabel}: adicione pelo menos uma alternativa.`);
+          }
+
+          alternatives.forEach((alt, aIdx) => {
+            const altLabel = `${questionLabel} - Alternativa ${aIdx + 1}`;
+            const altOrder = Number(alt.display_order || 0);
+            const altScore = Number(alt.score_value);
+
+            if (!alt.text || !alt.text.trim()) {
+              issues.push(`${altLabel}: texto obrigatorio.`);
+            }
+
+            if (!Number.isFinite(altOrder) || altOrder <= 0) {
+              issues.push(`${altLabel}: ordem da alternativa deve ser maior que 0.`);
+            }
+
+            if (!Number.isFinite(altScore)) {
+              issues.push(`${altLabel}: score deve ser numerico.`);
+            }
+          });
+        });
+      });
+    }
 
     if (issues.length > 0) {
       alert(`Corrija os seguintes itens antes de salvar:\n\n- ${issues.join('\n- ')}`);
@@ -497,6 +774,265 @@ export default function AssessmentBuilder() {
     }
 
     return true;
+  };
+
+  // Salvar assessment com schema='niveis'
+  const handleSaveNiveisAssessment = async () => {
+    setIsSaving(true);
+    try {
+      let targetAssessmentId = selectedAssessment;
+      let targetVersionId = null;
+
+      // CENÁRIO 1: CRIAR NOVO ASSESSMENT
+      if (selectedAssessment === 'new') {
+        // 1. Inserir Assessment com schema='niveis'
+        const { data: newAssData, error: newAssError } = await supabase
+          .from('assessments')
+          .insert([{
+            name: assessmentDataEdited.name,
+            description: assessmentDataEdited.description,
+            type: assessmentDataEdited.type,
+            schema: 'niveis',
+            aggregation_type: assessmentDataEdited.aggregation_type,
+            visualization_type: assessmentDataEdited.visualization_type,
+            availability_type: assessmentDataEdited.availability_type,
+            is_active: assessmentDataEdited.is_active,
+            version: '1'
+          }])
+          .select()
+          .single();
+
+        if (newAssError) throw newAssError;
+        targetAssessmentId = newAssData.id;
+
+        // 2. Inserir Versão 1 com level_mode e campos de não conquista
+        const { data: newVerData, error: newVerError } = await supabase
+          .from('assessment_versions')
+          .insert([{
+            assessment_id: targetAssessmentId,
+            version_number: 1,
+            is_active: true,
+            schema: 'niveis',
+            level_mode: levelMode,
+            introduction_html: introductionHtml,
+            final_reflection: finalReflection || null,
+            result_introduction: resultIntroduction || null,
+            no_level_achieved_title: noLevelAchievedTitle || null,
+            no_level_achieved_description: noLevelAchievedDescription || null,
+            visualization_type: assessmentDataEdited.visualization_type || '["radar"]'
+          }])
+          .select()
+          .single();
+
+        if (newVerError) throw newVerError;
+        targetVersionId = newVerData.id;
+
+      } else {
+        // CENÁRIO 2: ATUALIZAR EXISTENTE (criar nova versão)
+        
+        // 1. Buscar o maior version_number existente para este assessment
+        const { data: existingVersions, error: versionsError } = await supabase
+          .from('assessment_versions')
+          .select('version_number')
+          .eq('assessment_id', selectedAssessment)
+          .order('version_number', { ascending: false })
+          .limit(1);
+        
+        if (versionsError) throw versionsError;
+        
+        const maxVersionNumber = existingVersions && existingVersions.length > 0 
+          ? existingVersions[0].version_number 
+          : 0;
+        const nextVersionNumber = maxVersionNumber + 1;
+        
+        // 2. Criar nova versão com campos de não conquista
+        const { data: newVerData, error: newVerError } = await supabase
+          .from('assessment_versions')
+          .insert([{
+            assessment_id: selectedAssessment,
+            version_number: nextVersionNumber,
+            is_active: false, // Nova versão começa como inativa
+            schema: 'niveis',
+            level_mode: levelMode,
+            introduction_html: introductionHtml,
+            final_reflection: finalReflection || null,
+            result_introduction: resultIntroduction || null,
+            no_level_achieved_title: noLevelAchievedTitle || null,
+            no_level_achieved_description: noLevelAchievedDescription || null,
+            visualization_type: assessmentDataEdited.visualization_type || '["radar"]'
+          }])
+          .select()
+          .single();
+
+        if (newVerError) throw newVerError;
+        targetVersionId = newVerData.id;
+
+        // 3. Atualizar dados do assessment se mudou algo
+        if (assessmentDataEdited && assessmentData) {
+          const changeFields = {};
+          ['name', 'type', 'aggregation_type', 'visualization_type', 'availability_type', 'is_active', 'description'].forEach(field => {
+            if (assessmentDataEdited[field] !== assessmentData[field]) {
+              changeFields[field] = assessmentDataEdited[field];
+            }
+          });
+          
+          if (Object.keys(changeFields).length > 0) {
+            const { error: updateError } = await supabase
+              .from('assessments')
+              .update(changeFields)
+              .eq('id', selectedAssessment);
+            if (updateError) throw updateError;
+          }
+        }
+      }
+
+      // 4. Salvar overall_ranges (se houver)
+      if (targetVersionId && overallRanges && overallRanges.length > 0) {
+        const overallRangesData = overallRanges
+          .filter(r => {
+            const label = String(r.label || '').trim();
+            const minScore = r.min_score !== undefined && r.min_score !== null && r.min_score !== '' 
+              ? Number(r.min_score) 
+              : null;
+            const maxScore = r.max_score !== undefined && r.max_score !== null && r.max_score !== '' 
+              ? Number(r.max_score) 
+              : null;
+            
+            const hasLabel = label.length > 0;
+            const hasValidMinScore = !isNaN(minScore) && minScore !== null;
+            const hasValidMaxScore = !isNaN(maxScore) && maxScore !== null;
+            const isValidRange = hasValidMinScore && hasValidMaxScore && minScore <= maxScore;
+            
+            return hasLabel && isValidRange;
+          })
+          .map(r => ({
+            assessment_version_id: targetVersionId,
+            min_score: Number(r.min_score),
+            max_score: Number(r.max_score),
+            label: String(r.label || '').trim(),
+            interpretation: String(r.interpretation || '').trim()
+          }));
+
+        if (overallRangesData.length > 0) {
+          const { error: overallRangesError } = await supabase
+            .from('assessment_overall_ranges')
+            .insert(overallRangesData);
+
+          if (overallRangesError) throw overallRangesError;
+          console.log(`✅ ${overallRangesData.length} faixa(s) global(is) salva(s)`);
+        }
+      }
+
+      // 5. Salvar Levels
+      for (const level of levels) {
+        const { data: levelData, error: levelError } = await supabase
+          .from('assessment_levels')
+          .insert([{
+            assessment_version_id: targetVersionId,
+            name: level.name,
+            description: level.description || null,
+            display_order: level.display_order,
+            acquire_threshold: level.acquire_threshold || 0,
+            not_acquired_title: level.not_acquired_title || null,
+            not_acquired_description: level.not_acquired_description || null
+          }])
+          .select()
+          .single();
+
+        if (levelError) throw levelError;
+        const levelId = levelData.id;
+
+        // 6. Salvar Questions deste level
+        for (const question of level.questions) {
+          const { data: questionData, error: questionError } = await supabase
+            .from('questions')
+            .insert([{
+              level_id: levelId,
+              text: question.text,
+              response_type: question.response_type,
+              is_required: question.is_required !== false,
+              display_order: question.display_order
+            }])
+            .select()
+            .single();
+
+          if (questionError) throw questionError;
+          const questionId = questionData.id;
+
+          // 7. Salvar Alternatives desta question
+          for (const alt of question.alternatives) {
+            const { error: altError } = await supabase
+              .from('alternatives')
+              .insert([{
+                question_id: questionId,
+                text: alt.text,
+                score_value: parseFloat(alt.score_value) || 0,
+                score_target: alt.score_target || 'level',
+                display_order: alt.display_order
+              }]);
+
+            if (altError) throw altError;
+          }
+        }
+      }
+
+      // 8. Finalizar e decidir se publica a versão
+      const finalAssessmentId = selectedAssessment === 'new' ? targetAssessmentId : selectedAssessment;
+      
+      // Buscar dados da versão criada para mostrar número
+      const { data: versionData } = await supabase
+        .from('assessment_versions')
+        .select('version_number')
+        .eq('id', targetVersionId)
+        .single();
+      
+      const versionNumber = versionData?.version_number || '?';
+
+      // Fechar o modal (operação de salvamento concluída)
+      setShowVersionModal(false);
+
+      // Se foi criação de novo assessment, carregar e não perguntar sobre publicação (já vem ativo)
+      if (selectedAssessment === 'new') {
+        await handleSelectAssessment(targetAssessmentId);
+        alert('✅ Assessment de níveis criado com sucesso!');
+        setIsSaving(false);
+        return;
+      }
+
+      // Se foi criação de nova versão, perguntar se deseja publicar
+      const shouldPublish = confirm(
+        `✓ Nova versão v${versionNumber} criada com sucesso!\n\nDeseja publicar esta versão agora? Ela se tornará a versão ativa do assessment.`
+      );
+
+      if (shouldPublish) {
+        await activateAssessmentVersion(finalAssessmentId, targetVersionId);
+        
+        // Atualizar estado da versão atual
+        const activeVer = await getActiveAssessmentVersion(finalAssessmentId);
+        setCurrentVersion(activeVer);
+        
+        // Recarregar versões novamente
+        const updatedVersions = await listAssessmentVersions(finalAssessmentId);
+        setVersions(updatedVersions);
+        
+        alert(`✓ Versão v${versionNumber} publicada com sucesso!\nEla agora é a versão ativa do assessment.`);
+      } else {
+        // Recarregar lista de versões
+        const allVersions = await listAssessmentVersions(finalAssessmentId);
+        setVersions(allVersions);
+        
+        alert(`✓ Versão v${versionNumber} criada com sucesso!\nVocê pode publicá-la mais tarde clicando em "Publicar".`);
+      }
+      
+      // Recarregar os dados da versão
+      await loadVersionLevels(targetVersionId, finalAssessmentId);
+
+    } catch (error) {
+      console.error('❌ Erro ao salvar assessment de níveis:', error);
+      alert('Erro ao salvar: ' + error.message);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleConfirmSave = async () => {
@@ -513,6 +1049,11 @@ export default function AssessmentBuilder() {
 
     if (!validateBeforeSave()) {
       return;
+    }
+
+    // Redirecionar para função específica de níveis
+    if (assessmentSchema === 'niveis') {
+      return handleSaveNiveisAssessment();
     }
 
     setIsSaving(true);
@@ -1104,24 +1645,91 @@ Deseja continuar?`;
     return <div className="p-12 text-center text-red-600">{error}</div>;
   }
 
-  return (
-    <div className="max-w-6xl mx-auto px-6 py-12">
-      <div className="flex items-center gap-3 mb-8">
-        <button onClick={() => navigate('/dashboard')} className="text-[#4F46E5] hover:underline flex items-center gap-1">
-          <ArrowLeft className="w-4 h-4" /> Dashboard
-        </button>
-        <h1 className="text-3xl font-semibold">Configurar Assessment</h1>
-      </div>
+  // Handler para toggle de elementos
+  const handleToggleElement = (elementId) => {
+    setAssessmentElements(prev => ({
+      ...prev,
+      [elementId]: !prev[elementId]
+    }));
+  };
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+  // Handler para abrir modal de confirmação de remoção
+  const handleRequestRemoveElement = (elementId) => {
+    setElementToRemove(elementId);
+    setRemoveConfirmed(false);
+    setShowRemoveElementModal(true);
+  };
+
+  // Handler para confirmar remoção de elemento
+  const handleConfirmRemoveElement = () => {
+    if (!removeConfirmed || !elementToRemove) return;
+    
+    setAssessmentElements(prev => ({
+      ...prev,
+      [elementToRemove]: false
+    }));
+    
+    // Limpar dados do elemento removido
+    if (elementToRemove === 'introduction') {
+      setIntroductionHtml('');
+    } else if (elementToRemove === 'resultIntroduction') {
+      setResultIntroduction('');
+    } else if (elementToRemove === 'finalReflection') {
+      setFinalReflection('');
+    } else if (elementToRemove === 'preAssessment') {
+      setPreAssessmentFields([]);
+    }
+    
+    setShowRemoveElementModal(false);
+    setElementToRemove(null);
+    setRemoveConfirmed(false);
+  };
+
+  // Mapa de nomes dos elementos
+  const elementNames = {
+    introduction: 'Introdução',
+    preAssessment: 'Pré-Assessment',
+    resultIntroduction: 'Introdução ao Resultado',
+    finalReflection: 'Reflexão Final'
+  };
+
+  const hasNiveisContent = levels.length > 0 && levels.some(level => (level.questions || []).length > 0);
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-[#F5F3EC] to-[#EEF2FF]">
+      {/* HERO SECTION */}
+      <section className="bg-gradient-to-r from-[#4F46E5] via-[#6366F1] to-[#818CF8] pt-[72px] pb-24 px-4 sm:px-6 relative overflow-hidden">
+        <div className="absolute inset-0 opacity-10 pointer-events-none overflow-hidden">
+          <div className="absolute top-20 -left-10 w-48 h-48 md:w-64 md:h-64 bg-white rounded-full blur-3xl"></div>
+          <div className="absolute bottom-0 -right-20 w-64 h-64 md:w-96 md:h-96 bg-[#312E81] rounded-full blur-3xl"></div>
+        </div>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-8 relative z-10 w-full">
+          <button 
+            onClick={() => navigate('/dashboard')} 
+            className="inline-flex items-center gap-2 text-sm font-semibold text-white/90 mb-6 hover:text-white transition-colors"
+          >
+            <ArrowLeft className="w-4 h-4" /> Dashboard
+          </button>
+          <h1 className={`${TOKENS.fonts.serif} text-3xl sm:text-4xl md:text-5xl font-extrabold text-white mb-4 leading-tight`}>
+            Assessment Builder
+          </h1>
+          <p className="text-white/90 text-base sm:text-lg max-w-3xl">
+            Configure assessments com múltiplos indicadores ou níveis sequenciais
+          </p>
+        </div>
+      </section>
+
+      {/* MAIN CONTENT */}
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 -mt-16 relative z-20 w-full pb-16">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Coluna Esquerda: Seleção de Assessment */}
         <div className="lg:col-span-1 space-y-4">
-          <div className="p-6 border rounded-lg bg-white">
+          <div className="bg-white/80 backdrop-blur-sm border border-white/60 rounded-2xl p-6 shadow-lg">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold">Selecionar Assessment</h2>
+              <h2 className="text-lg font-semibold text-gray-900">Assessments</h2>
               <button
                 onClick={handleInitNewAssessment}
-                className="p-2 bg-[#4F46E5] text-white rounded hover:bg-[#312E81] transition-colors"
+                className="p-2 bg-gradient-to-r from-[#4F46E5] to-[#6366F1] text-white rounded-lg hover:shadow-lg transition-all"
                 title="Criar Novo Assessment"
               >
                 <Plus className="w-4 h-4" />
@@ -1132,10 +1740,10 @@ Deseja continuar?`;
                 <button
                   key={a.id}
                   onClick={() => handleSelectAssessment(a.id)}
-                  className={`w-full text-left px-4 py-2 rounded border transition ${
+                  className={`w-full text-left px-4 py-3 rounded-lg border-2 transition-all font-medium ${
                     selectedAssessment === a.id
-                      ? 'bg-[#4F46E5] text-white border-[#4F46E5]'
-                      : 'border-gray-300 hover:border-[#4F46E5]'
+                      ? 'bg-gradient-to-r from-[#4F46E5] to-[#6366F1] text-white border-[#4F46E5] shadow-lg'
+                      : 'border-gray-200 hover:border-[#4F46E5] bg-white'
                   }`}
                 >
                   {a.name}
@@ -1146,35 +1754,34 @@ Deseja continuar?`;
 
           {/* Versões do Assessment */}
           {selectedAssessment && selectedAssessment !== 'new' && currentVersion && (
-            <div className="p-6 border rounded-lg bg-white">
+            <div className="bg-white/80 backdrop-blur-sm border border-white/60 rounded-2xl p-6 shadow-lg">
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-semibold flex items-center gap-2">
-                  <GitBranch className="w-4 h-4" /> Versões
+                <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                  <GitBranch className="w-5 h-5 text-[#4F46E5]" /> Versões
                 </h2>
-                
               </div>
               
               <div className="space-y-2">
                 {versions.map((v) => (
                   <div
                     key={v.id}
-                    className={`px-3 py-2 rounded text-sm border ${
+                    className={`px-4 py-3 rounded-lg text-sm border-2 transition-all ${
                       v.id === currentVersion.id
-                        ? 'bg-blue-50 border-blue-300'
-                        : 'border-gray-200'
+                        ? 'bg-indigo-50 border-[#4F46E5]'
+                        : 'border-gray-200 bg-white'
                     }`}
                   >
                     <div className="flex items-center justify-between">
-                      <span className="font-medium">v{v.version_number}</span>
+                      <span className="font-bold text-gray-900">v{v.version_number}</span>
                       {isDeactivatingAssessment && v.id === currentVersion.id ? (
-                        <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded">Desativado</span>
+                        <span className="text-xs bg-red-100 text-red-700 px-2.5 py-1 rounded-full font-semibold">Desativado</span>
                       ) : v.is_active ? (
-                        <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded">Ativa</span>
+                        <span className="text-xs bg-green-100 text-green-700 px-2.5 py-1 rounded-full font-semibold">Ativa</span>
                       ) : (
-                        <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded">Desativada</span>
+                        <span className="text-xs bg-gray-100 text-gray-600 px-2.5 py-1 rounded-full font-semibold">Desativada</span>
                       )}
                     </div>
-                    <div className="text-xs text-gray-500 mt-1">
+                    <div className="text-xs text-gray-500 mt-1 font-medium">
                       {new Date(v.created_at).toLocaleString('pt-BR')}
                     </div>
                   </div>
@@ -1196,48 +1803,117 @@ Deseja continuar?`;
         {/* Coluna Direita: Informações Completas do Assessment */}
         <div className="lg:col-span-2 space-y-6">
           {(!selectedAssessment && selectedAssessment !== 'new') && (
-            <div className="p-12 text-center text-gray-500">
-              Selecione um assessment para visualizar todas suas configurações
+            <div className="bg-white/80 backdrop-blur-sm border border-white/60 rounded-2xl p-12 shadow-lg text-center">
+              <p className="text-gray-500 text-lg">Selecione um assessment para visualizar suas configurações</p>
             </div>
           )}
 
           {(selectedAssessment || selectedAssessment === 'new') && assessmentDataEdited && currentVersion && (
             <>
               {/* 1. INFORMAÇÕES BÁSICAS DO ASSESSMENT */}
-              <div className="bg-white border rounded-lg p-6">
-                <h2 className="text-2xl font-bold mb-6 text-[#4F46E5]">Informações do Assessment</h2>
+              <div className="bg-white/80 backdrop-blur-sm border border-white/60 rounded-2xl p-6 sm:p-8 shadow-lg">
+                <div className="flex items-center justify-between mb-6">
+                  <h2 className={`${TOKENS.fonts.serif} text-2xl font-bold text-[#1E1B4B]`}>
+                    Informações do Assessment
+                  </h2>
+                  <button
+                    onClick={() => setShowElementsModal(true)}
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-[#4F46E5] to-[#6366F1] text-white rounded-lg font-semibold hover:shadow-lg transition-all"
+                  >
+                    <Sparkles className="w-4 h-4" />
+                    Adicionar Elementos
+                  </button>
+                </div>
+
+                {/* Schema Selection (apenas para novo assessment) */}
+                {selectedAssessment === 'new' && (
+                  <div className="mb-6 p-5 bg-gradient-to-br from-indigo-50 to-purple-50 border-2 border-[#4F46E5] rounded-xl">
+                    <label className="text-sm font-bold text-[#4F46E5] uppercase tracking-wide block mb-3">
+                      Escolha o Schema do Assessment
+                    </label>
+                    <div className="space-y-3">
+                      <label className={`flex items-start gap-3 p-4 border-2 rounded-lg cursor-pointer transition-all ${
+                        assessmentSchema === 'indicadores' 
+                          ? 'border-[#4F46E5] bg-white shadow-md' 
+                          : 'border-gray-200 bg-white/50 hover:border-gray-300'
+                      }`}>
+                        <input
+                          type="radio"
+                          name="schema"
+                          value="indicadores"
+                          checked={assessmentSchema === 'indicadores'}
+                          onChange={(e) => setAssessmentSchema(e.target.value)}
+                          className="mt-1 w-4 h-4 text-[#4F46E5]"
+                        />
+                        <div className="flex-1">
+                          <strong className="text-gray-900">Indicadores</strong>
+                          <p className="text-sm text-gray-600 mt-1">
+                            Múltiplos indicadores independentes, cada um com seu score percentual
+                          </p>
+                        </div>
+                      </label>
+                      
+                      <label className={`flex items-start gap-3 p-4 border-2 rounded-lg cursor-pointer transition-all ${
+                        assessmentSchema === 'niveis' 
+                          ? 'border-[#4F46E5] bg-white shadow-md' 
+                          : 'border-gray-200 bg-white/50 hover:border-gray-300'
+                      }`}>
+                        <input
+                          type="radio"
+                          name="schema"
+                          value="niveis"
+                          checked={assessmentSchema === 'niveis'}
+                          onChange={(e) => setAssessmentSchema(e.target.value)}
+                          className="mt-1 w-4 h-4 text-[#4F46E5]"
+                        />
+                        <div className="flex-1">
+                          <strong className="text-gray-900">Níveis</strong>
+                          <p className="text-sm text-gray-600 mt-1">
+                            Níveis sequenciais (Bronze→Platina) com pontuação 0-100 de maturidade
+                          </p>
+                        </div>
+                      </label>
+                    </div>
+                  </div>
+                )}
                 
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-xs font-semibold text-gray-500 uppercase block mb-2">Nome</label>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="md:col-span-2">
+                    <label className="text-xs font-bold text-gray-500 uppercase tracking-wide block mb-2">Nome</label>
                     <input
                       type="text"
                       value={assessmentDataEdited?.name || ''}
                       onChange={(e) => setAssessmentDataEdited({ ...assessmentDataEdited, name: e.target.value })}
-                      className="w-full p-2 border rounded bg-white text-gray-900 font-semibold"
+                      className="w-full p-3 border-2 border-gray-200 rounded-lg bg-white text-gray-900 font-semibold focus:border-[#4F46E5] focus:outline-none transition-colors"
+                      placeholder="Ex: Maturidade em Liderança"
                     />
                   </div>
+                  
                   <div>
-                    <label className="text-xs font-semibold text-gray-500 uppercase block mb-2">Tipo</label>
+                    <label className="text-xs font-bold text-gray-500 uppercase tracking-wide block mb-2">Tipo</label>
                     <input
                       type="text"
                       value={assessmentDataEdited?.type || ''}
                       onChange={(e) => setAssessmentDataEdited({ ...assessmentDataEdited, type: e.target.value })}
-                      className="w-full p-2 border rounded bg-white text-gray-900 font-semibold"
+                      className="w-full p-3 border-2 border-gray-200 rounded-lg bg-white text-gray-900 font-semibold focus:border-[#4F46E5] focus:outline-none transition-colors"
+                      placeholder="Ex: competencia"
                     />
                   </div>
+                  
                   <div>
-                    <label className="text-xs font-semibold text-gray-500 uppercase block mb-2">Tipo de Agregação</label>
+                    <label className="text-xs font-bold text-gray-500 uppercase tracking-wide block mb-2">Agregação</label>
                     <input
                       type="text"
                       value={assessmentDataEdited?.aggregation_type || ''}
                       onChange={(e) => setAssessmentDataEdited({ ...assessmentDataEdited, aggregation_type: e.target.value })}
-                      className="w-full p-2 border rounded bg-white text-gray-900 font-semibold"
+                      className="w-full p-3 border-2 border-gray-200 rounded-lg bg-white text-gray-900 font-semibold focus:border-[#4F46E5] focus:outline-none transition-colors"
+                      placeholder="Ex: sum"
                     />
                   </div>
-                  <div>
-                    <label className="text-xs font-semibold text-gray-500 uppercase block mb-2">Tipos de Visualização</label>
-                    <div className="flex gap-2 flex-wrap">
+                  
+                  <div className="md:col-span-2">
+                    <label className="text-xs font-bold text-gray-500 uppercase tracking-wide block mb-3">Tipos de Visualização</label>
+                    <div className="flex gap-3 flex-wrap">
                       {['radar', 'horizontal-bar'].map(type => (
                         <button
                           key={type}
@@ -1255,26 +1931,27 @@ Deseja continuar?`;
                               visualization_type: updated.length > 0 ? updated : ['radar']
                             });
                           }}
-                          className={`px-3 py-2 rounded border-2 text-sm font-medium transition ${
+                          className={`px-4 py-3 rounded-lg border-2 text-sm font-bold transition-all ${
                             (Array.isArray(assessmentDataEdited?.visualization_type) 
                               ? assessmentDataEdited.visualization_type 
                               : [])
                               .includes(type)
-                              ? 'border-blue-500 bg-blue-50 text-blue-700'
-                              : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400'
+                              ? 'border-[#4F46E5] bg-indigo-50 text-[#4F46E5] shadow-md'
+                              : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'
                           }`}
                         >
-                          {type === 'radar' ? '📊 Radar' : '📈 Gráfico em Barras'}
+                          {type === 'radar' ? '📊 Radar' : '📈 Barras'}
                         </button>
                       ))}
                     </div>
                   </div>
+                  
                   <div>
-                    <label className="text-xs font-semibold text-gray-500 uppercase block mb-2">Tipo de Disponibilidade</label>
+                    <label className="text-xs font-bold text-gray-500 uppercase tracking-wide block mb-2">Disponibilidade</label>
                     <select
                       value={assessmentDataEdited?.availability_type || 'free_for_all'}
                       onChange={(e) => setAssessmentDataEdited({ ...assessmentDataEdited, availability_type: e.target.value })}
-                      className="w-full p-2 border rounded bg-white text-gray-900 font-semibold"
+                      className="w-full p-3 border-2 border-gray-200 rounded-lg bg-white text-gray-900 font-semibold focus:border-[#4F46E5] focus:outline-none transition-colors"
                     >
                       <option value="free_for_all">Grátis para Todos</option>
                       <option value="first_free">Primeira Resposta Grátis</option>
@@ -1282,12 +1959,15 @@ Deseja continuar?`;
                       <option value="subscription_only">Apenas Assinatura</option>
                     </select>
                   </div>
+                  
                   <div>
-                    <label className="text-xs font-semibold text-gray-500 uppercase block mb-2">Status</label>
+                    <label className="text-xs font-bold text-gray-500 uppercase tracking-wide block mb-2">Status</label>
                     <select
                       value={assessmentDataEdited?.is_active ? 'ativo' : 'desativado'}
                       onChange={(e) => setAssessmentDataEdited({ ...assessmentDataEdited, is_active: e.target.value === 'ativo' })}
-                      className={`w-full p-2 border rounded bg-white font-semibold ${assessmentDataEdited?.is_active ? 'text-green-600' : 'text-gray-500'}`}
+                      className={`w-full p-3 border-2 border-gray-200 rounded-lg bg-white font-bold focus:border-[#4F46E5] focus:outline-none transition-colors ${
+                        assessmentDataEdited?.is_active ? 'text-green-600' : 'text-gray-500'
+                      }`}
                     >
                       <option value="ativo">✓ Ativo</option>
                       <option value="desativado">✗ Desativado</option>
@@ -1295,311 +1975,610 @@ Deseja continuar?`;
                   </div>
                 </div>
 
-                <div className="mt-4 p-4 bg-gray-50 rounded">
-                  <label className="text-xs font-semibold text-gray-500 uppercase block mb-2">Descrição</label>
+                <div className="mt-6">
+                  <label className="text-xs font-bold text-gray-500 uppercase tracking-wide block mb-2">Descrição</label>
                   <textarea
                     value={assessmentDataEdited?.description || ''}
                     onChange={(e) => setAssessmentDataEdited({ ...assessmentDataEdited, description: e.target.value })}
                     rows={3}
                     placeholder="Adicione uma descrição para o assessment..."
-                    className="w-full p-2 border rounded bg-white text-gray-700"
+                    className="w-full p-3 border-2 border-gray-200 rounded-lg bg-white text-gray-700 focus:border-[#4F46E5] focus:outline-none transition-colors"
                   />
                 </div>
+              </div>
 
-                {/* Editor de Introdução */}
-                <div className="mt-4 p-4 bg-gray-50 rounded">
+              {/* 2. ELEMENTOS OPCIONAIS */}
+              {assessmentElements.introduction && (
+                <div className="bg-white/80 backdrop-blur-sm border border-white/60 rounded-2xl p-6 sm:p-8 shadow-lg">
+                  <div className="flex items-center justify-between mb-6">
+                    <h2 className={`text-2xl font-bold bg-gradient-to-r from-[#4F46E5] via-[#6366F1] to-[#818CF8] bg-clip-text text-transparent ${TOKENS.fonts.serif}`}>
+                      Introdução
+                    </h2>
+                    <button
+                      onClick={() => handleRequestRemoveElement('introduction')}
+                      className="p-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
+                      title="Remover Introdução"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
                   <IntroductionEditor 
                     value={introductionHtml}
                     onChange={setIntroductionHtml}
                   />
                 </div>
-              </div>
+              )}
 
-              {/* 2. INFO DA VERSÃO ATUAL */}
-              <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                <span className="text-sm font-medium text-blue-900">
-                  Versão Atual: v{currentVersion.version_number}
-                </span>
-                {isDeactivatingAssessment ? (
-                  <span className="ml-2 text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded">Desativado</span>
-                ) : currentVersion.is_active ? (
-                  <span className="ml-2 text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded">Ativa</span>
-                ) : (
-                  <span className="ml-2 text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded">Desativada</span>
-                )}
-              </div>
+              {assessmentElements.preAssessment && (
+                <div className="bg-white/80 backdrop-blur-sm border border-white/60 rounded-2xl p-6 sm:p-8 shadow-lg">
+                  <div className="flex items-center justify-between mb-6">
+                    <h2 className={`text-2xl font-bold bg-gradient-to-r from-[#4F46E5] via-[#6366F1] to-[#818CF8] bg-clip-text text-transparent ${TOKENS.fonts.serif}`}>
+                      Pré-Assessment
+                    </h2>
+                    <button
+                      onClick={() => handleRequestRemoveElement('preAssessment')}
+                      className="p-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
+                      title="Remover Pré-Assessment"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
+                  <p className="text-sm text-gray-600 mb-6">
+                    Campos demográficos e contextuais coletados antes do assessment.
+                  </p>
+                  
+                  {/* Pre-assessment fields editor could go here */}
+                  <div className="p-4 bg-blue-50/50 rounded-xl border border-blue-200">
+                    <p className="text-sm text-gray-700">
+                      Campos de pré-assessment serão configurados aqui (ex: idade, gênero, cargo, etc.)
+                    </p>
+                  </div>
+                </div>
+              )}
 
-              {/* 4. OVERALL RANGES (Faixas de Interpretação Global) */}
-              <div className="bg-white border rounded-lg p-6">
+              {assessmentElements.resultIntroduction && (
+                <div className="bg-white/80 backdrop-blur-sm border border-white/60 rounded-2xl p-6 sm:p-8 shadow-lg">
+                  <div className="flex items-center justify-between mb-6">
+                    <h2 className={`text-2xl font-bold bg-gradient-to-r from-[#4F46E5] via-[#6366F1] to-[#818CF8] bg-clip-text text-transparent ${TOKENS.fonts.serif}`}>
+                      Introdução ao Resultado
+                    </h2>
+                    <button
+                      onClick={() => handleRequestRemoveElement('resultIntroduction')}
+                      className="p-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
+                      title="Remover Introdução ao Resultado"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
+                  <p className="text-sm text-gray-600 mb-6">
+                    Texto opcional exibido no topo da página de resultado do assessment.
+                  </p>
+                  <IntroductionEditor
+                    value={resultIntroduction}
+                    onChange={setResultIntroduction}
+                    label="Introdução ao resultado"
+                    placeholder="Escreva uma introdução para o resultado (HTML permitido)..."
+                  />
+                </div>
+              )}
+
+              {assessmentElements.finalReflection && (
+                <div className="bg-white/80 backdrop-blur-sm border border-white/60 rounded-2xl p-6 sm:p-8 shadow-lg">
+                  <div className="flex items-center justify-between mb-6">
+                    <h2 className={`text-2xl font-bold bg-gradient-to-r from-[#4F46E5] via-[#6366F1] to-[#818CF8] bg-clip-text text-transparent ${TOKENS.fonts.serif}`}>
+                      Reflexão Final
+                    </h2>
+                    <button
+                      onClick={() => handleRequestRemoveElement('finalReflection')}
+                      className="p-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
+                      title="Remover Reflexão Final"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
+                  <p className="text-sm text-gray-600 mb-6">
+                    Texto opcional exibido ao final do resultado do assessment.
+                  </p>
+                  <IntroductionEditor
+                    value={finalReflection}
+                    onChange={setFinalReflection}
+                    label="Reflexão final"
+                    placeholder="Escreva uma reflexão final para o usuário (HTML permitido)..."
+                  />
+                </div>
+              )}
+
+              {/* 3. OVERALL RANGES (Faixas de Interpretação Global) */}
+              <div className="bg-white/80 backdrop-blur-sm border border-white/60 rounded-2xl p-6 sm:p-8 shadow-lg">
                 <OverallRangesEditor 
                   ranges={overallRanges}
                   onChange={setOverallRanges}
                 />
               </div>
 
-              {/* INTRODUÇÃO AO RESULTADO */}
-              <div className="bg-white border rounded-lg p-6">
-                <h2 className="text-lg font-semibold mb-4">Introdução ao resultado</h2>
-                <p className="text-sm text-gray-500 mb-3">
-                  Texto opcional exibido no topo da página de resultado do assessment.
-                </p>
-                <IntroductionEditor
-                  value={resultIntroduction}
-                  onChange={setResultIntroduction}
-                  label="Introdução ao resultado"
-                  placeholder="Escreva uma introdução para o resultado (HTML permitido)..."
-                />
-              </div>
-
-              {/* REFLEXAO FINAL */}
-              <div className="bg-white border rounded-lg p-6">
-                <h2 className="text-lg font-semibold mb-4">Reflexao Final</h2>
-                <p className="text-sm text-gray-500 mb-3">
-                  Texto opcional exibido ao final do resultado do assessment.
-                </p>
-                <IntroductionEditor
-                  value={finalReflection}
-                  onChange={setFinalReflection}
-                  label="Reflexao final"
-                  placeholder="Escreva uma reflexao final para o usuario (HTML permitido)..."
-                />
-              </div>
-
-              {/* ADICIONAR INDICADOR */}
-              <div className="bg-white border rounded-lg p-6">
-                <h2 className="text-lg font-semibold mb-4">Adicionar Indicador</h2>
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-                  <select
-                    value={indicatorToAdd}
-                    onChange={(e) => setIndicatorToAdd(e.target.value)}
-                    className="flex-1 p-2 border rounded bg-white"
-                  >
-                    <option value="">Selecione um indicador</option>
-                    {indicators.map(item => {
-                      const isApplied = assessmentIndicatorsEdited.some(ind => ind.indicator_master_id === item.id);
-                      return (
-                        <option 
-                          key={item.id} 
-                          value={item.id}
-                          disabled={isApplied}
-                        >
-                          {item.name}{isApplied ? ' (Aplicado)' : ''}
-                        </option>
-                      );
-                    })}
-                  </select>
-                  <button
-                    type="button"
-                    onClick={handleAddIndicatorFromMaster}
-                    disabled={!indicatorToAdd}
-                    className="inline-flex items-center gap-2 px-4 py-2 bg-[#4F46E5] text-white rounded hover:bg-[#312E81] disabled:opacity-50"
-                  >
-                    <Plus className="w-4 h-4" /> Adicionar
-                  </button>
-                </div>
-              </div>
-
-              {/* 3. ASSESSMENT INDICATORS COM RANGES */}
-              {assessmentIndicatorsEdited.length > 0 && (
-                <div className="bg-white border rounded-lg p-6">
-                  <h2 className="text-2xl font-bold mb-6 text-[#4F46E5]">Indicadores do Assessment</h2>
-                  
-                  <div className="space-y-6">
-                    {assessmentIndicatorsEdited.map((indicator, idx) => (
-                      <div key={indicator.id} className="border rounded-lg p-4 bg-gray-50">
-                        <div className="flex items-start justify-between mb-3">
-                          <h3 className="text-sm font-semibold text-gray-600">Indicador #{indicator.display_order}</h3>
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveIndicatorFromAssessment(indicator.indicator_master_id, indicator.indicators_master?.name)}
-                            className="inline-flex items-center gap-1 text-xs text-red-600 hover:text-red-700"
-                          >
-                            <Trash2 className="w-4 h-4" /> Remover
-                          </button>
-                        </div>
-                        <div className="grid grid-cols-3 gap-4 mb-4">
-                          <div>
-                            <label className="text-xs font-semibold text-gray-500 uppercase block mb-2">Indicador</label>
-                            <input
-                              type="text"
-                              value={indicator.indicators_master?.name || ''}
-                              readOnly
-                              className="w-full p-2 border rounded bg-white text-[#4F46E5] font-semibold"
-                            />
-                          </div>
-                          <div>
-                            <label className="text-xs font-semibold text-gray-500 uppercase block mb-2">Peso</label>
-                            <input
-                              type="number"
-                              value={assessmentIndicatorsEdited[idx]?.weight || '0'}
-                              onChange={(e) => {
-                                const updated = [...assessmentIndicatorsEdited];
-                                updated[idx].weight = parseFloat(e.target.value) || 0;
-                                setAssessmentIndicatorsEdited(updated);
-                              }}
-                              className="w-full p-2 border rounded bg-white text-gray-900 font-semibold"
-                            />
-                          </div>
-                          <div>
-                            <label className="text-xs font-semibold text-gray-500 uppercase block mb-2">Ordem</label>
-                            <input
-                              type="number"
-                              value={assessmentIndicatorsEdited[idx]?.display_order || ''}
-                              onChange={(e) => {
-                                const updated = [...assessmentIndicatorsEdited];
-                                const newOrder = parseInt(e.target.value, 10) || 0;
-                                updated[idx].display_order = newOrder;
-                                setAssessmentIndicatorsEdited(updated);
-                              }}
-                              className="w-full p-2 border rounded bg-white text-gray-900 font-semibold"
-                            />
-                          </div>
-                        </div>
-
-                        {indicator.indicators_master?.description && (
-                          <div className="mb-4 p-3 bg-white rounded border-l-4 border-blue-400">
-                            <label className="text-xs font-semibold text-gray-500 uppercase block mb-2">Descrição Conceitual</label>
-                            <textarea
-                              value={indicator.indicators_master.description}
-                              readOnly
-                              rows={2}
-                              className="w-full p-2 border rounded bg-gray-50 text-gray-700 text-sm"
-                            />
-                          </div>
-                        )}
-
-                        {/* Ranges do Indicador */}
-                        <div className="mt-4">
-                          <div className="flex items-center justify-between mb-3">
-                            <div>
-                              <h4 className="font-semibold text-gray-900">Faixas de Classificação por Percentual</h4>
-                              <p className="text-xs text-gray-500 mt-1">Define faixas baseadas na porcentagem de acerto (0-100%)</p>
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => handleAddRangeToIndicator(idx)}
-                              className="inline-flex items-center gap-1 px-3 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700"
+              {/* 4. INDICADORES / NÍVEIS - Schema Dependent */}
+              {assessmentSchema === 'indicadores' ? (
+                <>
+                  {/* ADICIONAR INDICADOR */}
+                  <div className="bg-white/80 backdrop-blur-sm border border-white/60 rounded-2xl p-6 sm:p-8 shadow-lg">
+                    <h2 className={`text-2xl font-bold mb-6 bg-gradient-to-r from-[#4F46E5] via-[#6366F1] to-[#818CF8] bg-clip-text text-transparent ${TOKENS.fonts.serif}`}>
+                      Adicionar Indicador
+                    </h2>
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                      <select
+                        value={indicatorToAdd}
+                        onChange={(e) => setIndicatorToAdd(e.target.value)}
+                        className="flex-1 p-3 border-2 border-gray-200 rounded-lg bg-white text-gray-700 focus:border-[#4F46E5] focus:outline-none transition-colors"
+                      >
+                        <option value="">Selecione um indicador</option>
+                        {indicators.map(item => {
+                          const isApplied = assessmentIndicatorsEdited.some(ind => ind.indicator_master_id === item.id);
+                          return (
+                            <option 
+                              key={item.id} 
+                              value={item.id}
+                              disabled={isApplied}
                             >
-                              <Plus className="w-3 h-3" /> Adicionar Faixa
-                            </button>
-                          </div>
-                          {indicator.assessment_indicator_ranges && indicator.assessment_indicator_ranges.length > 0 ? (
-                            <div className="space-y-3">
-                              {indicator.assessment_indicator_ranges.map((range, rIdx) => (
-                                <div key={range.id || rIdx} className="p-3 bg-white rounded border border-gray-200">
-                                  <div className="flex items-start justify-between mb-2">
-                                    <div className="grid grid-cols-4 gap-2 flex-1">
-                                      <div>
-                                        <label className="text-xs text-gray-500 block mb-1">Min % <span className="text-gray-400">(0-100)</span></label>
-                                        <input
-                                          type="number"
-                                          min="0"
-                                          max="100"
-                                          value={assessmentIndicatorsEdited[idx]?.assessment_indicator_ranges[rIdx]?.min_score ?? ''}
+                              {item.name}{isApplied ? ' (Aplicado)' : ''}
+                            </option>
+                          );
+                        })}
+                      </select>
+                      <button
+                        type="button"
+                        onClick={handleAddIndicatorFromMaster}
+                        disabled={!indicatorToAdd}
+                        className="inline-flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-[#4F46E5] via-[#6366F1] to-[#818CF8] text-white rounded-lg font-semibold hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <Plus className="w-5 h-5" /> Adicionar
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* LISTA DE INDICADORES COM RANGES */}
+                  {assessmentIndicatorsEdited.length > 0 && (
+                    <div className="bg-white/80 backdrop-blur-sm border border-white/60 rounded-2xl p-6 sm:p-8 shadow-lg">
+                      <h2 className={`text-2xl font-bold mb-6 bg-gradient-to-r from-[#4F46E5] via-[#6366F1] to-[#818CF8] bg-clip-text text-transparent ${TOKENS.fonts.serif}`}>
+                        Indicadores do Assessment
+                      </h2>
+                      
+                      <div className="space-y-6">
+                        {assessmentIndicatorsEdited.map((indicator, idx) => (
+                          <div key={indicator.id} className="border-2 border-blue-200/60 rounded-xl p-6 bg-gradient-to-br from-blue-50/50 to-indigo-50/30">
+                            <div className="flex items-start justify-between mb-4">
+                              <h3 className={`text-lg font-bold text-[#4F46E5] ${TOKENS.fonts.serif}`}>
+                                Indicador #{indicator.display_order}
+                              </h3>
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveIndicatorFromAssessment(indicator.indicator_master_id, indicator.indicators_master?.name)}
+                                className="inline-flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
+                              >
+                                <Trash2 className="w-4 h-4" /> Remover
+                              </button>
+                            </div>
+                            <div className="grid md:grid-cols-3 gap-4 mb-4">
+                              <div>
+                                <label className="text-xs font-bold text-gray-500 uppercase tracking-wide block mb-2">Indicador</label>
+                                <input
+                                  type="text"
+                                  value={indicator.indicators_master?.name || ''}
+                                  readOnly
+                                  className="w-full p-3 border-2 border-gray-200 rounded-lg bg-gray-50 text-[#4F46E5] font-semibold"
+                                />
+                              </div>
+                              <div>
+                                <label className="text-xs font-bold text-gray-500 uppercase tracking-wide block mb-2">Peso</label>
+                                <input
+                                  type="number"
+                                  value={assessmentIndicatorsEdited[idx]?.weight || '0'}
+                                  onChange={(e) => {
+                                    const updated = [...assessmentIndicatorsEdited];
+                                    updated[idx].weight = parseFloat(e.target.value) || 0;
+                                    setAssessmentIndicatorsEdited(updated);
+                                  }}
+                                  className="w-full p-3 border-2 border-gray-200 rounded-lg bg-white text-gray-900 font-semibold focus:border-[#4F46E5] focus:outline-none transition-colors"
+                                />
+                              </div>
+                              <div>
+                                <label className="text-xs font-bold text-gray-500 uppercase tracking-wide block mb-2">Ordem</label>
+                                <input
+                                  type="number"
+                                  value={assessmentIndicatorsEdited[idx]?.display_order || ''}
+                                  onChange={(e) => {
+                                    const updated = [...assessmentIndicatorsEdited];
+                                    const newOrder = parseInt(e.target.value, 10) || 0;
+                                    updated[idx].display_order = newOrder;
+                                    setAssessmentIndicatorsEdited(updated);
+                                  }}
+                                  className="w-full p-3 border-2 border-gray-200 rounded-lg bg-white text-gray-900 font-semibold focus:border-[#4F46E5] focus:outline-none transition-colors"
+                                />
+                              </div>
+                            </div>
+
+                            {indicator.indicators_master?.description && (
+                              <div className="mb-4 p-4 bg-white/80 backdrop-blur-sm rounded-lg border-l-4 border-blue-400">
+                                <label className="text-xs font-bold text-gray-500 uppercase tracking-wide block mb-2">Descrição Conceitual</label>
+                                <textarea
+                                  value={indicator.indicators_master.description}
+                                  readOnly
+                                  rows={2}
+                                  className="w-full p-3 border-2 border-gray-200 rounded-lg bg-gray-50 text-gray-700 text-sm"
+                                />
+                              </div>
+                            )}
+
+                            {/* Ranges do Indicador */}
+                            <div className="mt-4">
+                              <div className="flex items-center justify-between mb-4">
+                                <div>
+                                  <h4 className={`font-bold text-gray-900 ${TOKENS.fonts.serif}`}>
+                                    Faixas de Classificação por Percentual
+                                  </h4>
+                                  <p className="text-xs text-gray-500 mt-1">
+                                    Define faixas baseadas na porcentagem de acerto (0-100%)
+                                  </p>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => handleAddRangeToIndicator(idx)}
+                                  className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-green-500 to-green-600 text-white text-sm rounded-lg font-semibold hover:shadow-lg transition-all"
+                                >
+                                  <Plus className="w-4 h-4" /> Adicionar Faixa
+                                </button>
+                              </div>
+                              {indicator.assessment_indicator_ranges && indicator.assessment_indicator_ranges.length > 0 ? (
+                                <div className="space-y-3">
+                                  {indicator.assessment_indicator_ranges.map((range, rIdx) => (
+                                    <div key={range.id || rIdx} className="p-4 bg-white/90 backdrop-blur-sm rounded-lg border-2 border-gray-200">
+                                      <div className="flex items-start justify-between mb-3">
+                                        <div className="grid md:grid-cols-4 gap-3 flex-1">
+                                          <div>
+                                            <label className="text-xs font-bold text-gray-500 uppercase tracking-wide block mb-2">
+                                              Min % <span className="text-gray-400">(0-100)</span>
+                                            </label>
+                                            <input
+                                              type="number"
+                                              min="0"
+                                              max="100"
+                                              value={assessmentIndicatorsEdited[idx]?.assessment_indicator_ranges[rIdx]?.min_score ?? ''}
+                                              onChange={(e) => {
+                                                const updated = [...assessmentIndicatorsEdited];
+                                                const value = e.target.value === '' ? 0 : parseFloat(e.target.value);
+                                                updated[idx].assessment_indicator_ranges[rIdx].min_score = isNaN(value) ? 0 : value;
+                                                setAssessmentIndicatorsEdited(updated);
+                                              }}
+                                              className="w-full p-2 border-2 border-gray-200 rounded-lg bg-white text-gray-900 font-semibold text-sm focus:border-[#4F46E5] focus:outline-none transition-colors"
+                                            />
+                                          </div>
+                                          <div>
+                                            <label className="text-xs font-bold text-gray-500 uppercase tracking-wide block mb-2">
+                                              Max % <span className="text-gray-400">(0-100)</span>
+                                            </label>
+                                            <input
+                                              type="number"
+                                              min="0"
+                                              max="100"
+                                              value={assessmentIndicatorsEdited[idx]?.assessment_indicator_ranges[rIdx]?.max_score ?? ''}
+                                              onChange={(e) => {
+                                                const updated = [...assessmentIndicatorsEdited];
+                                                const value = e.target.value === '' ? 0 : parseFloat(e.target.value);
+                                                updated[idx].assessment_indicator_ranges[rIdx].max_score = isNaN(value) ? 0 : value;
+                                                setAssessmentIndicatorsEdited(updated);
+                                              }}
+                                              className="w-full p-2 border-2 border-gray-200 rounded-lg bg-white text-gray-900 font-semibold text-sm focus:border-[#4F46E5] focus:outline-none transition-colors"
+                                            />
+                                          </div>
+                                          <div className="md:col-span-2">
+                                            <label className="text-xs font-bold text-gray-500 uppercase tracking-wide block mb-2">
+                                              Classificação
+                                            </label>
+                                            <input
+                                              type="text"
+                                              placeholder="Ex: Baixo, Médio, Alto"
+                                              value={assessmentIndicatorsEdited[idx]?.assessment_indicator_ranges[rIdx]?.label || ''}
+                                              onChange={(e) => {
+                                                const updated = [...assessmentIndicatorsEdited];
+                                                updated[idx].assessment_indicator_ranges[rIdx].label = e.target.value;
+                                                setAssessmentIndicatorsEdited(updated);
+                                              }}
+                                              className="w-full p-2 border-2 border-gray-200 rounded-lg bg-white text-[#4F46E5] font-semibold text-sm focus:border-[#4F46E5] focus:outline-none transition-colors"
+                                            />
+                                          </div>
+                                        </div>
+                                        <button
+                                          type="button"
+                                          onClick={() => handleRemoveRangeFromIndicator(idx, rIdx)}
+                                          className="ml-3 p-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
+                                          title="Remover faixa"
+                                        >
+                                          <Trash2 className="w-4 h-4" />
+                                        </button>
+                                      </div>
+                                      <div className="mt-3">
+                                        <label className="text-xs font-bold text-gray-500 uppercase tracking-wide block mb-2">
+                                          Interpretação
+                                        </label>
+                                        <textarea
+                                          value={assessmentIndicatorsEdited[idx]?.assessment_indicator_ranges[rIdx]?.interpretation || ''}
                                           onChange={(e) => {
                                             const updated = [...assessmentIndicatorsEdited];
-                                            const value = e.target.value === '' ? 0 : parseFloat(e.target.value);
-                                            updated[idx].assessment_indicator_ranges[rIdx].min_score = isNaN(value) ? 0 : value;
+                                            updated[idx].assessment_indicator_ranges[rIdx].interpretation = e.target.value;
                                             setAssessmentIndicatorsEdited(updated);
                                           }}
-                                          className="w-full p-2 border rounded bg-white text-gray-900 font-semibold text-sm"
+                                          rows={2}
+                                          placeholder="Descreva a interpretação para scores nesta faixa..."
+                                          className="w-full p-3 border-2 border-gray-200 rounded-lg bg-white text-gray-700 text-sm focus:border-[#4F46E5] focus:outline-none transition-colors"
                                         />
                                       </div>
-                                    <div>
-                                      <label className="text-xs text-gray-500 block mb-1">Max % <span className="text-gray-400">(0-100)</span></label>
-                                      <input
-                                        type="number"
-                                        min="0"
-                                        max="100"
-                                        value={assessmentIndicatorsEdited[idx]?.assessment_indicator_ranges[rIdx]?.max_score ?? ''}
-                                        onChange={(e) => {
-                                          const updated = [...assessmentIndicatorsEdited];
-                                          const value = e.target.value === '' ? 0 : parseFloat(e.target.value);
-                                          updated[idx].assessment_indicator_ranges[rIdx].max_score = isNaN(value) ? 0 : value;
-                                          setAssessmentIndicatorsEdited(updated);
-                                        }}
-                                        className="w-full p-2 border rounded bg-white text-gray-900 font-semibold text-sm"
-                                      />
                                     </div>
-                                    <div className="col-span-2">
-                                      <label className="text-xs text-gray-500 block mb-1">Classificação</label>
-                                      <input
-                                        type="text"
-                                        placeholder="Ex: Baixo, Médio, Alto"
-                                        value={assessmentIndicatorsEdited[idx]?.assessment_indicator_ranges[rIdx]?.label || ''}
-                                        onChange={(e) => {
-                                          const updated = [...assessmentIndicatorsEdited];
-                                          updated[idx].assessment_indicator_ranges[rIdx].label = e.target.value;
-                                          setAssessmentIndicatorsEdited(updated);
-                                        }}
-                                        className="w-full p-2 border rounded bg-white text-[#4F46E5] font-semibold text-sm"
-                                      />
-                                    </div>
-                                    </div>
-                                    <button
-                                      type="button"
-                                      onClick={() => handleRemoveRangeFromIndicator(idx, rIdx)}
-                                      className="ml-2 p-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded"
-                                      title="Remover faixa"
-                                    >
-                                      <Trash2 className="w-4 h-4" />
-                                    </button>
-                                  </div>
-                                  <div className="text-sm p-2 bg-gray-50 rounded border-t border-gray-200">
-                                    <label className="text-xs text-gray-500 block mb-1">Interpretação</label>
-                                    <textarea
-                                      value={assessmentIndicatorsEdited[idx]?.assessment_indicator_ranges[rIdx]?.interpretation || ''}
-                                      onChange={(e) => {
-                                        const updated = [...assessmentIndicatorsEdited];
-                                        updated[idx].assessment_indicator_ranges[rIdx].interpretation = e.target.value;
-                                        setAssessmentIndicatorsEdited(updated);
-                                      }}
-                                      rows={2}
-                                      placeholder="Descreva a interpretação para scores nesta faixa..."
-                                      className="w-full p-2 border rounded bg-white text-gray-700 text-xs"
-                                    />
-                                  </div>
+                                  ))}
                                 </div>
-                              ))}
+                              ) : (
+                                <div className="p-6 bg-gray-50/80 rounded-xl border-2 border-dashed border-gray-300 text-center">
+                                  <p className="text-sm text-gray-600 font-semibold mb-2">
+                                    Nenhuma faixa de classificação definida.
+                                  </p>
+                                  <p className="text-xs text-gray-500 mb-1">
+                                    As faixas classificam o resultado baseado na porcentagem de acerto (0-100%).
+                                  </p>
+                                  <p className="text-xs text-gray-500">
+                                    Exemplo: 0-40% = Baixo, 41-70% = Médio, 71-100% = Alto
+                                  </p>
+                                </div>
+                              )}
                             </div>
-                          ) : (
-                            <div className="p-4 bg-gray-50 rounded border border-dashed border-gray-300 text-center text-sm text-gray-500">
-                              <p>Nenhuma faixa de classificação definida.</p>
-                              <p className="text-xs mt-1">As faixas classificam o resultado baseado na porcentagem de acerto (0-100%).</p>
-                              <p className="text-xs">Exemplo: 0-40% = Baixo, 41-70% = Médio, 71-100% = Alto</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </>
+              ) : (
+                /* SCHEMA: NÍVEIS (Bronze, Prata, Ouro, Platina) */
+                <div className="bg-white/80 backdrop-blur-sm border border-white/60 rounded-2xl p-6 sm:p-8 shadow-lg">
+                  <h2 className={`text-2xl font-bold mb-6 bg-gradient-to-r from-[#4F46E5] via-[#6366F1] to-[#818CF8] bg-clip-text text-transparent ${TOKENS.fonts.serif}`}>
+                    Níveis do Assessment
+                  </h2>
+                  <p className="text-sm text-gray-600 mb-6">
+                    Configure níveis personalizados e defina como a conquista será avaliada.
+                  </p>
+
+                  <div className="mb-6">
+                    <label className="text-xs font-bold text-gray-500 uppercase tracking-wide block mb-3">Modo de Conquista</label>
+                    <div className="grid md:grid-cols-2 gap-3">
+                      <label className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${
+                        levelMode === 'single' ? 'border-[#4F46E5] bg-indigo-50' : 'border-gray-200 bg-white hover:border-gray-300'
+                      }`}>
+                        <div className="flex items-center gap-3">
+                          <input
+                            type="radio"
+                            name="levelMode"
+                            value="single"
+                            checked={levelMode === 'single'}
+                            onChange={(e) => setLevelMode(e.target.value)}
+                            className="w-4 h-4 text-[#4F46E5]"
+                          />
+                          <div>
+                            <p className="font-semibold text-gray-900">Nível Único</p>
+                            <p className="text-xs text-gray-600">Usuário obtém apenas um nível final</p>
+                          </div>
+                        </div>
+                      </label>
+                      <label className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${
+                        levelMode === 'multi' ? 'border-[#4F46E5] bg-indigo-50' : 'border-gray-200 bg-white hover:border-gray-300'
+                      }`}>
+                        <div className="flex items-center gap-3">
+                          <input
+                            type="radio"
+                            name="levelMode"
+                            value="multi"
+                            checked={levelMode === 'multi'}
+                            onChange={(e) => setLevelMode(e.target.value)}
+                            className="w-4 h-4 text-[#4F46E5]"
+                          />
+                          <div>
+                            <p className="font-semibold text-gray-900">Múltiplos Níveis</p>
+                            <p className="text-xs text-gray-600">Usuário pode conquistar vários níveis</p>
+                          </div>
+                        </div>
+                      </label>
+                    </div>
+                  </div>
+
+                  {/* Campo global: Mensagem quando não conquista nenhum nível (somente se mode='single') */}
+                  {levelMode === 'single' && (
+                    <div className="mb-6 p-5 bg-gradient-to-br from-rose-50/80 to-orange-50/60 rounded-xl border-2 border-rose-200/60">
+                      <h3 className="text-sm font-bold text-rose-800 uppercase tracking-wide mb-4">
+                        Quando Não Conquistar Nenhum Nível
+                      </h3>
+                      <div className="space-y-4">
+                        <div>
+                          <label className="text-xs font-semibold text-gray-700 block mb-2">Título</label>
+                          <input
+                            type="text"
+                            value={noLevelAchievedTitle}
+                            onChange={(e) => setNoLevelAchievedTitle(e.target.value)}
+                            className="w-full p-3 border-2 border-gray-200 rounded-lg bg-white text-gray-900 font-semibold focus:border-rose-500 focus:outline-none transition-colors"
+                            placeholder="Ex: Continue praticando!"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs font-semibold text-gray-700 block mb-2">Descrição</label>
+                          <textarea
+                            value={noLevelAchievedDescription}
+                            onChange={(e) => setNoLevelAchievedDescription(e.target.value)}
+                            rows={3}
+                            className="w-full p-3 border-2 border-gray-200 rounded-lg bg-white text-gray-700 text-sm focus:border-rose-500 focus:outline-none transition-colors"
+                            placeholder="Explique o que significa não ter atingido nenhum nível e como o usuário pode melhorar..."
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className={`text-lg font-bold text-[#1E1B4B] ${TOKENS.fonts.serif}`}>
+                      Níveis Personalizados
+                    </h3>
+                    <button
+                      type="button"
+                      onClick={handleAddLevel}
+                      className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-[#4F46E5] to-[#6366F1] text-white rounded-lg font-semibold hover:shadow-lg transition-all"
+                    >
+                      <Plus className="w-4 h-4" /> Adicionar Nível
+                    </button>
+                  </div>
+
+                  {levels.length === 0 ? (
+                    <div className="p-6 bg-gray-50/80 rounded-xl border-2 border-dashed border-gray-300 text-center">
+                      <p className="text-sm text-gray-600 font-semibold">Nenhum nível cadastrado.</p>
+                      <p className="text-xs text-gray-500 mt-1">Clique em "Adicionar Nível" para criar níveis personalizados.</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {levels.map((level, levelIdx) => (
+                        <div key={level.id || levelIdx} className="p-4 bg-gradient-to-br from-blue-50/50 to-indigo-50/30 rounded-xl border border-blue-200/60">
+                          <div className="grid md:grid-cols-4 gap-4 mb-3">
+                            <div>
+                              <label className="text-xs font-bold text-gray-500 uppercase tracking-wide block mb-2">Nome do Nível</label>
+                              <input
+                                type="text"
+                                value={levels[levelIdx]?.name || ''}
+                                onChange={(e) => {
+                                  const updated = [...levels];
+                                  updated[levelIdx].name = e.target.value;
+                                  setLevels(updated);
+                                }}
+                                className="w-full p-3 border-2 border-gray-200 rounded-lg bg-white text-gray-900 font-semibold focus:border-[#4F46E5] focus:outline-none transition-colors"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-xs font-bold text-gray-500 uppercase tracking-wide block mb-2">Ordem</label>
+                              <input
+                                type="number"
+                                value={levels[levelIdx]?.display_order || levelIdx + 1}
+                                onChange={(e) => {
+                                  const updated = [...levels];
+                                  updated[levelIdx].display_order = parseInt(e.target.value, 10) || (levelIdx + 1);
+                                  setLevels(updated);
+                                }}
+                                className="w-full p-3 border-2 border-gray-200 rounded-lg bg-white text-gray-900 font-semibold focus:border-[#4F46E5] focus:outline-none transition-colors"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-xs font-bold text-gray-500 uppercase tracking-wide block mb-2">
+                                Pontos para Obter ⭐
+                              </label>
+                              <input
+                                type="number"
+                                min="0"
+                                step="1"
+                                value={levels[levelIdx]?.acquire_threshold || 0}
+                                onChange={(e) => {
+                                  const updated = [...levels];
+                                  updated[levelIdx].acquire_threshold = parseFloat(e.target.value) || 0;
+                                  setLevels(updated);
+                                }}
+                                className="w-full p-3 border-2 border-gray-200 rounded-lg bg-white text-gray-900 font-semibold focus:border-[#4F46E5] focus:outline-none transition-colors"
+                                placeholder="Ex: 60"
+                              />
+                            </div>
+                            <div className="flex items-end justify-end">
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveLevel(levelIdx)}
+                                className="inline-flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
+                              >
+                                <Trash2 className="w-4 h-4" /> Remover
+                              </button>
+                            </div>
+                          </div>
+                          <div>
+                            <label className="text-xs font-bold text-gray-500 uppercase tracking-wide block mb-2">Descrição</label>
+                            <textarea
+                              value={levels[levelIdx]?.description || ''}
+                              onChange={(e) => {
+                                const updated = [...levels];
+                                updated[levelIdx].description = e.target.value;
+                                setLevels(updated);
+                              }}
+                              rows={2}
+                              className="w-full p-3 border-2 border-gray-200 rounded-lg bg-white text-gray-700 text-sm focus:border-[#4F46E5] focus:outline-none transition-colors"
+                            />
+                          </div>
+
+                          {/* Campos: Mensagem quando não conquista (somente se mode='multi') */}
+                          {levelMode === 'multi' && (
+                            <div className="mt-4 p-4 bg-amber-50/60 rounded-lg border border-amber-200">
+                              <h4 className="text-xs font-bold text-amber-800 uppercase tracking-wide mb-3">
+                                Quando Não Conquistar Este Nível
+                              </h4>
+                              <div className="space-y-3">
+                                <div>
+                                  <label className="text-xs font-semibold text-gray-600 block mb-1">Título</label>
+                                  <input
+                                    type="text"
+                                    value={levels[levelIdx]?.not_acquired_title || ''}
+                                    onChange={(e) => {
+                                      const updated = [...levels];
+                                      updated[levelIdx].not_acquired_title = e.target.value;
+                                      setLevels(updated);
+                                    }}
+                                    className="w-full p-2 border-2 border-gray-200 rounded-lg bg-white text-gray-900 text-sm focus:border-amber-500 focus:outline-none transition-colors"
+                                    placeholder="Ex: Nível não conquistado"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="text-xs font-semibold text-gray-600 block mb-1">Descrição</label>
+                                  <textarea
+                                    value={levels[levelIdx]?.not_acquired_description || ''}
+                                    onChange={(e) => {
+                                      const updated = [...levels];
+                                      updated[levelIdx].not_acquired_description = e.target.value;
+                                      setLevels(updated);
+                                    }}
+                                    rows={2}
+                                    className="w-full p-2 border-2 border-gray-200 rounded-lg bg-white text-gray-700 text-sm focus:border-amber-500 focus:outline-none transition-colors"
+                                    placeholder="Explique o que significa não ter conquistado este nível..."
+                                  />
+                                </div>
+                              </div>
                             </div>
                           )}
                         </div>
-                      </div>
-                    ))}
-                  </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
 
               {/* 5. QUESTIONS E ALTERNATIVES AGRUPADAS POR INDICADORES */}
-              {questionsEdited.length > 0 && (
-                <div className="bg-white border rounded-lg p-6">
-                  <h2 className="text-2xl font-bold mb-6 text-[#4F46E5]">Estrutura de Questões por Indicador</h2>
+              {assessmentSchema === 'indicadores' && questionsEdited.length > 0 && (
+                <div className="bg-white/80 backdrop-blur-sm border border-white/60 rounded-2xl p-6 sm:p-8 shadow-lg">
+                  <h2 className={`text-2xl font-bold mb-6 bg-gradient-to-r from-[#4F46E5] via-[#6366F1] to-[#818CF8] bg-clip-text text-transparent ${TOKENS.fonts.serif}`}>
+                    Estrutura de Questões por Indicador
+                  </h2>
                   
                   <div className="space-y-8">
                     {questionsEdited.map((indicator, indIdx) => (
-                      <div key={indicator.id} className="border-2 border-[#4F46E5] rounded-lg p-6 bg-blue-50">
-                        <div className="flex items-center justify-between mb-4">
-                          <h3 className="text-xl font-bold text-[#4F46E5]">
+                      <div key={indicator.id} className="border-2 border-[#4F46E5]/40 rounded-2xl p-6 bg-gradient-to-br from-blue-50/80 to-indigo-50/60 backdrop-blur-sm">
+                        <div className="flex items-center justify-between mb-6">
+                          <h3 className={`text-xl font-bold text-[#4F46E5] ${TOKENS.fonts.serif}`}>
                             Indicador #{indicator.display_order}: {indicator.name}
                           </h3>
                           <button
                             type="button"
                             onClick={() => handleRemoveIndicatorFromAssessment(indicator.indicator_master_id, indicator.name)}
-                            className="inline-flex items-center gap-1 text-xs text-red-600 hover:text-red-700"
+                            className="inline-flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
                           >
                             <Trash2 className="w-4 h-4" /> Remover
                           </button>
                         </div>
 
                         {indicator.description && (
-                          <div className="mb-4 p-3 bg-white rounded border-l-4 border-blue-400">
-                            <label className="text-xs font-semibold text-gray-500 uppercase block mb-2">Descrição</label>
+                          <div className="mb-6 p-4 bg-white/80 backdrop-blur-sm rounded-xl border-l-4 border-blue-400">
+                            <label className="text-xs font-bold text-gray-500 uppercase tracking-wide block mb-2">Descrição</label>
                             <textarea
                               value={questionsEdited[indIdx]?.description || ''}
                               onChange={(e) => {
@@ -1608,31 +2587,35 @@ Deseja continuar?`;
                                 setQuestionsEdited(updated);
                               }}
                               rows={2}
-                              className="w-full p-2 border rounded bg-white text-gray-700 text-sm"
+                              className="w-full p-3 border-2 border-gray-200 rounded-lg bg-white text-gray-700 text-sm focus:border-[#4F46E5] focus:outline-none transition-colors"
                             />
                           </div>
                         )}
 
                         {/* Questões do Indicador */}
                         <div className="flex items-center justify-between mb-4">
-                          <h4 className="text-sm font-semibold text-gray-600">Questoes</h4>
+                          <h4 className={`text-sm font-bold text-gray-700 uppercase tracking-wide ${TOKENS.fonts.serif}`}>
+                            Questões
+                          </h4>
                           <button
                             type="button"
                             onClick={() => handleAddQuestion(indIdx)}
-                            className="inline-flex items-center gap-1 text-xs text-[#4F46E5] hover:text-[#312E81]"
+                            className="inline-flex items-center gap-2 px-4 py-2 text-sm bg-gradient-to-r from-[#4F46E5] to-[#6366F1] text-white rounded-lg font-semibold hover:shadow-lg transition-all"
                           >
-                            <Plus className="w-4 h-4" /> Adicionar questao
+                            <Plus className="w-4 h-4" /> Adicionar questão
                           </button>
                         </div>
 
                         {indicator.questions && indicator.questions.length > 0 ? (
                           <div className="space-y-6">
                             {indicator.questions.map((question, qIdx) => (
-                              <div key={question.id} className="border rounded-lg p-4 bg-white">
-                                <div className="bg-gray-50 p-4 rounded mb-4 border border-gray-200">
-                                  <div className="grid grid-cols-4 gap-4 mb-4">
-                                    <div className="col-span-2">
-                                      <label className="text-xs font-semibold text-gray-500 uppercase block mb-2">Questão #{question.display_order}</label>
+                              <div key={question.id} className="border-2 border-white/80 rounded-xl p-5 bg-white/90 backdrop-blur-sm shadow-sm">
+                                <div className="bg-gradient-to-br from-gray-50 to-blue-50/30 p-5 rounded-lg mb-4 border border-gray-200">
+                                  <div className="grid md:grid-cols-4 gap-4 mb-4">
+                                    <div className="md:col-span-2">
+                                      <label className="text-xs font-bold text-gray-500 uppercase tracking-wide block mb-2">
+                                        Questão #{question.display_order}
+                                      </label>
                                       <textarea
                                         value={questionsEdited[indIdx]?.questions[qIdx]?.text || ''}
                                         onChange={(e) => {
@@ -1641,11 +2624,13 @@ Deseja continuar?`;
                                           setQuestionsEdited(updated);
                                         }}
                                         rows={2}
-                                        className="w-full p-2 border rounded bg-white text-gray-900 font-semibold"
+                                        className="w-full p-3 border-2 border-gray-200 rounded-lg bg-white text-gray-900 font-semibold focus:border-[#4F46E5] focus:outline-none transition-colors"
                                       />
                                     </div>
                                     <div>
-                                      <label className="text-xs font-semibold text-gray-500 uppercase block mb-2">Tipo de Resposta</label>
+                                      <label className="text-xs font-bold text-gray-500 uppercase tracking-wide block mb-2">
+                                        Tipo de Resposta
+                                      </label>
                                       <input
                                         type="text"
                                         value={questionsEdited[indIdx]?.questions[qIdx]?.response_type || ''}
@@ -1654,11 +2639,13 @@ Deseja continuar?`;
                                           updated[indIdx].questions[qIdx].response_type = e.target.value;
                                           setQuestionsEdited(updated);
                                         }}
-                                        className="w-full p-2 border rounded bg-white text-[#4F46E5] font-semibold"
+                                        className="w-full p-3 border-2 border-gray-200 rounded-lg bg-white text-[#4F46E5] font-semibold focus:border-[#4F46E5] focus:outline-none transition-colors"
                                       />
                                     </div>
                                     <div>
-                                      <label className="text-xs font-semibold text-gray-500 uppercase block mb-2">Ordem</label>
+                                      <label className="text-xs font-bold text-gray-500 uppercase tracking-wide block mb-2">
+                                        Ordem
+                                      </label>
                                       <input
                                         type="number"
                                         value={questionsEdited[indIdx]?.questions[qIdx]?.display_order || ''}
@@ -1667,14 +2654,16 @@ Deseja continuar?`;
                                           updated[indIdx].questions[qIdx].display_order = parseInt(e.target.value, 10) || 0;
                                           setQuestionsEdited(updated);
                                         }}
-                                        className="w-full p-2 border rounded bg-white text-gray-900 font-semibold"
+                                        className="w-full p-3 border-2 border-gray-200 rounded-lg bg-white text-gray-900 font-semibold focus:border-[#4F46E5] focus:outline-none transition-colors"
                                       />
                                     </div>
                                   </div>
 
-                                  <div className="grid grid-cols-2 gap-4">
+                                  <div className="grid md:grid-cols-2 gap-4">
                                     <div>
-                                      <label className="text-xs font-semibold text-gray-500 uppercase block mb-2">Obrigatória?</label>
+                                      <label className="text-xs font-bold text-gray-500 uppercase tracking-wide block mb-2">
+                                        Obrigatória?
+                                      </label>
                                       <input
                                         type="checkbox"
                                         checked={questionsEdited[indIdx]?.questions[qIdx]?.is_required || false}
@@ -1683,16 +2672,16 @@ Deseja continuar?`;
                                           updated[indIdx].questions[qIdx].is_required = e.target.checked;
                                           setQuestionsEdited(updated);
                                         }}
-                                        className="mt-2 w-5 h-5 text-red-600 rounded cursor-pointer"
+                                        className="mt-2 w-5 h-5 text-[#4F46E5] rounded cursor-pointer"
                                       />
                                     </div>
                                     <div className="flex items-end justify-end">
                                       <button
                                         type="button"
                                         onClick={() => handleRemoveQuestion(indIdx, qIdx)}
-                                        className="inline-flex items-center gap-1 text-xs text-red-600 hover:text-red-700"
+                                        className="inline-flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
                                       >
-                                        <Trash2 className="w-4 h-4" /> Remover questao
+                                        <Trash2 className="w-4 h-4" /> Remover questão
                                       </button>
                                     </div>
                                   </div>
@@ -1701,12 +2690,16 @@ Deseja continuar?`;
                                 {/* Alternativas */}
                                 {question.alternatives && question.alternatives.length > 0 && (
                                   <div className="mt-4">
-                                    <h5 className="font-semibold text-gray-900 mb-3">Alternativas:</h5>
-                                    <div className="space-y-3 bg-gray-50 p-4 rounded">
+                                    <h5 className={`font-bold text-gray-900 mb-3 ${TOKENS.fonts.serif}`}>
+                                      Alternativas:
+                                    </h5>
+                                    <div className="space-y-3 bg-gradient-to-br from-gray-50 to-blue-50/20 p-4 rounded-lg">
                                       {question.alternatives.map((alt, aIdx) => (
-                                        <div key={alt.id} className="p-3 bg-white rounded border border-gray-200 flex gap-4 items-end">
+                                        <div key={alt.id} className="p-4 bg-white rounded-lg border-2 border-gray-200 flex gap-4 items-end shadow-sm">
                                           <div className="flex-1">
-                                            <label className="text-xs font-semibold text-gray-500 uppercase block mb-1">Alternativa #{alt.display_order}</label>
+                                            <label className="text-xs font-bold text-gray-500 uppercase tracking-wide block mb-2">
+                                              Alternativa #{alt.display_order}
+                                            </label>
                                             <input
                                               type="text"
                                               value={questionsEdited[indIdx]?.questions[qIdx]?.alternatives[aIdx]?.text || ''}
@@ -1715,11 +2708,13 @@ Deseja continuar?`;
                                                 updated[indIdx].questions[qIdx].alternatives[aIdx].text = e.target.value;
                                                 setQuestionsEdited(updated);
                                               }}
-                                              className="w-full p-2 border rounded bg-white text-gray-900 text-sm"
+                                              className="w-full p-3 border-2 border-gray-200 rounded-lg bg-white text-gray-900 text-sm focus:border-[#4F46E5] focus:outline-none transition-colors"
                                             />
                                           </div>
-                                          <div className="w-24">
-                                            <label className="text-xs font-semibold text-gray-500 uppercase block mb-1">Score</label>
+                                          <div className="w-28">
+                                            <label className="text-xs font-bold text-gray-500 uppercase tracking-wide block mb-2">
+                                              Score
+                                            </label>
                                             <input
                                               type="number"
                                               value={questionsEdited[indIdx]?.questions[qIdx]?.alternatives[aIdx]?.score_value ?? ''}
@@ -1729,11 +2724,13 @@ Deseja continuar?`;
                                                 updated[indIdx].questions[qIdx].alternatives[aIdx].score_value = isNaN(value) ? 0 : value;
                                                 setQuestionsEdited(updated);
                                               }}
-                                              className="w-full p-2 border rounded bg-white text-[#4F46E5] font-bold text-center"
+                                              className="w-full p-3 border-2 border-gray-200 rounded-lg bg-white text-[#4F46E5] font-bold text-center focus:border-[#4F46E5] focus:outline-none transition-colors"
                                             />
                                           </div>
                                           <div className="w-24">
-                                            <label className="text-xs font-semibold text-gray-500 uppercase block mb-1">Ordem</label>
+                                            <label className="text-xs font-bold text-gray-500 uppercase tracking-wide block mb-2">
+                                              Ordem
+                                            </label>
                                             <input
                                               type="number"
                                               value={questionsEdited[indIdx]?.questions[qIdx]?.alternatives[aIdx]?.display_order || ''}
@@ -1742,13 +2739,13 @@ Deseja continuar?`;
                                                 updated[indIdx].questions[qIdx].alternatives[aIdx].display_order = parseInt(e.target.value, 10) || 0;
                                                 setQuestionsEdited(updated);
                                               }}
-                                              className="w-full p-2 border rounded bg-white text-gray-900 font-semibold text-center"
+                                              className="w-full p-3 border-2 border-gray-200 rounded-lg bg-white text-gray-900 font-semibold text-center focus:border-[#4F46E5] focus:outline-none transition-colors"
                                             />
                                           </div>
                                           <button
                                             type="button"
                                             onClick={() => handleRemoveAlternative(indIdx, qIdx, aIdx)}
-                                            className="inline-flex items-center gap-1 text-xs text-red-600 hover:text-red-700"
+                                            className="p-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
                                           >
                                             <Trash2 className="w-4 h-4" />
                                           </button>
@@ -1757,7 +2754,7 @@ Deseja continuar?`;
                                       <button
                                         type="button"
                                         onClick={() => handleAddAlternative(indIdx, qIdx)}
-                                        className="inline-flex items-center gap-1 text-xs text-[#4F46E5] hover:text-[#312E81]"
+                                        className="inline-flex items-center gap-2 px-4 py-2 text-sm text-[#4F46E5] hover:text-[#312E81] font-semibold"
                                       >
                                         <Plus className="w-4 h-4" /> Adicionar alternativa
                                       </button>
@@ -1768,7 +2765,7 @@ Deseja continuar?`;
                                   <button
                                     type="button"
                                     onClick={() => handleAddAlternative(indIdx, qIdx)}
-                                    className="inline-flex items-center gap-1 text-xs text-[#4F46E5] hover:text-[#312E81]"
+                                    className="inline-flex items-center gap-2 px-4 py-2 text-sm text-[#4F46E5] hover:text-[#312E81] font-semibold"
                                   >
                                     <Plus className="w-4 h-4" /> Adicionar alternativa
                                   </button>
@@ -1785,8 +2782,195 @@ Deseja continuar?`;
                 </div>
               )}
 
+              {/* 6. QUESTÕES POR NÍVEL */}
+              {assessmentSchema === 'niveis' && levels.length > 0 && (
+                <div className="bg-white/80 backdrop-blur-sm border border-white/60 rounded-2xl p-6 sm:p-8 shadow-lg">
+                  <h2 className={`text-2xl font-bold mb-6 bg-gradient-to-r from-[#4F46E5] via-[#6366F1] to-[#818CF8] bg-clip-text text-transparent ${TOKENS.fonts.serif}`}>
+                    Estrutura de Questões por Nível
+                  </h2>
+
+                  <div className="space-y-8">
+                    {levels.map((level, levelIdx) => (
+                      <div key={level.id || levelIdx} className="border-2 border-[#4F46E5]/30 rounded-2xl p-6 bg-gradient-to-br from-blue-50/70 to-indigo-50/50">
+                        <div className="flex items-center justify-between mb-4">
+                          <h3 className={`text-xl font-bold text-[#4F46E5] ${TOKENS.fonts.serif}`}>
+                            Nível #{level.display_order}: {level.name || `Nível ${levelIdx + 1}`}
+                          </h3>
+                          <button
+                            type="button"
+                            onClick={() => handleAddQuestionToLevel(levelIdx)}
+                            className="inline-flex items-center gap-2 px-4 py-2 text-sm bg-gradient-to-r from-[#4F46E5] to-[#6366F1] text-white rounded-lg font-semibold hover:shadow-lg transition-all"
+                          >
+                            <Plus className="w-4 h-4" /> Adicionar questão
+                          </button>
+                        </div>
+
+                        {(level.questions || []).length > 0 ? (
+                          <div className="space-y-6">
+                            {(level.questions || []).map((question, qIdx) => (
+                              <div key={question.id || qIdx} className="border-2 border-white/80 rounded-xl p-5 bg-white/90 backdrop-blur-sm shadow-sm">
+                                <div className="grid md:grid-cols-4 gap-4 mb-4">
+                                  <div className="md:col-span-2">
+                                    <label className="text-xs font-bold text-gray-500 uppercase tracking-wide block mb-2">
+                                      Questão #{question.display_order}
+                                    </label>
+                                    <textarea
+                                      value={levels[levelIdx]?.questions?.[qIdx]?.text || ''}
+                                      onChange={(e) => {
+                                        const updated = [...levels];
+                                        updated[levelIdx].questions[qIdx].text = e.target.value;
+                                        setLevels(updated);
+                                      }}
+                                      rows={2}
+                                      className="w-full p-3 border-2 border-gray-200 rounded-lg bg-white text-gray-900 font-semibold focus:border-[#4F46E5] focus:outline-none transition-colors"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="text-xs font-bold text-gray-500 uppercase tracking-wide block mb-2">Tipo</label>
+                                    <input
+                                      type="text"
+                                      value={levels[levelIdx]?.questions?.[qIdx]?.response_type || ''}
+                                      onChange={(e) => {
+                                        const updated = [...levels];
+                                        updated[levelIdx].questions[qIdx].response_type = e.target.value;
+                                        setLevels(updated);
+                                      }}
+                                      className="w-full p-3 border-2 border-gray-200 rounded-lg bg-white text-[#4F46E5] font-semibold focus:border-[#4F46E5] focus:outline-none transition-colors"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="text-xs font-bold text-gray-500 uppercase tracking-wide block mb-2">Ordem</label>
+                                    <input
+                                      type="number"
+                                      value={levels[levelIdx]?.questions?.[qIdx]?.display_order || qIdx + 1}
+                                      onChange={(e) => {
+                                        const updated = [...levels];
+                                        updated[levelIdx].questions[qIdx].display_order = parseInt(e.target.value, 10) || (qIdx + 1);
+                                        setLevels(updated);
+                                      }}
+                                      className="w-full p-3 border-2 border-gray-200 rounded-lg bg-white text-gray-900 font-semibold focus:border-[#4F46E5] focus:outline-none transition-colors"
+                                    />
+                                  </div>
+                                </div>
+
+                                <div className="flex items-center justify-between mb-4">
+                                  <label className="inline-flex items-center gap-2 text-sm text-gray-700 font-medium">
+                                    <input
+                                      type="checkbox"
+                                      checked={levels[levelIdx]?.questions?.[qIdx]?.is_required || false}
+                                      onChange={(e) => {
+                                        const updated = [...levels];
+                                        updated[levelIdx].questions[qIdx].is_required = e.target.checked;
+                                        setLevels(updated);
+                                      }}
+                                      className="w-4 h-4 text-[#4F46E5]"
+                                    />
+                                    Questão obrigatória
+                                  </label>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRemoveQuestionFromLevel(levelIdx, qIdx)}
+                                    className="inline-flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
+                                  >
+                                    <Trash2 className="w-4 h-4" /> Remover questão
+                                  </button>
+                                </div>
+
+                                <div className="space-y-3 bg-gradient-to-br from-gray-50 to-blue-50/20 p-4 rounded-lg">
+                                  {(question.alternatives || []).map((alt, aIdx) => (
+                                    <div key={alt.id || aIdx} className="p-4 bg-white rounded-lg border-2 border-gray-200 flex gap-4 items-end">
+                                      <div className="flex-1">
+                                        <label className="text-xs font-bold text-gray-500 uppercase tracking-wide block mb-2">
+                                          Alternativa #{alt.display_order}
+                                        </label>
+                                        <input
+                                          type="text"
+                                          value={levels[levelIdx]?.questions?.[qIdx]?.alternatives?.[aIdx]?.text || ''}
+                                          onChange={(e) => {
+                                            const updated = [...levels];
+                                            updated[levelIdx].questions[qIdx].alternatives[aIdx].text = e.target.value;
+                                            setLevels(updated);
+                                          }}
+                                          className="w-full p-3 border-2 border-gray-200 rounded-lg bg-white text-gray-900 text-sm focus:border-[#4F46E5] focus:outline-none transition-colors"
+                                        />
+                                      </div>
+                                      <div className="w-40">
+                                        <label className="text-xs font-bold text-gray-500 uppercase tracking-wide block mb-2">Pontua para</label>
+                                        <select
+                                          value={levels[levelIdx]?.questions?.[qIdx]?.alternatives?.[aIdx]?.score_target || 'level'}
+                                          onChange={(e) => {
+                                            const updated = [...levels];
+                                            updated[levelIdx].questions[qIdx].alternatives[aIdx].score_target = e.target.value;
+                                            setLevels(updated);
+                                          }}
+                                          className="w-full p-3 border-2 border-gray-200 rounded-lg bg-white text-gray-900 text-sm focus:border-[#4F46E5] focus:outline-none transition-colors"
+                                        >
+                                          <option value="level">Conquista do nível</option>
+                                          <option value="potential">Potencial do nível</option>
+                                        </select>
+                                      </div>
+                                      <div className="w-28">
+                                        <label className="text-xs font-bold text-gray-500 uppercase tracking-wide block mb-2">Pontos</label>
+                                        <input
+                                          type="number"
+                                          value={levels[levelIdx]?.questions?.[qIdx]?.alternatives?.[aIdx]?.score_value ?? ''}
+                                          onChange={(e) => {
+                                            const updated = [...levels];
+                                            const value = e.target.value === '' ? 0 : parseFloat(e.target.value);
+                                            updated[levelIdx].questions[qIdx].alternatives[aIdx].score_value = isNaN(value) ? 0 : value;
+                                            setLevels(updated);
+                                          }}
+                                          className="w-full p-3 border-2 border-gray-200 rounded-lg bg-white text-[#4F46E5] font-bold text-center focus:border-[#4F46E5] focus:outline-none transition-colors"
+                                        />
+                                      </div>
+                                      <div className="w-24">
+                                        <label className="text-xs font-bold text-gray-500 uppercase tracking-wide block mb-2">Ordem</label>
+                                        <input
+                                          type="number"
+                                          value={levels[levelIdx]?.questions?.[qIdx]?.alternatives?.[aIdx]?.display_order || aIdx + 1}
+                                          onChange={(e) => {
+                                            const updated = [...levels];
+                                            updated[levelIdx].questions[qIdx].alternatives[aIdx].display_order = parseInt(e.target.value, 10) || (aIdx + 1);
+                                            setLevels(updated);
+                                          }}
+                                          className="w-full p-3 border-2 border-gray-200 rounded-lg bg-white text-gray-900 font-semibold text-center focus:border-[#4F46E5] focus:outline-none transition-colors"
+                                        />
+                                      </div>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleRemoveAlternativeFromLevelQuestion(levelIdx, qIdx, aIdx)}
+                                        className="p-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
+                                      >
+                                        <Trash2 className="w-4 h-4" />
+                                      </button>
+                                    </div>
+                                  ))}
+
+                                  <button
+                                    type="button"
+                                    onClick={() => handleAddAlternativeToLevelQuestion(levelIdx, qIdx)}
+                                    className="inline-flex items-center gap-2 px-4 py-2 text-sm text-[#4F46E5] hover:text-[#312E81] font-semibold"
+                                  >
+                                    <Plus className="w-4 h-4" /> Adicionar alternativa
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="p-4 bg-white/70 rounded-lg border border-dashed border-gray-300 text-sm text-gray-600 text-center">
+                            Nenhuma questão adicionada neste nível.
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* BOTÃO SALVAR */}
-              {(assessmentIndicatorsEdited.length > 0 || questionsEdited.length > 0) && (
+              {((assessmentSchema === 'indicadores' && (assessmentIndicatorsEdited.length > 0 || questionsEdited.length > 0)) ||
+                (assessmentSchema === 'niveis' && hasNiveisContent)) && (
                 <button
                   onClick={() => setShowVersionModal(true)}
                   className="flex items-center gap-2 px-6 py-3 bg-[#4F46E5] text-white rounded-lg font-semibold hover:bg-[#312E81] w-full justify-center sticky bottom-6"
@@ -1798,6 +2982,101 @@ Deseja continuar?`;
           )}
         </div>
       </div>
+      </main>
+
+      {/* Modal de Elementos Opcionais */}
+      <AssessmentElementsModal
+        isOpen={showElementsModal}
+        elements={assessmentElements}
+        onToggleElement={handleToggleElement}
+        onClose={() => setShowElementsModal(false)}
+      />
+
+      {/* Modal de Confirmação de Remoção de Elemento */}
+      {showRemoveElementModal && elementToRemove && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full">
+            {/* Header */}
+            <div className="bg-gradient-to-r from-red-500 via-red-600 to-red-700 px-6 py-5 rounded-t-2xl">
+              <h2 className="text-xl font-bold text-white flex items-center gap-3">
+                <div className="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center">
+                  <X className="w-6 h-6" />
+                </div>
+                Remover Elemento
+              </h2>
+            </div>
+
+            {/* Content */}
+            <div className="p-6">
+              <div className="mb-6">
+                <p className="text-lg font-semibold text-gray-900 mb-3">
+                  Você está prestes a remover o elemento:
+                </p>
+                <div className="p-4 bg-red-50 border-2 border-red-200 rounded-xl">
+                  <p className="text-red-900 font-bold text-lg">
+                    {elementNames[elementToRemove]}
+                  </p>
+                </div>
+              </div>
+
+              <div className="bg-amber-50 border-l-4 border-amber-500 p-4 mb-6 rounded-r-lg">
+                <div className="flex gap-3">
+                  <span className="text-amber-600 text-2xl flex-shrink-0">⚠️</span>
+                  <div className="space-y-2 text-sm text-amber-900">
+                    <p className="font-bold">ATENÇÃO: Esta ação é crítica!</p>
+                    <ul className="list-disc list-inside space-y-1 ml-2">
+                      <li>Todo o conteúdo configurado será <strong>permanentemente perdido</strong></li>
+                      <li>O elemento será removido da estrutura do assessment</li>
+                      <li>Esta ação <strong>NÃO PODE ser desfeita</strong></li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+
+              {/* Confirmação dupla via checkbox */}
+              <div className="bg-gray-50 border-2 border-gray-200 rounded-xl p-4 mb-6">
+                <label className="flex items-start gap-3 cursor-pointer group">
+                  <input
+                    type="checkbox"
+                    checked={removeConfirmed}
+                    onChange={(e) => setRemoveConfirmed(e.target.checked)}
+                    className="mt-1 w-5 h-5 text-red-600 rounded cursor-pointer flex-shrink-0"
+                  />
+                  <span className="text-sm text-gray-700 font-medium group-hover:text-gray-900 transition-colors">
+                    Confirmo que entendo que esta ação é irreversível e que todo o conteúdo do elemento{' '}
+                    <strong className="text-red-700">{elementNames[elementToRemove]}</strong> será permanentemente removido
+                  </span>
+                </label>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 flex gap-3 rounded-b-2xl">
+              <button
+                onClick={() => {
+                  setShowRemoveElementModal(false);
+                  setElementToRemove(null);
+                  setRemoveConfirmed(false);
+                }}
+                className="flex-1 px-4 py-2.5 border-2 border-gray-300 text-gray-700 rounded-lg font-semibold hover:bg-gray-100 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleConfirmRemoveElement}
+                disabled={!removeConfirmed}
+                className={`flex-1 px-4 py-2.5 rounded-lg font-semibold transition-all ${
+                  removeConfirmed
+                    ? 'bg-gradient-to-r from-red-600 to-red-700 text-white hover:shadow-lg hover:from-red-700 hover:to-red-800'
+                    : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                }`}
+              >
+                {removeConfirmed ? 'Remover Elemento' : 'Confirme acima para remover'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal de Confirmação de Nova Versão */}
       {showVersionModal && (

@@ -74,17 +74,20 @@ export const useAssessment = (options = {}) => {
       // 2. Buscar versão ativa do assessment E carregar introduction_html + overall_ranges
       const activeVersion = await getActiveAssessmentVersion(assessmentData.id);
 
-      // Buscar introduction_html e overall_ranges
+      // Buscar introduction_html, schema e level_mode
       const { data: versionData, error: versionError } = await supabase
         .from('assessment_versions')
-        .select('introduction_html')
+        .select('introduction_html, schema, level_mode')
         .eq('id', activeVersion.id)
         .single();
 
-      if (versionError) console.warn('Erro ao carregar introduction_html:', versionError);
+      if (versionError) console.warn('Erro ao carregar version data:', versionError);
       if (versionData?.introduction_html) {
         setIntroductionHtml(versionData.introduction_html);
       }
+
+      const assessmentSchema = versionData?.schema || assessmentData.schema || 'indicadores';
+      const levelMode = versionData?.level_mode;
 
       const { data: overallRangesData, error: overallRangesError } = await supabase
         .from('assessment_overall_ranges')
@@ -99,123 +102,14 @@ export const useAssessment = (options = {}) => {
       setAssessmentVersionId(activeVersion.id);
       setVersionNumber(activeVersion.version_number);
 
-      // 3. Buscar assessment_indicators com indicadores relacionados (usando assessment_version_id)
-      const { data: assessmentIndicators, error: aiError } = await supabase
-        .from('assessment_indicators')
-        .select(`
-          id,
-          indicator_master_id,
-          display_order,
-          indicators_master:indicator_master_id (id, name, description, color, icon)
-        `)
-        .eq('assessment_version_id', activeVersion.id)
-        .order('display_order', { ascending: true });
-
-      if (aiError) throw aiError;
-
-      // 4. Buscar indicadores (antiga estrutura ainda usada para questions) COM conceptual_description
-      const { data: indicatorsData, error: indicatorsError } = await supabase
-        .from('indicators')
-        .select('id, assessment_id, name, conceptual_description, indicator_master_id, display_order, weight')
-        .eq('assessment_id', assessmentData.id)
-        .order('display_order', { ascending: true });
-
-      if (indicatorsError) throw indicatorsError;
-      const indicators = indicatorsData || [];
-
-      // Criar mapa de conceptual_description por indicator_master_id
-      const conceptualDescMap = {};
-      indicators.forEach(ind => {
-        if (ind.indicator_master_id) {
-          conceptualDescMap[ind.indicator_master_id] = ind.conceptual_description || '';
-        }
-      });
-
-      // 5. Buscar questions
-      const indicatorIds = indicators.map(i => i.id);
-      let questions = [];
-
-      if (indicatorIds.length > 0) {
-        const { data: questionsData, error: questionsError } = await supabase
-          .from('questions')
-          .select('*')
-          .in('indicator_id', indicatorIds)
-          .order('display_order', { ascending: true });
-
-        if (questionsError) throw questionsError;
-        questions = questionsData || [];
+      // 3. Decidir qual estrutura carregar baseado no schema
+      let fullAssessment;
+      
+      if (assessmentSchema === 'niveis') {
+        fullAssessment = await fetchNiveisAssessment(assessmentData, activeVersion, levelMode);
+      } else {
+        fullAssessment = await fetchIndicadoresAssessment(assessmentData, activeVersion);
       }
-
-      // 6. Buscar alternatives
-      const questionIds = questions.map(q => q.id);
-      let alternatives = [];
-
-      if (questionIds.length > 0) {
-        const { data: alternativesData, error: alternativesError } = await supabase
-          .from('alternatives')
-          .select('*')
-          .in('question_id', questionIds)
-          .order('display_order', { ascending: true });
-
-        if (alternativesError) throw alternativesError;
-        alternatives = alternativesData || [];
-      }
-
-      // 7. Buscar assessment_indicator_ranges para cada assessment_indicator
-      const rangesMap = {}; // { assessmentIndicatorId: [...ranges] }
-      if (assessmentIndicators && assessmentIndicators.length > 0) {
-        const aiIds = assessmentIndicators.map(ai => ai.id);
-        const { data: rangesData, error: rangesError } = await supabase
-          .from('assessment_indicator_ranges')
-          .select('*')
-          .in('assessment_indicator_id', aiIds);
-
-        if (rangesError) {
-          throw rangesError;
-        }
-        (rangesData || []).forEach(range => {
-          if (!rangesMap[range.assessment_indicator_id]) {
-            rangesMap[range.assessment_indicator_id] = [];
-          }
-          rangesMap[range.assessment_indicator_id].push(range);
-        });
-      }
-
-      // 8. Montar estrutura hierárquica com nova arquitetura
-      const fullAssessment = {
-        ...assessmentData,
-        versionId: activeVersion.id,
-        versionNumber: activeVersion.version_number,
-        indicators: (indicators || []).map(indicator => {
-          // Fallback: conceptual_description (indicators) -> description (indicators_master)
-          const masterId = indicator.indicator_master_id;
-          const masterData = (assessmentIndicators || []).find(ai => ai.indicator_master_id === masterId);
-          const masterDescription = masterData?.indicators_master?.description || '';
-          
-          return {
-            ...indicator,
-            conceptual_description: indicator.conceptual_description || masterDescription,
-            questions: (questions || [])
-              .filter(q => q.indicator_id === indicator.id)
-              .map(question => ({
-                ...question,
-                alternatives: (alternatives || []).filter(
-                  a => a.question_id === question.id
-                )
-              }))
-          };
-        }),
-        // Nova estrutura: assessment_indicators com ranges
-        assessmentIndicators: (assessmentIndicators || []).map(ai => {
-          const ranges = rangesMap[ai.id] || [];
-          return {
-            id: ai.id,
-            display_order: ai.display_order,
-            indicatorMaster: ai.indicators_master,
-            ranges // Faixas de classificação
-          };
-        })
-      };
 
       setAssessment(fullAssessment);
     } catch (err) {
@@ -224,6 +118,189 @@ export const useAssessment = (options = {}) => {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Função para carregar assessment schema='niveis'
+  const fetchNiveisAssessment = async (assessmentData, activeVersion, levelMode) => {
+    // 1. Buscar levels
+    const { data: levelsData, error: levelsError } = await supabase
+      .from('assessment_levels')
+      .select('*')
+      .eq('assessment_version_id', activeVersion.id)
+      .order('display_order', { ascending: true });
+
+    if (levelsError) throw levelsError;
+    const levels = levelsData || [];
+
+    // 2. Buscar questions linkadas aos levels (via level_id)
+    const levelIds = levels.map(l => l.id);
+    let questions = [];
+
+    if (levelIds.length > 0) {
+      const { data: questionsData, error: questionsError } = await supabase
+        .from('questions')
+        .select('*')
+        .in('level_id', levelIds)
+        .order('display_order', { ascending: true });
+
+      if (questionsError) throw questionsError;
+      questions = questionsData || [];
+    }
+
+    // 3. Buscar alternatives com score_target
+    const questionIds = questions.map(q => q.id);
+    let alternatives = [];
+
+    if (questionIds.length > 0) {
+      const { data: alternativesData, error: alternativesError } = await supabase
+        .from('alternatives')
+        .select('*')
+        .in('question_id', questionIds)
+        .order('display_order', { ascending: true });
+
+      if (alternativesError) throw alternativesError;
+      alternatives = alternativesData || [];
+    }
+
+    // 4. Montar estrutura hierárquica
+    return {
+      ...assessmentData,
+      versionId: activeVersion.id,
+      versionNumber: activeVersion.version_number,
+      schema: 'niveis',
+      levelMode,
+      levels: levels.map(level => ({
+        ...level,
+        questions: questions
+          .filter(q => q.level_id === level.id)
+          .map(question => ({
+            ...question,
+            alternatives: alternatives.filter(a => a.question_id === question.id)
+          }))
+      }))
+    };
+  };
+
+  // Função para carregar assessment schema='indicadores' (código existente)
+  const fetchIndicadoresAssessment = async (assessmentData, activeVersion) => {
+    // 3. Buscar assessment_indicators com indicadores relacionados (usando assessment_version_id)
+    const { data: assessmentIndicators, error: aiError } = await supabase
+      .from('assessment_indicators')
+      .select(`
+        id,
+        indicator_master_id,
+        display_order,
+        indicators_master:indicator_master_id (id, name, description, color, icon)
+      `)
+      .eq('assessment_version_id', activeVersion.id)
+      .order('display_order', { ascending: true });
+
+    if (aiError) throw aiError;
+
+    // 4. Buscar indicadores (antiga estrutura ainda usada para questions) COM conceptual_description
+    const { data: indicatorsData, error: indicatorsError } = await supabase
+      .from('indicators')
+      .select('id, assessment_id, name, conceptual_description, indicator_master_id, display_order, weight')
+      .eq('assessment_id', assessmentData.id)
+      .order('display_order', { ascending: true });
+
+    if (indicatorsError) throw indicatorsError;
+    const indicators = indicatorsData || [];
+
+    // Criar mapa de conceptual_description por indicator_master_id
+    const conceptualDescMap = {};
+    indicators.forEach(ind => {
+      if (ind.indicator_master_id) {
+        conceptualDescMap[ind.indicator_master_id] = ind.conceptual_description || '';
+      }
+    });
+
+    // 5. Buscar questions
+    const indicatorIds = indicators.map(i => i.id);
+    let questions = [];
+
+    if (indicatorIds.length > 0) {
+      const { data: questionsData, error: questionsError } = await supabase
+        .from('questions')
+        .select('*')
+        .in('indicator_id', indicatorIds)
+        .order('display_order', { ascending: true });
+
+      if (questionsError) throw questionsError;
+      questions = questionsData || [];
+    }
+
+    // 6. Buscar alternatives
+    const questionIds = questions.map(q => q.id);
+    let alternatives = [];
+
+    if (questionIds.length > 0) {
+      const { data: alternativesData, error: alternativesError } = await supabase
+        .from('alternatives')
+        .select('*')
+        .in('question_id', questionIds)
+        .order('display_order', { ascending: true });
+
+      if (alternativesError) throw alternativesError;
+      alternatives = alternativesData || [];
+    }
+
+    // 7. Buscar assessment_indicator_ranges para cada assessment_indicator
+    const rangesMap = {}; // { assessmentIndicatorId: [...ranges] }
+    if (assessmentIndicators && assessmentIndicators.length > 0) {
+      const aiIds = assessmentIndicators.map(ai => ai.id);
+      const { data: rangesData, error: rangesError } = await supabase
+        .from('assessment_indicator_ranges')
+        .select('*')
+        .in('assessment_indicator_id', aiIds);
+
+      if (rangesError) {
+        throw rangesError;
+      }
+      (rangesData || []).forEach(range => {
+        if (!rangesMap[range.assessment_indicator_id]) {
+          rangesMap[range.assessment_indicator_id] = [];
+        }
+        rangesMap[range.assessment_indicator_id].push(range);
+      });
+    }
+
+    // 8. Montar estrutura hierárquica com nova arquitetura
+    return {
+      ...assessmentData,
+      versionId: activeVersion.id,
+      versionNumber: activeVersion.version_number,
+      schema: 'indicadores',
+      indicators: (indicators || []).map(indicator => {
+        // Fallback: conceptual_description (indicators) -> description (indicators_master)
+        const masterId = indicator.indicator_master_id;
+        const masterData = (assessmentIndicators || []).find(ai => ai.indicator_master_id === masterId);
+        const masterDescription = masterData?.indicators_master?.description || '';
+        
+        return {
+          ...indicator,
+          conceptual_description: indicator.conceptual_description || masterDescription,
+          questions: (questions || [])
+            .filter(q => q.indicator_id === indicator.id)
+            .map(question => ({
+              ...question,
+              alternatives: (alternatives || []).filter(
+                a => a.question_id === question.id
+              )
+            }))
+        };
+      }),
+      // Nova estrutura: assessment_indicators com ranges
+      assessmentIndicators: (assessmentIndicators || []).map(ai => {
+        const ranges = rangesMap[ai.id] || [];
+        return {
+          id: ai.id,
+          display_order: ai.display_order,
+          indicatorMaster: ai.indicators_master,
+          ranges // Faixas de classificação
+        };
+      })
+    };
   };
 
   const handleAnswerChange = (questionId, scoreValue) => {
@@ -235,8 +312,22 @@ export const useAssessment = (options = {}) => {
 
   const validateAnswers = () => {
     if (!assessment) return false;
-    for (const indicator of assessment.indicators) {
-      for (const question of indicator.questions) {
+    
+    // Schema 'niveis': validar questions dentro de levels
+    if (assessment.schema === 'niveis' && assessment.levels) {
+      for (const level of assessment.levels) {
+        for (const question of level.questions || []) {
+          if (question.is_required && answers[question.id] === undefined) {
+            return false;
+          }
+        }
+      }
+      return true;
+    }
+    
+    // Schema 'indicadores': validar questions dentro de indicators
+    for (const indicator of assessment.indicators || []) {
+      for (const question of indicator.questions || []) {
         if (question.is_required && answers[question.id] === undefined) {
           return false;
         }
@@ -245,7 +336,86 @@ export const useAssessment = (options = {}) => {
     return true;
   };
 
+  const calculateNiveisResults = () => {
+    const levelResults = {};
+    let totalScore = 0;
+    let maxPossibleScore = 0;
+
+    // Calcular pontos por nível, separando 'level' e 'potential'
+    assessment.levels.forEach(level => {
+      let levelScore = 0;
+      let potentialScore = 0;
+      let maxLevelScore = 0;
+      let maxPotentialScore = 0;
+      let maxTotalScore = 0;
+
+      level.questions.forEach(question => {
+        const answer = answers[question.id];
+        
+        // Calcular máximos possíveis por target  para cada questão
+        let questionMaxLevel = 0;
+        let questionMaxPotential = 0;
+        let questionMaxTotal = 0;
+        
+        question.alternatives.forEach(alt => {
+          const altTarget = alt.score_target || 'level';
+          const altScore = parseFloat(alt.score_value) || 0;
+
+          if (altScore > questionMaxTotal) {
+            questionMaxTotal = altScore;
+          }
+          
+          if (altTarget === 'level' && altScore > questionMaxLevel) {
+            questionMaxLevel = altScore;
+          } else if (altTarget === 'potential' && altScore > questionMaxPotential) {
+            questionMaxPotential = altScore;
+          }
+        });
+        
+        maxLevelScore += questionMaxLevel;
+        maxPotentialScore += questionMaxPotential;
+        maxTotalScore += questionMaxTotal;
+
+        // Se respondeu, somar a pontuação
+        if (answer !== undefined && answer !== null) {
+          const selectedAlternative = question.alternatives.find(alt => alt.score_value === answer);
+          if (selectedAlternative) {
+            const scoreValue = parseFloat(selectedAlternative.score_value) || 0;
+            const scoreTarget = selectedAlternative.score_target || 'level';
+
+            if (scoreTarget === 'level') {
+              levelScore += scoreValue;
+            } else if (scoreTarget === 'potential') {
+              potentialScore += scoreValue;
+            }
+          }
+        }
+      });
+
+      levelResults[level.id] = {
+        level_id: level.id,
+        name: level.name,
+        description: level.description,
+        levelScore,
+        potentialScore,
+        maxLevelScore,
+        maxPotentialScore,
+        maxTotalScore,
+        display_order: level.display_order
+      };
+
+      totalScore += levelScore + potentialScore;
+      maxPossibleScore += maxTotalScore;
+    });
+
+    return { totalScore, maxPossibleScore, levelResults, indicatorResults: null };
+  };
+
   const calculateResults = () => {
+    // Se for schema='niveis', calcular de forma diferente
+    if (assessment.schema === 'niveis') {
+      return calculateNiveisResults();
+    }
     
     let totalScore = 0;
     let maxPossibleScore = 0;
@@ -400,7 +570,10 @@ export const useAssessment = (options = {}) => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Usuário não autenticado.');
 
-      const { totalScore, maxPossibleScore, indicatorResults } = calculateResults();
+      const results = calculateResults();
+      const { totalScore, maxPossibleScore, indicatorResults } = results;
+      const isNiveisSchema = assessment.schema === 'niveis';
+      const indicatorSnapshot = isNiveisSchema ? null : (indicatorResults || null);
 
       // Extract display name from user metadata or use email as fallback
       const displayName = user.user_metadata?.name || user.user_metadata?.full_name || user.email || 'Usuário';
@@ -413,12 +586,13 @@ export const useAssessment = (options = {}) => {
         user_display_name: displayName,
         total_score: totalScore,
         max_possible_score: maxPossibleScore,
-        indicator_scores_snapshot: indicatorResults,
+        indicator_scores_snapshot: indicatorSnapshot,
         answers_snapshot: answers,
-        classification_snapshot: indicatorResults,
+        classification_snapshot: indicatorSnapshot,
         activity_type: 'assessment', // Gamificação: tipo de atividade
         activity_name: assessment.name, // Gamificação: nome descritivo da atividade
         xp_awarded: false, // Marca que XP ainda não foi concedido
+        assessment_schema: assessment.schema || 'indicadores', // Schema: 'indicadores' | 'niveis' - usado por triggers
       };
 
       const { error: insertError } = await supabase
