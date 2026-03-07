@@ -112,10 +112,8 @@ export default function RadarChart({ indicatorResults = {}, indicatorMeta = {}, 
           title="Clique para ver a legenda"
         >
           <svg 
-            width="100%" 
-            height="auto" 
             viewBox="0 0 400 400" 
-            className="max-w-md drop-shadow-2xl"
+            className="w-full h-auto max-w-md drop-shadow-2xl"
             style={{ filter: 'drop-shadow(0 0 40px rgba(79, 70, 229, 0.15))' }}
           >
               <defs>

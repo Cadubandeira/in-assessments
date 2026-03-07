@@ -19,13 +19,16 @@ const Assessment = () => {
     handleAnswerChange, 
     submitAssessment, 
     submitting,
-    introductionHtml
+    introductionHtml,
+    preAssessmentFields,
+    preAssessmentAnswers,
+    setPreAssessmentAnswers
   } = useAssessment({ assessmentIdOrSlug: id });
 
   // XP Hooks
   const { baseXP, bonusThresholds, rewards } = useXPRewards('assessment');
 
-  // Phase state machine: 'intro' | 'indicator-intro' | 'question'
+  // Phase state machine: 'intro' | 'pre-assessment' | 'indicator-intro' | 'question'
   const [phase, setPhase] = useState('intro');
   const [currentIndicatorIndex, setCurrentIndicatorIndex] = useState(0);
   const [currentQuestionIndexInIndicator, setCurrentQuestionIndexInIndicator] = useState(0);
@@ -143,6 +146,21 @@ const Assessment = () => {
 
   const handleNext = () => {
     if (phase === 'intro') {
+      // Ao clicar em "Começar" na intro, verificar se tem pré-assessment
+      if (preAssessmentFields?.length > 0) {
+        setPhase('pre-assessment');
+      } else {
+        setPhase('indicator-intro');
+      }
+    } else if (phase === 'pre-assessment') {
+      // Validar campos obrigatórios do pré-assessment
+      const requiredFields = preAssessmentFields.filter(f => f.is_required);
+      const missingFields = requiredFields.filter(f => !preAssessmentAnswers[f.id]?.trim());
+      
+      if (missingFields.length > 0) {
+        alert('Por favor, preencha todos os campos obrigatórios antes de continuar.');
+        return;
+      }
       setPhase('indicator-intro');
     } else if (phase === 'indicator-intro') {
       setPhase('question');
@@ -166,6 +184,11 @@ const Assessment = () => {
   };
 
   const canProceed = () => {
+    if (phase === 'pre-assessment') {
+      // Verificar se campos obrigatórios estão preenchidos
+      const requiredFields = preAssessmentFields?.filter(f => f.is_required) || [];
+      return requiredFields.every(f => preAssessmentAnswers[f.id]?.trim());
+    }
     if (phase === 'intro' || phase === 'indicator-intro') return true;
     if (phase === 'question' && currentQuestion) {
       return answers[currentQuestion.id] !== undefined && answers[currentQuestion.id] !== null;
@@ -173,10 +196,67 @@ const Assessment = () => {
     return false;
   };
 
+  // Função para renderizar campos do pré-assessment
+  const renderPreAssessmentField = (field) => {
+    const value = preAssessmentAnswers[field.id] || '';
+    const handleChange = (newValue) => {
+      setPreAssessmentAnswers(prev => ({
+        ...prev,
+        [field.id]: newValue
+      }));
+    };
+
+    switch (field.type) {
+      case 'text':
+        return (
+          <input
+            type="text"
+            value={value}
+            onChange={(e) => handleChange(e.target.value)}
+            placeholder={field.placeholder || ''}
+            required={field.is_required}
+            className="w-full p-3 border-2 border-gray-200 rounded-lg focus:border-[#4F46E5] focus:outline-none transition-colors"
+          />
+        );
+
+      case 'textarea':
+        return (
+          <textarea
+            value={value}
+            onChange={(e) => handleChange(e.target.value)}
+            placeholder={field.placeholder || ''}
+            required={field.is_required}
+            rows={4}
+            className="w-full p-3 border-2 border-gray-200 rounded-lg focus:border-[#4F46E5] focus:outline-none transition-colors resize-none"
+          />
+        );
+
+      case 'dropdown':
+        return (
+          <select
+            value={value}
+            onChange={(e) => handleChange(e.target.value)}
+            required={field.is_required}
+            className="w-full p-3 border-2 border-gray-200 rounded-lg focus:border-[#4F46E5] focus:outline-none transition-colors"
+          >
+            <option value="">Selecione...</option>
+            {field.options?.map((option, idx) => (
+              <option key={idx} value={option}>
+                {option}
+              </option>
+            ))}
+          </select>
+        );
+
+      default:
+        return null;
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#F5F3EC] to-[#EEF2FF] overflow-x-hidden">
       {/* Progress Bar with Counter */}
-      {phase !== 'intro' && (
+      {phase !== 'intro' && phase !== 'pre-assessment' && (
         <div className="sticky top-0 z-10 bg-white/90 backdrop-blur-md border-b border-white/60 shadow-sm">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4">
             <div className="flex items-center justify-between mb-2">
@@ -200,6 +280,49 @@ const Assessment = () => {
       )}
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 pb-12 sm:pb-16">
+        {/* PRÉ-ASSESSMENT PHASE */}
+        {phase === 'pre-assessment' && preAssessmentFields?.length > 0 && (
+          <div className="max-w-3xl mx-auto pt-8">
+            <div className="bg-white/80 backdrop-blur-sm border border-white/60 rounded-2xl p-8 shadow-lg">
+              <div className="text-center mb-8">
+                <span className="inline-block text-xs font-bold uppercase tracking-[0.2em] text-white bg-gradient-to-r from-[#4F46E5] to-[#6366F1] px-4 py-2 rounded-full mb-4 shadow-md">
+                  Antes de Começar
+                </span>
+                <h2 className={`${TOKENS.fonts.serif} text-3xl font-bold text-[#1E1B4B] mb-3`}>
+                  Informações Contextuais
+                </h2>
+                <p className="text-gray-600">
+                  Por favor, preencha as informações abaixo para contextualizar melhor sua avaliação.
+                </p>
+              </div>
+              
+              <div className="space-y-6 mb-8">
+                {preAssessmentFields.map((field) => (
+                  <div key={field.id}>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      {field.label}
+                      {field.is_required && <span className="text-red-500 ml-1">*</span>}
+                    </label>
+                    {renderPreAssessmentField(field)}
+                  </div>
+                ))}
+              </div>
+
+              <button
+                onClick={handleNext}
+                disabled={!canProceed()}
+                className={`w-full px-6 py-4 rounded-lg font-semibold text-lg transition-all shadow-md ${
+                  canProceed()
+                    ? 'bg-gradient-to-r from-[#4F46E5] to-[#6366F1] text-white hover:shadow-xl'
+                    : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                }`}
+              >
+                Continuar para o Assessment
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* INTRO PHASE */}
         {phase === 'intro' && (
           <div className="space-y-10 pt-8">

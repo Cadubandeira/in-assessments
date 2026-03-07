@@ -22,6 +22,8 @@ export const useAssessment = (options = {}) => {
   const [submitting, setSubmitting] = useState(false);
   const [introductionHtml, setIntroductionHtml] = useState('');
   const [overallRanges, setOverallRanges] = useState([]);
+  const [preAssessmentFields, setPreAssessmentFields] = useState([]);
+  const [preAssessmentAnswers, setPreAssessmentAnswers] = useState({});
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -74,16 +76,19 @@ export const useAssessment = (options = {}) => {
       // 2. Buscar versão ativa do assessment E carregar introduction_html + overall_ranges
       const activeVersion = await getActiveAssessmentVersion(assessmentData.id);
 
-      // Buscar introduction_html, schema e level_mode
+      // Buscar introduction_html, schema, level_mode e pre_assessment_fields
       const { data: versionData, error: versionError } = await supabase
         .from('assessment_versions')
-        .select('introduction_html, schema, level_mode')
+        .select('introduction_html, schema, level_mode, pre_assessment_fields')
         .eq('id', activeVersion.id)
         .single();
 
       if (versionError) console.warn('Erro ao carregar version data:', versionError);
       if (versionData?.introduction_html) {
         setIntroductionHtml(versionData.introduction_html);
+      }
+      if (versionData?.pre_assessment_fields) {
+        setPreAssessmentFields(versionData.pre_assessment_fields);
       }
 
       const assessmentSchema = versionData?.schema || assessmentData.schema || 'indicadores';
@@ -589,6 +594,7 @@ export const useAssessment = (options = {}) => {
         indicator_scores_snapshot: indicatorSnapshot,
         answers_snapshot: answers,
         classification_snapshot: indicatorSnapshot,
+        pre_assessment_data: Object.keys(preAssessmentAnswers).length > 0 ? preAssessmentAnswers : null,
         activity_type: 'assessment', // Gamificação: tipo de atividade
         activity_name: assessment.name, // Gamificação: nome descritivo da atividade
         xp_awarded: false, // Marca que XP ainda não foi concedido
@@ -621,6 +627,9 @@ export const useAssessment = (options = {}) => {
     submitAssessment,
     submitting,
     introductionHtml,
-    overallRanges
+    overallRanges,
+    preAssessmentFields,
+    preAssessmentAnswers,
+    setPreAssessmentAnswers
   };
 };

@@ -7,6 +7,8 @@ import IntroductionEditor from '../../components/IntroductionEditor';
 import OverallRangesEditor from '../../components/OverallRangesEditor';
 import AssessmentElementsModal from '../../components/AssessmentElementsModal';
 import AssessmentBuilderSkeleton from '../../components/skeletons/admin/AssessmentBuilderSkeleton';
+import PreAssessmentFieldsEditor from '../../components/PreAssessmentFieldsEditor';
+import LevelRangesEditor from '../../components/LevelRangesEditor';
 import { TOKENS } from '../../config/tokens';
 import { 
   getActiveAssessmentVersion, 
@@ -212,10 +214,10 @@ export default function AssessmentBuilder() {
       return;
     }
 
-    // Buscar introduction_html, reflexao final e overall_ranges da versão
+    // Buscar introduction_html, reflexao final, pre_assessment_fields e overall_ranges da versão
     const { data: versionData, error: versionError } = await supabase
       .from('assessment_versions')
-      .select('introduction_html, final_reflection, result_introduction')
+      .select('introduction_html, final_reflection, result_introduction, pre_assessment_fields')
       .eq('id', versionId)
       .single();
 
@@ -223,6 +225,7 @@ export default function AssessmentBuilder() {
       setIntroductionHtml(versionData.introduction_html || '');
       setFinalReflection(versionData.final_reflection || '');
       setResultIntroduction(versionData.result_introduction || '');
+      setPreAssessmentFields(versionData.pre_assessment_fields || []);
     }
 
     // Buscar overall_ranges
@@ -326,10 +329,10 @@ export default function AssessmentBuilder() {
 
   const loadVersionLevels = async (versionId) => {
     try {
-      // Buscar introduction_html, reflexao final e campos de não conquista da versão
+      // Buscar introduction_html, reflexao final, pre_assessment_fields e campos de não conquista da versão
       const { data: versionData, error: versionError } = await supabase
         .from('assessment_versions')
-        .select('introduction_html, final_reflection, result_introduction, no_level_achieved_title, no_level_achieved_description, level_mode')
+        .select('introduction_html, final_reflection, result_introduction, pre_assessment_fields, no_level_achieved_title, no_level_achieved_description, level_mode')
         .eq('id', versionId)
         .single();
 
@@ -337,6 +340,7 @@ export default function AssessmentBuilder() {
         setIntroductionHtml(versionData.introduction_html || '');
         setFinalReflection(versionData.final_reflection || '');
         setResultIntroduction(versionData.result_introduction || '');
+        setPreAssessmentFields(versionData.pre_assessment_fields || []);
         setNoLevelAchievedTitle(versionData.no_level_achieved_title || '');
         setNoLevelAchievedDescription(versionData.no_level_achieved_description || '');
         if (versionData.level_mode) {
@@ -368,9 +372,20 @@ export default function AssessmentBuilder() {
         return;
       }
 
-      // Para cada nível, buscar questões e alternativas
+      // Para cada nível, buscar questões, alternativas e ranges
       const levelsWithQuestions = await Promise.all(
         (levelsData || []).map(async (level) => {
+          // Buscar ranges do nível
+          const { data: rangesData, error: rangesError } = await supabase
+            .from('assessment_level_ranges')
+            .select('*')
+            .eq('assessment_level_id', level.id)
+            .order('min_score', { ascending: true });
+
+          if (rangesError) {
+            console.error(`Erro ao carregar ranges do nível ${level.name}:`, rangesError);
+          }
+
           // Buscar questions do nível
           const { data: questionsData, error: questionsError } = await supabase
             .from('questions')
@@ -380,7 +395,7 @@ export default function AssessmentBuilder() {
 
           if (questionsError) {
             console.error(`Erro ao carregar questões do nível ${level.name}:`, questionsError);
-            return { ...level, questions: [] };
+            return { ...level, questions: [], ranges: rangesData || [] };
           }
 
           // Para cada questão, buscar alternativas
@@ -406,7 +421,8 @@ export default function AssessmentBuilder() {
 
           return {
             ...level,
-            questions: questionsWithAlternatives
+            questions: questionsWithAlternatives,
+            ranges: rangesData || []
           };
         })
       );
@@ -539,9 +555,16 @@ export default function AssessmentBuilder() {
       acquire_threshold: 0, // Pontos necessários para obter o nível
       not_acquired_title: '', // Para mode='multi': título quando não conquista
       not_acquired_description: '', // Para mode='multi': descrição quando não conquista
-      questions: []
+      questions: [],
+      ranges: [] // Faixas de interpretação baseadas na pontuação bruta do nível
     };
     setLevels(prev => [...prev, newLevel]);
+  };
+
+  const handleUpdateLevel = (levelIndex, updates) => {
+    const updated = [...levels];
+    updated[levelIndex] = { ...updated[levelIndex], ...updates };
+    setLevels(updated);
   };
 
   const handleRemoveLevel = (levelIndex) => {
@@ -817,6 +840,7 @@ export default function AssessmentBuilder() {
             introduction_html: introductionHtml,
             final_reflection: finalReflection || null,
             result_introduction: resultIntroduction || null,
+            pre_assessment_fields: preAssessmentFields.length > 0 ? preAssessmentFields : null,
             no_level_achieved_title: noLevelAchievedTitle || null,
             no_level_achieved_description: noLevelAchievedDescription || null,
             visualization_type: assessmentDataEdited.visualization_type || '["radar"]'
@@ -845,7 +869,7 @@ export default function AssessmentBuilder() {
           : 0;
         const nextVersionNumber = maxVersionNumber + 1;
         
-        // 2. Criar nova versão com campos de não conquista
+        // 2. Criar nova versão com campos de não conquista e pre_assessment_fields
         const { data: newVerData, error: newVerError } = await supabase
           .from('assessment_versions')
           .insert([{
@@ -857,6 +881,7 @@ export default function AssessmentBuilder() {
             introduction_html: introductionHtml,
             final_reflection: finalReflection || null,
             result_introduction: resultIntroduction || null,
+            pre_assessment_fields: preAssessmentFields.length > 0 ? preAssessmentFields : null,
             no_level_achieved_title: noLevelAchievedTitle || null,
             no_level_achieved_description: noLevelAchievedDescription || null,
             visualization_type: assessmentDataEdited.visualization_type || '["radar"]'
@@ -942,7 +967,44 @@ export default function AssessmentBuilder() {
         if (levelError) throw levelError;
         const levelId = levelData.id;
 
-        // 6. Salvar Questions deste level
+        // 6. Salvar Level Ranges (se houver)
+        if (level.ranges && level.ranges.length > 0) {
+          const levelRangesData = level.ranges
+            .filter(r => {
+              const label = String(r.label || '').trim();
+              const minScore = r.min_score !== undefined && r.min_score !== null && r.min_score !== '' 
+                ? Number(r.min_score) 
+                : null;
+              const maxScore = r.max_score !== undefined && r.max_score !== null && r.max_score !== '' 
+                ? Number(r.max_score) 
+                : null;
+              
+              const hasLabel = label.length > 0;
+              const hasValidMinScore = !isNaN(minScore) && minScore !== null;
+              const hasValidMaxScore = !isNaN(maxScore) && maxScore !== null;
+              const isValidRange = hasValidMinScore && hasValidMaxScore && minScore <= maxScore;
+              
+              return hasLabel && isValidRange;
+            })
+            .map(r => ({
+              assessment_level_id: levelId,
+              min_score: Number(r.min_score),
+              max_score: Number(r.max_score),
+              label: String(r.label || '').trim(),
+              interpretation: String(r.interpretation || '').trim()
+            }));
+
+          if (levelRangesData.length > 0) {
+            const { error: levelRangesError } = await supabase
+              .from('assessment_level_ranges')
+              .insert(levelRangesData);
+
+            if (levelRangesError) throw levelRangesError;
+            console.log(`✅ ${levelRangesData.length} faixa(s) de interpretação salva(s) para o nível "${level.name}"`);
+          }
+        }
+
+        // 7. Salvar Questions deste level
         for (const question of level.questions) {
           const { data: questionData, error: questionError } = await supabase
             .from('questions')
@@ -959,7 +1021,7 @@ export default function AssessmentBuilder() {
           if (questionError) throw questionError;
           const questionId = questionData.id;
 
-          // 7. Salvar Alternatives desta question
+          // 8. Salvar Alternatives desta question
           for (const alt of question.alternatives) {
             const { error: altError } = await supabase
               .from('alternatives')
@@ -976,7 +1038,7 @@ export default function AssessmentBuilder() {
         }
       }
 
-      // 8. Finalizar e decidir se publica a versão
+      // 9. Finalizar e decidir se publica a versão
       const finalAssessmentId = selectedAssessment === 'new' ? targetAssessmentId : selectedAssessment;
       
       // Buscar dados da versão criada para mostrar número
@@ -1093,6 +1155,7 @@ export default function AssessmentBuilder() {
             introduction_html: introductionHtml,
             final_reflection: finalReflection || null,
             result_introduction: resultIntroduction || null,
+            pre_assessment_fields: preAssessmentFields.length > 0 ? preAssessmentFields : null,
             visualization_type: assessmentDataEdited.visualization_type || '["radar"]'
           }])
           .select()
@@ -2024,15 +2087,13 @@ Deseja continuar?`;
                     </button>
                   </div>
                   <p className="text-sm text-gray-600 mb-6">
-                    Campos demográficos e contextuais coletados antes do assessment.
+                    Campos customizados coletados antes do início do assessment. Utilize para capturar informações contextuais como nome da empresa, segmento, número de colaboradores, etc.
                   </p>
                   
-                  {/* Pre-assessment fields editor could go here */}
-                  <div className="p-4 bg-blue-50/50 rounded-xl border border-blue-200">
-                    <p className="text-sm text-gray-700">
-                      Campos de pré-assessment serão configurados aqui (ex: idade, gênero, cargo, etc.)
-                    </p>
-                  </div>
+                  <PreAssessmentFieldsEditor 
+                    fields={preAssessmentFields}
+                    onChange={setPreAssessmentFields}
+                  />
                 </div>
               )}
 
@@ -2962,6 +3023,13 @@ Deseja continuar?`;
                             Nenhuma questão adicionada neste nível.
                           </div>
                         )}
+
+                        {/* Editor de Faixas de Interpretação por Nível */}
+                        <LevelRangesEditor
+                          level={level}
+                          levelIndex={levelIdx}
+                          onUpdate={handleUpdateLevel}
+                        />
                       </div>
                     ))}
                   </div>

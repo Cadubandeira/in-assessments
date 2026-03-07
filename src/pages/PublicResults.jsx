@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Share2, ArrowRight, ToolCase, Zap, Check, X, Download } from 'lucide-react';
+import { Share2, ArrowRight, ToolCase, Zap, Check, X, Download, ChevronDown, ChevronUp } from 'lucide-react';
 import XPRewardWidget from '../components/XPRewardWidget';
 import CallToActionCardLong from '../components/CallToActionCardLong';
 import { supabase } from '../supabaseClient';
@@ -27,6 +27,13 @@ const generateInterpretationFallback = (name, percentage) => {
     return `O indicador ${name} apresenta nível moderado, com oportunidades claras de melhoria.`;
   return `O indicador ${name} apresenta nível saudável e consistente.`;
 };
+
+const textFadeOutStyles = `
+  .text-fade-out {
+    -webkit-mask-image: linear-gradient(to bottom, black 60%, transparent 100%);
+    mask-image: linear-gradient(to bottom, black 60%, transparent 100%);
+  }
+`;
 
 // Função para classificar com base nas ranges do banco
 const getClassificationFromRanges = (score, maxScore, ranges, indicatorName) => {
@@ -88,8 +95,11 @@ export default function PublicResults() {
   const [levelMode, setLevelMode] = useState(null);
   const [levels, setLevels] = useState([]);
   const [levelResults, setLevelResults] = useState({});
+  const [levelRanges, setLevelRanges] = useState({}); // { level_id: [ranges] }
   const [noLevelAchievedTitle, setNoLevelAchievedTitle] = useState('');
   const [noLevelAchievedDescription, setNoLevelAchievedDescription] = useState('');
+  const [expandedIndicatorInterpretations, setExpandedIndicatorInterpretations] = useState({});
+  const [truncatedIndicatorInterpretations, setTruncatedIndicatorInterpretations] = useState({});
 
   useEffect(() => {
     // Removido: let mounted = true; (não necessário para página pública)
@@ -195,13 +205,64 @@ export default function PublicResults() {
               if (!levelsError && levelsData) {
                 setLevels(levelsData);
 
-                // Calcular resultados de níveis
+                // Carregar ranges de interpretação para cada nível
+                const levelIds = levelsData.map(l => l.id);
+                if (levelIds.length > 0) {
+                  try {
+                    const { data: rangesData, error: rangesError } = await supabase
+                      .from('assessment_level_ranges')
+                      .select('*')
+                      .in('assessment_level_id', levelIds)
+                      .order('min_score', { ascending: true });
+
+                    if (rangesData && !rangesError) {
+                      const rangesMap = {};
+                      rangesData.forEach(range => {
+                        if (!rangesMap[range.assessment_level_id]) {
+                          rangesMap[range.assessment_level_id] = [];
+                        }
+                        rangesMap[range.assessment_level_id].push(range);
+                      });
+                      setLevelRanges(rangesMap);
+                    }
+                  } catch (err) {
+                    // Tabela pode não existir ainda - continuar sem ranges
+                    console.warn('Não foi possível carregar ranges de níveis:', err);
+                  }
+                }
+
+                // 1) Fonte principal: cálculo server-side (mais confiável em links públicos)
+                try {
+                  const { data: rpcLevelResults, error: rpcError } = await supabase
+                    .rpc('get_public_level_results', { p_event_id: data.id });
+
+                  if (!rpcError && rpcLevelResults && typeof rpcLevelResults === 'object') {
+                    const rpcHasAnyScore = Object.values(rpcLevelResults).some(
+                      (item) => (Number(item?.levelScore) || 0) > 0 || (Number(item?.potentialScore) || 0) > 0
+                    );
+
+                    if (rpcHasAnyScore) {
+                      setLevelResults(rpcLevelResults);
+                      console.warn('PublicResults: resultados de níveis carregados via RPC.', {
+                        eventId: data.id,
+                        levelsCount: Object.keys(rpcLevelResults).length
+                      });
+                      return;
+                    }
+                  } else if (rpcError) {
+                    console.warn('PublicResults: erro ao executar RPC de níveis:', rpcError);
+                  }
+                } catch (rpcException) {
+                  console.warn('PublicResults: exceção ao executar RPC de níveis:', rpcException);
+                }
+
+                // 2) Fallback client-side (mantido por segurança)
                 const levelResultsMap = {};
                 const answersData = data.answers_snapshot || {};
-                
+
                 if (levelsData.length > 0) {
                   for (const level of levelsData) {
-                    const { data: questionsData } = await supabase
+                    const { data: questionsData, error: questionsError } = await supabase
                       .from('questions')
                       .select(`
                         id,
@@ -214,6 +275,13 @@ export default function PublicResults() {
                       `)
                       .eq('level_id', level.id);
 
+                    if (questionsError) {
+                      console.warn('Erro ao carregar perguntas do nível em PublicResults:', {
+                        levelId: level.id,
+                        error: questionsError
+                      });
+                    }
+
                     let levelScore = 0;
                     let potentialScore = 0;
                     let maxLevelScore = 0;
@@ -222,26 +290,37 @@ export default function PublicResults() {
                     if (questionsData) {
                       questionsData.forEach(question => {
                         const answer = answersData[question.id];
-                        
+
                         let questionMaxLevel = 0;
                         let questionMaxPotential = 0;
-                        
+
                         question.alternatives.forEach(alt => {
                           const altTarget = alt.score_target || 'level';
                           const altScore = parseFloat(alt.score_value) || 0;
-                          
+
                           if (altTarget === 'level' && altScore > questionMaxLevel) {
                             questionMaxLevel = altScore;
                           } else if (altTarget === 'potential' && altScore > questionMaxPotential) {
                             questionMaxPotential = altScore;
                           }
                         });
-                        
+
                         maxLevelScore += questionMaxLevel;
                         maxPotentialScore += questionMaxPotential;
 
                         if (answer !== undefined && answer !== null) {
-                          const selectedAlternative = question.alternatives.find(alt => alt.score_value == answer);
+                          const answerNumeric = Number(answer);
+                          const selectedAlternative = question.alternatives.find(alt => {
+                            if (alt.id == answer || alt.score_value == answer) return true;
+
+                            const altNumeric = Number(alt.score_value);
+                            if (!Number.isNaN(answerNumeric) && !Number.isNaN(altNumeric)) {
+                              return altNumeric === answerNumeric;
+                            }
+
+                            return false;
+                          });
+
                           if (selectedAlternative) {
                             const scoreValue = parseFloat(selectedAlternative.score_value) || 0;
                             const scoreTarget = selectedAlternative.score_target || 'level';
@@ -400,6 +479,45 @@ export default function PublicResults() {
     fetchResult();
     return () => {};
   }, [id]);
+
+  useEffect(() => {
+    if (loading || assessmentSchema === 'niveis') return;
+
+    let rafId;
+
+    const checkIndicatorTruncation = () => {
+      rafId = window.requestAnimationFrame(() => {
+        const nodes = document.querySelectorAll('[data-indicator-interpretation-key]');
+        const newTruncated = {};
+
+        nodes.forEach((node) => {
+          const key = node.getAttribute('data-indicator-interpretation-key');
+          if (!key) return;
+
+          const originalClass = node.className;
+          node.className = originalClass.replace(/line-clamp-\d+/g, '').replace(/text-fade-out/g, '');
+
+          const fullHeight = node.scrollHeight;
+          const computedStyle = window.getComputedStyle(node);
+          const lineHeight = parseFloat(computedStyle.lineHeight) || 24;
+          const maxHeight = lineHeight * 5;
+
+          node.className = originalClass;
+          newTruncated[key] = fullHeight > (maxHeight + 1);
+        });
+
+        setTruncatedIndicatorInterpretations(newTruncated);
+      });
+    };
+
+    checkIndicatorTruncation();
+    window.addEventListener('resize', checkIndicatorTruncation);
+
+    return () => {
+      if (rafId) window.cancelAnimationFrame(rafId);
+      window.removeEventListener('resize', checkIndicatorTruncation);
+    };
+  }, [loading, assessmentSchema, result, expandedIndicatorInterpretations]);
 
   useEffect(() => {
     // Só buscar sugestões se não estivermos vendo um resultado público específico
@@ -568,8 +686,16 @@ export default function PublicResults() {
     return value?.name || meta?.name || key;
   };
 
+  const toggleIndicatorInterpretation = (key) => {
+    setExpandedIndicatorInterpretations((prev) => ({
+      ...prev,
+      [key]: !prev[key]
+    }));
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#F5F3EC] to-[#EEF2FF]">
+      <style>{textFadeOutStyles}</style>
       {/* XP Overlay - Mesmo componente do Assessment */}
       {xpOverlayData && (
         <ScenarioXPOverlay
@@ -632,32 +758,29 @@ export default function PublicResults() {
                 <p className="text-[#4F46E5] font-bold text-xs uppercase tracking-widest mb-3">
                   Introdução
                 </p>
-                <div className="relative">
+                <div>
                   <div
                     className={`prose prose-sm mt-6 sm:text-lg sm:prose-base max-w-none text-gray-700 leading-relaxed text-justify [text-align-last:left] overflow-hidden transition-all duration-300 ${
-                      expandedIntroduction ? '' : 'line-clamp-5'
+                      expandedIntroduction ? '' : 'line-clamp-5 text-fade-out'
                     }`}
                     dangerouslySetInnerHTML={{ __html: introductionText }}
                   />
                   {!expandedIntroduction && (
-                    <>
-                      <div className="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-white/80 to-transparent pointer-events-none rounded-lg"></div>
-                      <button
-                        type="button"
-                        onClick={() => setExpandedIntroduction(true)}
-                        className="absolute bottom-6 left-1/2 transform -translate-x-1/2 px-4 py-2 bg-[#4F46E5] text-white font-semibold rounded-lg hover:bg-[#4338CA] transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-[#6366F1]"
-                      >
-                        Ver mais
-                      </button>
-                    </>
+                    <button
+                      type="button"
+                      onClick={() => setExpandedIntroduction(true)}
+                      className="mt-2 text-[#4F46E5] font-semibold text-base hover:opacity-90 transition-opacity flex items-center gap-1"
+                    >
+                      Ver mais <ChevronDown size={16} />
+                    </button>
                   )}
                   {expandedIntroduction && (
                     <button
                       type="button"
                       onClick={() => setExpandedIntroduction(false)}
-                      className="mt-4 mx-auto block px-4 py-2 bg-gray-200 text-gray-700 font-semibold rounded-lg hover:bg-gray-300 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-gray-400"
+                      className="mt-3 text-[#4F46E5] font-semibold text-base hover:opacity-90 transition-opacity flex items-center gap-1"
                     >
-                      Ver menos
+                      Ver menos <ChevronUp size={16} />
                     </button>
                   )}
                 </div>
@@ -706,6 +829,7 @@ export default function PublicResults() {
                 levelResults={levelResults}
                 levelMode={levelMode}
                 levels={levels}
+                levelRanges={levelRanges}
                 noLevelAchievedTitle={noLevelAchievedTitle}
                 noLevelAchievedDescription={noLevelAchievedDescription}
               />
@@ -747,6 +871,7 @@ export default function PublicResults() {
                 .map(([key, value]) => {
                   const meta = resolveMeta(key, value);
                   const displayName = resolveName(key, value);
+                  const indicatorKey = String(key);
                   const IndicatorIcon = meta?.icon ? getLucideIcon(meta.icon) : null;
                   const badgeStyle = getIndicatorBadgeStyle(value.percentage);
                   return (
@@ -802,9 +927,38 @@ export default function PublicResults() {
                           <p className="text-2xl font-semibold text-[#1E1B4B] mt-2">{value.percentage}%</p>
                         </div>
                       </div>
-                      <p className="mt-6 text-base sm:text-lg text-gray-700 leading-relaxed text-justify [text-align-last:left]">
-                        {value.interpretation}
-                      </p>
+                      <div className="mt-6">
+                        <p
+                          data-indicator-interpretation-key={indicatorKey}
+                          className={`text-base sm:text-lg text-gray-700 leading-relaxed text-justify [text-align-last:left] ${
+                            expandedIndicatorInterpretations[indicatorKey]
+                              ? ''
+                              : truncatedIndicatorInterpretations[indicatorKey]
+                                ? 'line-clamp-5 text-fade-out'
+                                : ''
+                          }`}
+                        >
+                          {value.interpretation}
+                        </p>
+
+                        {truncatedIndicatorInterpretations[indicatorKey] && !expandedIndicatorInterpretations[indicatorKey] && (
+                          <button
+                            onClick={() => toggleIndicatorInterpretation(indicatorKey)}
+                            className="mt-2 text-[#4F46E5] font-semibold text-base hover:opacity-90 transition-opacity"
+                          >
+                            Ver mais
+                          </button>
+                        )}
+
+                        {expandedIndicatorInterpretations[indicatorKey] && (
+                          <button
+                            onClick={() => toggleIndicatorInterpretation(indicatorKey)}
+                            className="mt-3 text-[#4F46E5] font-semibold text-base hover:opacity-90 transition-opacity"
+                          >
+                            Ver menos
+                          </button>
+                        )}
+                      </div>
                     </div>
                   );
                 })}
@@ -813,7 +967,7 @@ export default function PublicResults() {
           </div>
 
           {/* Coluna Lateral (aderente no desktop) */}
-          {Object.keys(indicatorResults).length > 0 && (
+          {(id || Object.keys(indicatorResults).length > 0) && (
             <>
               {id ? (
                 // Versão pública/compartilhada
