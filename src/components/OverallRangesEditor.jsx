@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Trash2, Plus } from 'lucide-react';
+import RichTextEditor from './RichTextEditor';
 
 const OverallRangesEditor = ({ ranges, onChange }) => {
   const [newRange, setNewRange] = useState({
@@ -128,12 +129,11 @@ const OverallRangesEditor = ({ ranges, onChange }) => {
                 <label className="text-xs font-semibold text-gray-600 uppercase block mb-1">
                   Interpretação (opcional)
                 </label>
-                <textarea
-                  value={range.interpretation}
-                  onChange={(e) => handleUpdateRange(range.id, 'interpretation', e.target.value)}
+                <RichTextEditor
+                  value={range.interpretation || ''}
+                  onChange={(value) => handleUpdateRange(range.id, 'interpretation', value)}
                   placeholder="Descrição da faixa..."
-                  rows={3}
-                  className="w-full p-2 border border-gray-300 rounded text-sm"
+                  maxHeight={300}
                 />
               </div>
 
@@ -197,12 +197,11 @@ const OverallRangesEditor = ({ ranges, onChange }) => {
           <label className="text-xs font-semibold text-gray-600 uppercase block mb-1">
             Interpretação (Opcional)
           </label>
-          <textarea
-            value={newRange.interpretation}
-            onChange={(e) => setNewRange({ ...newRange, interpretation: e.target.value })}
+          <RichTextEditor
+            value={newRange.interpretation || ''}
+            onChange={(value) => setNewRange({ ...newRange, interpretation: value })}
             placeholder="Descrição..."
-            rows={2}
-            className="w-full p-2 border border-gray-300 rounded text-sm"
+            maxHeight={300}
           />
         </div>
 

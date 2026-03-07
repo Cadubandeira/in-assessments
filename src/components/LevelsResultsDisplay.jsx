@@ -52,6 +52,104 @@ const textFadeOutStyles = `
     -webkit-mask-image: linear-gradient(to bottom, black 60%, transparent 100%);
     mask-image: linear-gradient(to bottom, black 60%, transparent 100%);
   }
+
+  .level-rich-content,
+  .level-rich-content-dark {
+    line-height: 1.7;
+  }
+
+  .level-rich-content p,
+  .level-rich-content-dark p {
+    margin: 0 0 0.75rem 0;
+  }
+
+  .level-rich-content p:last-child,
+  .level-rich-content-dark p:last-child {
+    margin-bottom: 0;
+  }
+
+  .level-rich-content ul,
+  .level-rich-content-dark ul {
+    list-style-type: disc;
+    padding-left: 1.25rem;
+    margin: 0.6rem 0;
+  }
+
+  .level-rich-content ol,
+  .level-rich-content-dark ol {
+    list-style-type: decimal;
+    padding-left: 1.25rem;
+    margin: 0.6rem 0;
+  }
+
+  .level-rich-content li,
+  .level-rich-content-dark li {
+    margin: 0.25rem 0;
+  }
+
+  .level-rich-content.ProseMirror strong,
+  .level-rich-content.ProseMirror b,
+  .level-rich-content-dark.ProseMirror strong,
+  .level-rich-content-dark.ProseMirror b {
+    font-weight: 700 !important;
+  }
+
+  .level-rich-content.ProseMirror span[style*="font-weight"],
+  .level-rich-content-dark.ProseMirror span[style*="font-weight"] {
+    font-weight: 700 !important;
+  }
+
+  .level-rich-content em,
+  .level-rich-content-dark em {
+    font-style: italic;
+  }
+
+  .level-rich-content h1,
+  .level-rich-content h2,
+  .level-rich-content h3,
+  .level-rich-content-dark h1,
+  .level-rich-content-dark h2,
+  .level-rich-content-dark h3 {
+    font-weight: 700;
+    line-height: 1.25;
+    margin: 0.8rem 0 0.45rem;
+  }
+
+  .level-rich-content h1,
+  .level-rich-content-dark h1 {
+    font-size: 1.35rem;
+  }
+
+  .level-rich-content h2,
+  .level-rich-content-dark h2 {
+    font-size: 1.2rem;
+  }
+
+  .level-rich-content h3,
+  .level-rich-content-dark h3 {
+    font-size: 1.05rem;
+  }
+
+  .level-rich-content a,
+  .level-rich-content-dark a {
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+
+  .level-rich-content { color: #FFFFFF; }
+  .level-rich-content ul,
+  .level-rich-content ol,
+  .level-rich-content li,
+  .level-rich-content h1,
+  .level-rich-content h2,
+  .level-rich-content h3,
+  .level-rich-content strong,
+  .level-rich-content b,
+  .level-rich-content em,
+  .level-rich-content a,
+  .level-rich-content p { color: #FFFFFF; }
+
+  .level-rich-content-dark { color: #374151; }
 `;
 
 // Função para gerar estilo do badge baseado na porcentagem
@@ -105,7 +203,7 @@ function LevelCardAnimated({ level, expandedLevelId, setExpandedLevelId }) {
             
             // Calcular altura de 5 linhas
             const computedStyle = window.getComputedStyle(element);
-            const lineHeight = parseFloat(computedStyle.lineHeight);
+            const lineHeight = parseFloat(computedStyle.lineHeight) || 24;
             const maxHeight = lineHeight * 5;
             
             // Restaurar classes originais
@@ -212,7 +310,7 @@ export default function LevelsResultsDisplay({ levelResults, levelMode, levels, 
   // Detectar se o texto está truncado (modo single)
   useEffect(() => {
     const checkTruncation = () => {
-      if (descriptionRef.current && achievedLevels.length > 0) {
+      if (descriptionRef.current) {
         // Pequeno delay para garantir que o layout CSS esteja estabilizado
         setTimeout(() => {
           if (descriptionRef.current) {
@@ -228,7 +326,7 @@ export default function LevelsResultsDisplay({ levelResults, levelMode, levels, 
             
             // Calcular altura de 5 linhas
             const computedStyle = window.getComputedStyle(element);
-            const lineHeight = parseFloat(computedStyle.lineHeight);
+            const lineHeight = parseFloat(computedStyle.lineHeight) || 24;
             const maxHeight = lineHeight * 5;
             
             // Restaurar classes originais
@@ -341,6 +439,23 @@ export default function LevelsResultsDisplay({ levelResults, levelMode, levels, 
       {levelMode === 'single' && 
         (() => {
           const highestLevel = achievedLevels.length > 0 ? achievedLevels[0] : null;
+          const singleLevelCardData = highestLevel
+            ? {
+                levelId: highestLevel.level_id,
+                label: 'Nível obtido',
+                title: highestLevel.name,
+                description: highestLevel.description,
+                icon: 'level',
+                cardBg: generateColorFromName(highestLevel.name).bg,
+              }
+            : {
+                levelId: 'level-zero',
+                label: 'Nível 0',
+                title: noLevelAchievedTitle || 'Quando não conquistar nenhum nível',
+                description: noLevelAchievedDescription,
+                icon: 'stop',
+                cardBg: generateColorFromName('Nível 0').bg,
+              };
 
           // Preparar dados para o radar chart - TODOS os níveis
           const radarData = {};
@@ -386,48 +501,48 @@ export default function LevelsResultsDisplay({ levelResults, levelMode, levels, 
 
           return (
             <div className="mt-8 space-y-6 sm:space-y-8">
-              {/* Card de destaque - nível mais alto conquistado (se houver) */}
-              {highestLevel && (
+              {/* Card de destaque - nível mais alto conquistado ou Nível 0 */}
+              {singleLevelCardData && (
                 <>
                   <div className="flex justify-center mb-6">
                     <div className="text-8xl select-none">
-                      {generateEmojiFromName(highestLevel.name)}
+                      {singleLevelCardData.icon === 'stop' ? '🛑' : generateEmojiFromName(singleLevelCardData.title)}
                     </div>
                   </div>
 
-                  <div className={`rounded-2xl p-5 sm:p-6 shadow-lg bg-gradient-to-br ${generateColorFromName(highestLevel.name).bg} relative`}>
+                  <div className={`rounded-2xl p-5 sm:p-6 shadow-lg bg-gradient-to-br ${singleLevelCardData.cardBg} relative`}>
                     <p className="text-white font-bold text-xs uppercase tracking-widest mb-4">
-                      Nível obtido
+                      {singleLevelCardData.label}
                     </p>
 
-                    <h2 className={`text-2xl sm:text-3xl font-bold text-white leading-tight mb-6 ${TOKENS.fonts.serif}`}>
-                      {highestLevel.name}
-                    </h2>
+                    <div
+                      className={`level-rich-content ProseMirror text-2xl sm:text-3xl leading-tight mb-6 ${TOKENS.fonts.serif}`}
+                      dangerouslySetInnerHTML={{ __html: singleLevelCardData.title || '' }}
+                    />
 
                     <div>
-                      <p 
+                      <div
                         ref={descriptionRef}
-                        className={`text-white leading-relaxed text-base ${
-                          expandedLevelId === highestLevel.level_id 
+                        className={`level-rich-content ProseMirror text-base sm:text-lg ${
+                          expandedLevelId === singleLevelCardData.levelId 
                             ? '' 
                             : isTruncated 
                               ? 'line-clamp-5 text-fade-out' 
                               : ''
                         }`}
-                      >
-                        {highestLevel.description}
-                      </p>
+                        dangerouslySetInnerHTML={{ __html: singleLevelCardData.description || '' }}
+                      />
                       
-                      {highestLevel.description && isTruncated && expandedLevelId !== highestLevel.level_id && (
+                      {singleLevelCardData.description && isTruncated && expandedLevelId !== singleLevelCardData.levelId && (
                         <button
-                          onClick={() => setExpandedLevelId(highestLevel.level_id)}
+                          onClick={() => setExpandedLevelId(singleLevelCardData.levelId)}
                           className="mt-2 text-white font-semibold text-base hover:opacity-90 transition-opacity flex items-center gap-1"
                         >
                           Ver mais <ChevronDown size={16} />
                         </button>
                       )}
                       
-                      {expandedLevelId === highestLevel.level_id && (
+                      {expandedLevelId === singleLevelCardData.levelId && (
                         <button
                           onClick={() => setExpandedLevelId(null)}
                           className="mt-3 text-white font-semibold text-base hover:opacity-90 transition-opacity flex items-center gap-1"
@@ -574,18 +689,17 @@ export default function LevelsResultsDisplay({ levelResults, levelMode, levels, 
                             {/* Interpretação com truncamento */}
                             {interpretation && interpretation.interpretation && (
                               <div className="mt-4">
-                                <p 
+                                <div
                                   ref={el => interpretationRefs.current[level.id] = el}
-                                  className={`text-base sm:text-lg text-gray-700 leading-relaxed text-justify [text-align-last:left] ${
+                                  className={`level-rich-content-dark ProseMirror text-base sm:text-lg leading-relaxed text-justify [text-align-last:left] ${
                                     expandedInterpretations[level.id]
                                       ? '' 
                                       : truncatedInterpretations[level.id]
                                         ? 'line-clamp-5 text-fade-out' 
                                         : ''
                                   }`}
-                                >
-                                  {interpretation.interpretation}
-                                </p>
+                                  dangerouslySetInnerHTML={{ __html: interpretation.interpretation || '' }}
+                                />
                                 
                                 {/* "Ver mais" quando truncado e não expandido */}
                                 {truncatedInterpretations[level.id] && !expandedInterpretations[level.id] && (
@@ -858,18 +972,17 @@ export default function LevelsResultsDisplay({ levelResults, levelMode, levels, 
                               {/* Interpretação com truncamento */}
                               {interpretation && interpretation.interpretation && (
                                 <div className="mt-4">
-                                  <p 
+                                  <div
                                     ref={el => interpretationRefs.current[level.id] = el}
-                                    className={`text-base sm:text-lg text-gray-700 leading-relaxed text-justify [text-align-last:left] ${
+                                    className={`level-rich-content-dark ProseMirror text-base sm:text-lg leading-relaxed text-justify [text-align-last:left] ${
                                       expandedInterpretations[level.id]
                                         ? '' 
                                         : truncatedInterpretations[level.id]
                                           ? 'line-clamp-5 text-fade-out' 
                                           : ''
                                     }`}
-                                  >
-                                    {interpretation.interpretation}
-                                  </p>
+                                    dangerouslySetInnerHTML={{ __html: interpretation.interpretation || '' }}
+                                  />
                                   
                                   {/* "Ver mais" quando truncado e não expandido */}
                                   {truncatedInterpretations[level.id] && !expandedInterpretations[level.id] && (

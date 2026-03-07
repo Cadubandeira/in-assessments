@@ -3,7 +3,7 @@ import { supabase } from '../../supabaseClient';
 import { useUserRole } from '../../hooks/useUserRole';
 import { useNavigate } from 'react-router-dom';
 import { Plus, Trash2, ArrowLeft, Save, GitBranch, Sparkles, X } from 'lucide-react';
-import IntroductionEditor from '../../components/IntroductionEditor';
+import RichTextEditor from '../../components/RichTextEditor';
 import OverallRangesEditor from '../../components/OverallRangesEditor';
 import AssessmentElementsModal from '../../components/AssessmentElementsModal';
 import AssessmentBuilderSkeleton from '../../components/skeletons/admin/AssessmentBuilderSkeleton';
@@ -70,7 +70,23 @@ export default function AssessmentBuilder() {
   const [elementToRemove, setElementToRemove] = useState(null);
   const [removeConfirmed, setRemoveConfirmed] = useState(false);
 
+  // Helper: derive active elements from loaded version data
+  const deriveActiveElements = (versionData) => {
+    const hasContent = (str) => {
+      if (!str) return false;
+      const trimmed = String(str).trim();
+      // Check for empty HTML tags like <p></p>, <p><br></p>, etc.
+      const withoutEmptyTags = trimmed.replace(/<p>\s*(<br\s*\/?>)?\s*<\/p>/gi, '').trim();
+      return withoutEmptyTags.length > 0;
+    };
 
+    return {
+      introduction: hasContent(versionData?.introduction_html),
+      preAssessment: Array.isArray(versionData?.pre_assessment_fields) && versionData.pre_assessment_fields.length > 0,
+      resultIntroduction: hasContent(versionData?.result_introduction),
+      finalReflection: hasContent(versionData?.final_reflection)
+    };
+  };
 
   useEffect(() => {
     if (!roleLoading && role !== 'admin') {
@@ -106,12 +122,32 @@ export default function AssessmentBuilder() {
   }, [role, roleLoading, navigate]);
 
   const handleSelectAssessment = async (assessmentId) => {
+    // Create stable reference to check if this selection is still active
+    const selectionId = Date.now();
+    let currentSelectionId = selectionId;
+
     setSelectedAssessment(assessmentId);
     setSelectedIndicators([]);
     setRanges({});
     setAssessmentData(null);
     setAssessmentIndicatorsData([]);
     setQuestionsData([]);
+    
+    // Reset optional state consistently
+    setIntroductionHtml('');
+    setFinalReflection('');
+    setResultIntroduction('');
+    setPreAssessmentFields([]);
+    setNoLevelAchievedTitle('');
+    setNoLevelAchievedDescription('');
+    setAssessmentElements({
+      introduction: false,
+      preAssessment: false,
+      resultIntroduction: false,
+      finalReflection: false
+    });
+    setLevels([]);
+    setOverallRanges([]);
 
     try {
       // 1. Buscar dados do assessment
@@ -167,6 +203,12 @@ export default function AssessmentBuilder() {
         // Carregar indicadores (existente)
         await loadVersionIndicators(activeVer.id, assessmentId);
       }
+      
+      // Check if this selection is still active (not replaced by rapid switching)
+      if (currentSelectionId !== selectionId) {
+        console.warn('Assessment selection changed during load, discarding stale data');
+        return;
+      }
     } catch (err) {
       console.error('Erro ao carregar assessment:', err);
       alert('Erro ao carregar assessment: ' + err.message);
@@ -194,6 +236,17 @@ export default function AssessmentBuilder() {
     setOverallRanges([]);
     setIntroductionHtml('');
     setFinalReflection('');
+    setResultIntroduction('');
+    setPreAssessmentFields([]);
+    setNoLevelAchievedTitle('');
+    setNoLevelAchievedDescription('');
+    setAssessmentElements({
+      introduction: false,
+      preAssessment: false,
+      resultIntroduction: false,
+      finalReflection: false
+    });
+    setLevels([]);
     setAssessmentIndicatorsData([]);
     setQuestionsData([]);
   };
@@ -226,6 +279,10 @@ export default function AssessmentBuilder() {
       setFinalReflection(versionData.final_reflection || '');
       setResultIntroduction(versionData.result_introduction || '');
       setPreAssessmentFields(versionData.pre_assessment_fields || []);
+      
+      // Derive and set active elements based on loaded content
+      const activeElements = deriveActiveElements(versionData);
+      setAssessmentElements(activeElements);
     }
 
     // Buscar overall_ranges
@@ -346,6 +403,10 @@ export default function AssessmentBuilder() {
         if (versionData.level_mode) {
           setLevelMode(versionData.level_mode);
         }
+        
+        // Derive and set active elements based on loaded content
+        const activeElements = deriveActiveElements(versionData);
+        setAssessmentElements(activeElements);
       }
 
       // Buscar overall_ranges
@@ -2065,9 +2126,10 @@ Deseja continuar?`;
                       <X className="w-5 h-5" />
                     </button>
                   </div>
-                  <IntroductionEditor 
+                  <RichTextEditor 
                     value={introductionHtml}
                     onChange={setIntroductionHtml}
+                    placeholder="Digite a introdução do assessment aqui..."
                   />
                 </div>
               )}
@@ -2114,11 +2176,10 @@ Deseja continuar?`;
                   <p className="text-sm text-gray-600 mb-6">
                     Texto opcional exibido no topo da página de resultado do assessment.
                   </p>
-                  <IntroductionEditor
+                  <RichTextEditor
                     value={resultIntroduction}
                     onChange={setResultIntroduction}
-                    label="Introdução ao resultado"
-                    placeholder="Escreva uma introdução para o resultado (HTML permitido)..."
+                    placeholder="Escreva uma introdução para o resultado..."
                   />
                 </div>
               )}
@@ -2140,11 +2201,10 @@ Deseja continuar?`;
                   <p className="text-sm text-gray-600 mb-6">
                     Texto opcional exibido ao final do resultado do assessment.
                   </p>
-                  <IntroductionEditor
+                  <RichTextEditor
                     value={finalReflection}
                     onChange={setFinalReflection}
-                    label="Reflexão final"
-                    placeholder="Escreva uma reflexão final para o usuário (HTML permitido)..."
+                    placeholder="Escreva uma reflexão final para o usuário..."
                   />
                 </div>
               )}
@@ -2360,16 +2420,15 @@ Deseja continuar?`;
                                         <label className="text-xs font-bold text-gray-500 uppercase tracking-wide block mb-2">
                                           Interpretação
                                         </label>
-                                        <textarea
+                                        <RichTextEditor
                                           value={assessmentIndicatorsEdited[idx]?.assessment_indicator_ranges[rIdx]?.interpretation || ''}
-                                          onChange={(e) => {
+                                          onChange={(value) => {
                                             const updated = [...assessmentIndicatorsEdited];
-                                            updated[idx].assessment_indicator_ranges[rIdx].interpretation = e.target.value;
+                                            updated[idx].assessment_indicator_ranges[rIdx].interpretation = value;
                                             setAssessmentIndicatorsEdited(updated);
                                           }}
-                                          rows={2}
                                           placeholder="Descreva a interpretação para scores nesta faixa..."
-                                          className="w-full p-3 border-2 border-gray-200 rounded-lg bg-white text-gray-700 text-sm focus:border-[#4F46E5] focus:outline-none transition-colors"
+                                          maxHeight={300}
                                         />
                                       </div>
                                     </div>

@@ -1,5 +1,6 @@
 import React from 'react';
 import { Plus, Trash2 } from 'lucide-react';
+import RichTextEditor from './RichTextEditor';
 
 export default function LevelRangesEditor({ level, levelIndex, onUpdate }) {
   const ranges = level.ranges || [];
@@ -109,12 +110,11 @@ export default function LevelRangesEditor({ level, levelIndex, onUpdate }) {
             <label className="block text-xs font-medium text-gray-600 mb-1">
               Interpretação
             </label>
-            <textarea
-              value={range.interpretation}
-              onChange={(e) => handleUpdateRange(idx, 'interpretation', e.target.value)}
+            <RichTextEditor
+              value={range.interpretation || ''}
+              onChange={(value) => handleUpdateRange(idx, 'interpretation', value)}
               placeholder="Texto explicativo para esta faixa de pontuação..."
-              rows={3}
-              className="w-full p-2 border border-gray-300 rounded-lg text-sm resize-none"
+              maxHeight={300}
             />
           </div>
         </div>
