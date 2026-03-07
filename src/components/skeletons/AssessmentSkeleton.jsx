@@ -4,19 +4,6 @@ import { SkeletonBase } from '../ui/Skeleton';
 const AssessmentSkeleton = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#F5F3EC] to-[#EEF2FF] overflow-x-hidden">
-      {/* Sticky Progress Bar - Replica estrutura exata */}
-      <div className="sticky top-0 z-10 bg-white/90 backdrop-blur-md border-b border-white/60 shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4">
-          <div className="flex items-center justify-between mb-2">
-            <SkeletonBase width="w-24" height="h-3" />
-            <SkeletonBase width="w-32" height="h-4" />
-          </div>
-          <div className="relative w-full bg-[#E0E7FF] h-3 rounded-full overflow-hidden">
-            <div className="absolute top-0 left-0 h-full w-1/3 bg-gradient-to-r from-[#4F46E5] via-[#6366F1] to-[#818CF8] rounded-full"></div>
-          </div>
-        </div>
-      </div>
-
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 pb-12 sm:pb-16">
         <div className="space-y-10 pt-8">
