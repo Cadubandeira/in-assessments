@@ -414,7 +414,7 @@ const Dashboard = ({ user }) => {
                       <div 
                         key={idx}
                         className="flex items-center gap-4 p-3 rounded-lg bg-gray-50 border border-transparent hover:border-[#4F46E5]/20 transition-colors cursor-pointer"
-                        onClick={() => navigate(`/results/${result.id || result.assessment_id}`)}
+                        onClick={() => navigate(`/results/${result.id || result.assessment_id}?from=history`)}
                       >
                         <div 
                           className={`w-12 h-12 rounded-full flex items-center justify-center text-white font-bold`}

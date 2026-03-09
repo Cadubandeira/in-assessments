@@ -7,6 +7,21 @@ import React from 'react';
 export default function LevelBadgeAlternative({ level, isAchieved = true }) {
   // Gerar cor determinística baseada no nome do nível
   const generateColorFromName = (name) => {
+    // Mapeamento específico para níveis Bronze, Prata, Ouro, Platina
+    const nameLower = name.toLowerCase();
+    if (nameLower.includes('bronze')) {
+      return { bg: 'from-amber-700 to-orange-800', text: 'text-amber-900', border: 'border-amber-600' };
+    }
+    if (nameLower.includes('prata')) {
+      return { bg: 'from-gray-300 to-gray-500', text: 'text-gray-900', border: 'border-gray-400' };
+    }
+    if (nameLower.includes('ouro')) {
+      return { bg: 'from-yellow-400 to-yellow-600', text: 'text-yellow-900', border: 'border-yellow-500' };
+    }
+    if (nameLower.includes('platina')) {
+      return { bg: 'from-slate-300 to-blue-400', text: 'text-slate-900', border: 'border-slate-400' };
+    }
+    
     const colors = [
       { bg: 'from-yellow-400 to-yellow-500', text: 'text-yellow-900', border: 'border-yellow-300' },
       { bg: 'from-blue-400 to-blue-500', text: 'text-blue-900', border: 'border-blue-300' },

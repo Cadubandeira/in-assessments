@@ -3,6 +3,21 @@ import { X } from 'lucide-react';
 
 // Função para gerar cor baseada no nome do nível
 const generateColorFromName = (name) => {
+  // Mapeamento específico para níveis Bronze, Prata, Ouro, Platina
+  const nameLower = name.toLowerCase();
+  if (nameLower.includes('bronze')) {
+    return { bg: 'bg-amber-100', border: 'border-amber-600', text: 'text-amber-800', glow: 'shadow-amber-600/30' };
+  }
+  if (nameLower.includes('prata')) {
+    return { bg: 'bg-gray-100', border: 'border-gray-400', text: 'text-gray-700', glow: 'shadow-gray-400/30' };
+  }
+  if (nameLower.includes('ouro')) {
+    return { bg: 'bg-yellow-100', border: 'border-yellow-500', text: 'text-yellow-800', glow: 'shadow-yellow-500/30' };
+  }
+  if (nameLower.includes('platina')) {
+    return { bg: 'bg-slate-100', border: 'border-slate-400', text: 'text-slate-800', glow: 'shadow-slate-400/30' };
+  }
+  
   const colors = [
     { bg: 'bg-yellow-100', border: 'border-yellow-400', text: 'text-yellow-700', glow: 'shadow-yellow-400/30' },
     { bg: 'bg-blue-100', border: 'border-blue-400', text: 'text-blue-700', glow: 'shadow-blue-400/30' },

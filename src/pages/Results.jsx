@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { Share2, ArrowRight, ToolCase, Zap, Check, X, Download, ChevronDown, ChevronUp } from 'lucide-react';
 import XPRewardWidget from '../components/XPRewardWidget';
 import CallToActionCardLong from '../components/CallToActionCardLong';
@@ -79,6 +79,8 @@ const getClassificationFromRanges = (score, maxScore, ranges, indicatorName) => 
 export default function Results() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const fromHistory = searchParams.get('from') === 'history';
   const { updateUserProgression } = useProgressionUpdate();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -156,8 +158,8 @@ export default function Results() {
           // Verificar se XP já foi concedido anteriormente
           const isFirstVisit = data.xp_awarded === false || data.xp_awarded === null;
           
-          // Atualizar progressão do usuário apenas na primeira visita
-          if (isFirstVisit) {
+          // Atualizar progressão do usuário apenas na primeira visita E quando NÃO vier do histórico
+          if (isFirstVisit && !fromHistory) {
             try {
               if (data?.total_score !== undefined && data?.max_possible_score !== undefined) {
                 const activityType = data.activity_type || 'assessment';

@@ -390,7 +390,7 @@ export default function History() {
                 <div 
                   key={item.id} 
                   className="group border border-white/70 rounded-2xl bg-white/90 backdrop-blur-sm shadow-sm hover:shadow-xl transition-all duration-300 overflow-hidden cursor-pointer"
-                  onClick={() => navigate(`/results/${item.id}`)}
+                  onClick={() => navigate(`/results/${item.id}?from=history`)}
                 >
                   <div className="p-5">
                     {/* Container com grid de 2 linhas */}

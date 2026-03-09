@@ -7,6 +7,7 @@ CREATE TABLE public.alternatives (
   text text NOT NULL,
   score_value numeric NOT NULL,
   display_order integer NOT NULL,
+  score_target text CHECK (score_target IS NULL OR (score_target = ANY (ARRAY['level'::text, 'potential'::text]))),
   CONSTRAINT alternatives_pkey PRIMARY KEY (id),
   CONSTRAINT alternatives_question_id_fkey FOREIGN KEY (question_id) REFERENCES public.questions(id)
 );
@@ -27,6 +28,8 @@ CREATE TABLE public.assessment_events (
   activity_type text NOT NULL DEFAULT 'assessment'::text CHECK (activity_type = ANY (ARRAY['assessment'::text, 'quiz'::text, 'certification'::text])),
   activity_name text NOT NULL,
   xp_awarded boolean DEFAULT false,
+  assessment_schema text DEFAULT 'indicadores'::text CHECK (assessment_schema = ANY (ARRAY['indicadores'::text, 'niveis'::text])),
+  pre_assessment_data jsonb,
   CONSTRAINT assessment_events_pkey PRIMARY KEY (id),
   CONSTRAINT assessment_events_assessment_id_fkey FOREIGN KEY (assessment_id) REFERENCES public.assessments(id),
   CONSTRAINT assessment_events_assessment_version_id_fkey FOREIGN KEY (assessment_version_id) REFERENCES public.assessment_versions(id)
@@ -53,6 +56,32 @@ CREATE TABLE public.assessment_indicators (
   CONSTRAINT assessment_indicators_indicator_master_id_fkey FOREIGN KEY (indicator_master_id) REFERENCES public.indicators_master(id),
   CONSTRAINT assessment_indicators_assessment_version_id_fkey FOREIGN KEY (assessment_version_id) REFERENCES public.assessment_versions(id)
 );
+CREATE TABLE public.assessment_level_ranges (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  assessment_level_id uuid NOT NULL,
+  min_score numeric NOT NULL DEFAULT 0,
+  max_score numeric NOT NULL DEFAULT 0,
+  label character varying NOT NULL,
+  interpretation text,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT assessment_level_ranges_pkey PRIMARY KEY (id),
+  CONSTRAINT assessment_level_ranges_assessment_level_id_fkey FOREIGN KEY (assessment_level_id) REFERENCES public.assessment_levels(id)
+);
+CREATE TABLE public.assessment_levels (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  assessment_version_id uuid NOT NULL,
+  name text NOT NULL,
+  display_order integer NOT NULL,
+  description text,
+  acquire_threshold numeric,
+  potential_threshold numeric,
+  created_at timestamp with time zone DEFAULT now(),
+  not_acquired_title text,
+  not_acquired_description text,
+  CONSTRAINT assessment_levels_pkey PRIMARY KEY (id),
+  CONSTRAINT assessment_levels_assessment_version_id_fkey FOREIGN KEY (assessment_version_id) REFERENCES public.assessment_versions(id)
+);
 CREATE TABLE public.assessment_overall_ranges (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   assessment_version_id uuid NOT NULL,
@@ -72,6 +101,12 @@ CREATE TABLE public.assessment_versions (
   introduction_html text,
   visualization_type jsonb DEFAULT '["radar"]'::jsonb,
   final_reflection text,
+  result_introduction text,
+  schema text NOT NULL DEFAULT 'indicadores'::text CHECK (schema = ANY (ARRAY['indicadores'::text, 'niveis'::text])),
+  level_mode text CHECK (level_mode IS NULL OR (level_mode = ANY (ARRAY['single'::text, 'multi'::text]))),
+  pre_assessment_fields jsonb,
+  no_level_achieved_title text,
+  no_level_achieved_description text,
   CONSTRAINT assessment_versions_pkey PRIMARY KEY (id),
   CONSTRAINT assessment_versions_assessment_id_fkey FOREIGN KEY (assessment_id) REFERENCES public.assessments(id)
 );
@@ -87,6 +122,7 @@ CREATE TABLE public.assessments (
   created_at timestamp without time zone DEFAULT now(),
   published_at timestamp without time zone,
   availability_type text NOT NULL DEFAULT 'free_for_all'::text CHECK (availability_type = ANY (ARRAY['free_for_all'::text, 'first_free'::text, 'paid_unlock'::text, 'subscription_only'::text])),
+  schema text NOT NULL DEFAULT 'indicadores'::text CHECK (schema = ANY (ARRAY['indicadores'::text, 'niveis'::text])),
   CONSTRAINT assessments_pkey PRIMARY KEY (id)
 );
 CREATE TABLE public.indicators (
@@ -129,8 +165,10 @@ CREATE TABLE public.questions (
   display_order integer NOT NULL,
   response_type text DEFAULT 'single_choice'::text,
   created_at timestamp without time zone DEFAULT now(),
+  level_id uuid,
   CONSTRAINT questions_pkey PRIMARY KEY (id),
-  CONSTRAINT questions_indicator_id_fkey FOREIGN KEY (indicator_id) REFERENCES public.indicators(id)
+  CONSTRAINT questions_indicator_id_fkey FOREIGN KEY (indicator_id) REFERENCES public.indicators(id),
+  CONSTRAINT questions_level_id_fkey FOREIGN KEY (level_id) REFERENCES public.assessment_levels(id)
 );
 CREATE TABLE public.scenario_decisions (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
