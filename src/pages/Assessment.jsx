@@ -351,7 +351,11 @@ const Assessment = () => {
                   <div key={field.id}>
                     <label className="block text-sm font-semibold text-gray-700 mb-2">
                       {field.label}
-                      {field.is_required && <span className="text-red-500 ml-1">*</span>}
+                      {field.is_required ? (
+                        <span className="text-red-500 ml-1">*</span>
+                      ) : (
+                        <span className="text-gray-500 ml-1">(opcional)</span>
+                      )}
                     </label>
                     {renderPreAssessmentField(field)}
                   </div>
