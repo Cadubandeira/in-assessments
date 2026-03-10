@@ -3,7 +3,7 @@ import { useParams } from 'react-router-dom';
 import { useAssessment } from '../hooks/useAssessment';
 import { useXPRewards } from '../hooks/useXPRewards';
 import { TOKENS } from '../config/tokens';
-import { ArrowRight, CheckCircle, Zap, Info } from 'lucide-react';
+import { ArrowRight, ArrowLeft, CheckCircle, Zap, Info } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import { getLucideIcon } from '../utils/iconUtils';
 import XPRewardsCard from '../components/XP/XPRewardsCard';
@@ -371,7 +371,7 @@ const Assessment = () => {
                     : 'bg-gray-200 text-gray-400 cursor-not-allowed'
                 }`}
               >
-                Continuar para o Assessment
+                Continuar
               </button>
             </div>
           </div>
@@ -629,11 +629,30 @@ const Assessment = () => {
             </div>
 
             {/* Navigation */}
-            <div ref={nextButtonRef} className="flex justify-center pt-4">
+            <div ref={nextButtonRef} className="flex flex-col-reverse sm:flex-row items-center justify-center gap-3 sm:gap-4 pt-4">
+              {/* Back Button - Discrete and Secondary */}
+              <button
+                onClick={() => {
+                  if (currentQuestionIndexInIndicator > 0) {
+                    setCurrentQuestionIndexInIndicator(prev => prev - 1);
+                  } else if (currentIndicatorIndex > 0) {
+                    setCurrentIndicatorIndex(prev => prev - 1);
+                    const prevItem = items[currentIndicatorIndex - 1];
+                    setCurrentQuestionIndexInIndicator((prevItem?.questions?.length || 1) - 1);
+                  }
+                }}
+                disabled={currentQuestionIndexInIndicator === 0 && currentIndicatorIndex === 0}
+                className="group inline-flex items-center gap-2 px-6 py-3 bg-white/80 border border-gray-300 text-gray-700 rounded-lg font-semibold text-base hover:bg-white hover:border-gray-400 hover:shadow-md transition-all duration-300 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white/80 disabled:hover:border-gray-300 disabled:hover:shadow-none"
+              >
+                <ArrowLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
+                <span className="hidden sm:inline">Voltar</span>
+              </button>
+
+              {/* Next Button - Primary */}
               <button
                 onClick={handleNext}
                 disabled={!canProceed() || submitting}
-                className="group inline-flex items-center gap-3 px-10 py-4 bg-gradient-to-r from-[#4F46E5] to-[#6366F1] text-white rounded-xl font-bold text-lg hover:shadow-2xl hover:scale-105 transition-all duration-300 shadow-xl disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+                className="group inline-flex items-center gap-3 px-10 py-4 bg-gradient-to-r from-[#4F46E5] to-[#6366F1] text-white rounded-xl font-bold text-lg hover:shadow-2xl hover:scale-105 transition-all duration-300 shadow-xl disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 w-full sm:w-auto justify-center"
               >
                 {submitting ? (
                   <>
