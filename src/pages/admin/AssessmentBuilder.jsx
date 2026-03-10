@@ -9,6 +9,7 @@ import AssessmentElementsModal from '../../components/AssessmentElementsModal';
 import AssessmentBuilderSkeleton from '../../components/skeletons/admin/AssessmentBuilderSkeleton';
 import PreAssessmentFieldsEditor from '../../components/PreAssessmentFieldsEditor';
 import LevelRangesEditor from '../../components/LevelRangesEditor';
+import XPGameificationEditor from '../../components/XPGameificationEditor';
 import { TOKENS } from '../../config/tokens';
 import { 
   getActiveAssessmentVersion, 
@@ -69,6 +70,13 @@ export default function AssessmentBuilder() {
   const [showRemoveElementModal, setShowRemoveElementModal] = useState(false);
   const [elementToRemove, setElementToRemove] = useState(null);
   const [removeConfirmed, setRemoveConfirmed] = useState(false);
+
+  // Estados para Gamificação XP
+  const [gamifyXp, setGamifyXp] = useState(false);
+  const [xpCompletion, setXpCompletion] = useState(0);
+  const [xpScore80, setXpScore80] = useState(0);
+  const [xpScore90, setXpScore90] = useState(0);
+  const [xpScore100, setXpScore100] = useState(0);
 
   // Helper: derive active elements from loaded version data
   const deriveActiveElements = (versionData) => {
@@ -249,6 +257,13 @@ export default function AssessmentBuilder() {
     setLevels([]);
     setAssessmentIndicatorsData([]);
     setQuestionsData([]);
+    
+    // Reset XP gamification states
+    setGamifyXp(false);
+    setXpCompletion(0);
+    setXpScore80(0);
+    setXpScore90(0);
+    setXpScore100(0);
   };
 
   const loadVersionIndicators = async (versionId, assessmentId) => {
@@ -267,10 +282,10 @@ export default function AssessmentBuilder() {
       return;
     }
 
-    // Buscar introduction_html, reflexao final, pre_assessment_fields e overall_ranges da versão
+    // Buscar introduction_html, reflexao final, pre_assessment_fields, overall_ranges e XP config da versão
     const { data: versionData, error: versionError } = await supabase
       .from('assessment_versions')
-      .select('introduction_html, final_reflection, result_introduction, pre_assessment_fields')
+      .select('introduction_html, final_reflection, result_introduction, pre_assessment_fields, gamify_xp, xp_completion, xp_score_80_89, xp_score_90_99, xp_score_100')
       .eq('id', versionId)
       .single();
 
@@ -279,6 +294,13 @@ export default function AssessmentBuilder() {
       setFinalReflection(versionData.final_reflection || '');
       setResultIntroduction(versionData.result_introduction || '');
       setPreAssessmentFields(versionData.pre_assessment_fields || []);
+      
+      // Carregar configurações de XP
+      setGamifyXp(versionData.gamify_xp || false);
+      setXpCompletion(versionData.xp_completion || 0);
+      setXpScore80(versionData.xp_score_80_89 || 0);
+      setXpScore90(versionData.xp_score_90_99 || 0);
+      setXpScore100(versionData.xp_score_100 || 0);
       
       // Derive and set active elements based on loaded content
       const activeElements = deriveActiveElements(versionData);
@@ -386,10 +408,10 @@ export default function AssessmentBuilder() {
 
   const loadVersionLevels = async (versionId) => {
     try {
-      // Buscar introduction_html, reflexao final, pre_assessment_fields e campos de não conquista da versão
+      // Buscar introduction_html, reflexao final, pre_assessment_fields, campos de não conquista e XP config da versão
       const { data: versionData, error: versionError } = await supabase
         .from('assessment_versions')
-        .select('introduction_html, final_reflection, result_introduction, pre_assessment_fields, no_level_achieved_title, no_level_achieved_description, level_mode')
+        .select('introduction_html, final_reflection, result_introduction, pre_assessment_fields, no_level_achieved_title, no_level_achieved_description, level_mode, gamify_xp, xp_completion, xp_score_80_89, xp_score_90_99, xp_score_100')
         .eq('id', versionId)
         .single();
 
@@ -403,6 +425,13 @@ export default function AssessmentBuilder() {
         if (versionData.level_mode) {
           setLevelMode(versionData.level_mode);
         }
+        
+        // Carregar configurações de XP
+        setGamifyXp(versionData.gamify_xp || false);
+        setXpCompletion(versionData.xp_completion || 0);
+        setXpScore80(versionData.xp_score_80_89 || 0);
+        setXpScore90(versionData.xp_score_90_99 || 0);
+        setXpScore100(versionData.xp_score_100 || 0);
         
         // Derive and set active elements based on loaded content
         const activeElements = deriveActiveElements(versionData);
@@ -904,7 +933,12 @@ export default function AssessmentBuilder() {
             pre_assessment_fields: preAssessmentFields.length > 0 ? preAssessmentFields : null,
             no_level_achieved_title: noLevelAchievedTitle || null,
             no_level_achieved_description: noLevelAchievedDescription || null,
-            visualization_type: assessmentDataEdited.visualization_type || '["radar"]'
+            visualization_type: assessmentDataEdited.visualization_type || '["radar"]',
+            gamify_xp: gamifyXp || false,
+            xp_completion: gamifyXp ? xpCompletion : 0,
+            xp_score_80_89: gamifyXp ? xpScore80 : 0,
+            xp_score_90_99: gamifyXp ? xpScore90 : 0,
+            xp_score_100: gamifyXp ? xpScore100 : 0
           }])
           .select()
           .single();
@@ -945,7 +979,12 @@ export default function AssessmentBuilder() {
             pre_assessment_fields: preAssessmentFields.length > 0 ? preAssessmentFields : null,
             no_level_achieved_title: noLevelAchievedTitle || null,
             no_level_achieved_description: noLevelAchievedDescription || null,
-            visualization_type: assessmentDataEdited.visualization_type || '["radar"]'
+            visualization_type: assessmentDataEdited.visualization_type || '["radar"]',
+            gamify_xp: gamifyXp || false,
+            xp_completion: gamifyXp ? xpCompletion : 0,
+            xp_score_80_89: gamifyXp ? xpScore80 : 0,
+            xp_score_90_99: gamifyXp ? xpScore90 : 0,
+            xp_score_100: gamifyXp ? xpScore100 : 0
           }])
           .select()
           .single();
@@ -1217,7 +1256,12 @@ export default function AssessmentBuilder() {
             final_reflection: finalReflection || null,
             result_introduction: resultIntroduction || null,
             pre_assessment_fields: preAssessmentFields.length > 0 ? preAssessmentFields : null,
-            visualization_type: assessmentDataEdited.visualization_type || '["radar"]'
+            visualization_type: assessmentDataEdited.visualization_type || '["radar"]',
+            gamify_xp: gamifyXp || false,
+            xp_completion: gamifyXp ? xpCompletion : 0,
+            xp_score_80_89: gamifyXp ? xpScore80 : 0,
+            xp_score_90_99: gamifyXp ? xpScore90 : 0,
+            xp_score_100: gamifyXp ? xpScore100 : 0
           }])
           .select()
           .single();
@@ -1265,6 +1309,12 @@ export default function AssessmentBuilder() {
         if (finalReflection !== undefined) {
           versionUpdateFields.final_reflection = finalReflection || null;
         }
+        // Adicionar campos de XP
+        versionUpdateFields.gamify_xp = gamifyXp || false;
+        versionUpdateFields.xp_completion = gamifyXp ? xpCompletion : 0;
+        versionUpdateFields.xp_score_80_89 = gamifyXp ? xpScore80 : 0;
+        versionUpdateFields.xp_score_90_99 = gamifyXp ? xpScore90 : 0;
+        versionUpdateFields.xp_score_100 = gamifyXp ? xpScore100 : 0;
         
         if (Object.keys(versionUpdateFields).length > 0) {
           const { error: updateVersionError } = await supabase
@@ -1401,6 +1451,13 @@ export default function AssessmentBuilder() {
         if (finalReflection !== undefined) {
           versionTextUpdate.final_reflection = finalReflection || null;
         }
+        // Adicionar campos de XP
+        versionTextUpdate.gamify_xp = gamifyXp || false;
+        versionTextUpdate.xp_completion = gamifyXp ? xpCompletion : 0;
+        versionTextUpdate.xp_score_80_89 = gamifyXp ? xpScore80 : 0;
+        versionTextUpdate.xp_score_90_99 = gamifyXp ? xpScore90 : 0;
+        versionTextUpdate.xp_score_100 = gamifyXp ? xpScore100 : 0;
+        
         if (Object.keys(versionTextUpdate).length > 0) {
           const { error: updateVersionError } = await supabase
             .from('assessment_versions')
@@ -2214,6 +2271,22 @@ Deseja continuar?`;
                 <OverallRangesEditor 
                   ranges={overallRanges}
                   onChange={setOverallRanges}
+                />
+              </div>
+
+              {/* 3.5. GAMIFICAÇÃO - RECOMPENSA EM XP */}
+              <div className="bg-white/80 backdrop-blur-sm border border-white/60 rounded-2xl p-6 sm:p-8 shadow-lg">
+                <XPGameificationEditor
+                  gamifyXp={gamifyXp}
+                  xpCompletion={xpCompletion}
+                  xpScore80={xpScore80}
+                  xpScore90={xpScore90}
+                  xpScore100={xpScore100}
+                  onGamifyChange={setGamifyXp}
+                  onXpCompletionChange={setXpCompletion}
+                  onXpScore80Change={setXpScore80}
+                  onXpScore90Change={setXpScore90}
+                  onXpScore100Change={setXpScore100}
                 />
               </div>
 

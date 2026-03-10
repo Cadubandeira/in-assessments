@@ -11,6 +11,7 @@ RETURNS TRIGGER AS $$
 DECLARE
   indicator_id_value uuid;
   indicator_name_value text;
+  indicator_data jsonb;
 BEGIN
   -- Apenas processa se assessment for do schema 'indicadores'
   IF NEW.assessment_schema != 'indicadores' THEN
@@ -26,10 +27,11 @@ BEGIN
   -- Assumindo que indicator_scores_snapshot é um JSONB com formato:
   -- { "indicator_id": { "name": "...", "score": ..., "maxScore": ... }, ... }
   
-  FOR indicator_id_value, indicator_name_value IN
+  FOR indicator_id_value, indicator_name_value, indicator_data IN
     SELECT 
       (value->>'indicator_id')::uuid,
-      coalesce(value->>'name', key)
+      coalesce(value->>'name', key),
+      value
     FROM jsonb_each(NEW.indicator_scores_snapshot)
   LOOP
     -- Validar que indicator_id existe em indicators_master
@@ -51,9 +53,9 @@ BEGIN
         NEW.user_id,
         indicator_id_value,
         indicator_name_value,
-        coalesce((NEW.indicator_scores_snapshot->indicator_id_value->>'score')::numeric, 0),
-        coalesce((NEW.indicator_scores_snapshot->indicator_id_value->>'maxScore')::numeric, 0),
-        coalesce((NEW.indicator_scores_snapshot->indicator_id_value->>'percentage')::numeric, 0),
+        coalesce((indicator_data->>'score')::numeric, 0),
+        coalesce((indicator_data->>'maxScore')::numeric, 0),
+        coalesce((indicator_data->>'percentage')::numeric, 0),
         NEW.activity_type,
         NEW.activity_name,
         NEW.id,

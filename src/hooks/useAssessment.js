@@ -24,6 +24,11 @@ export const useAssessment = (options = {}) => {
   const [overallRanges, setOverallRanges] = useState([]);
   const [preAssessmentFields, setPreAssessmentFields] = useState([]);
   const [preAssessmentAnswers, setPreAssessmentAnswers] = useState({});
+  const [gamifyXp, setGamifyXp] = useState(false);
+  const [xpCompletion, setXpCompletion] = useState(0);
+  const [xpScore80, setXpScore80] = useState(0);
+  const [xpScore90, setXpScore90] = useState(0);
+  const [xpScore100, setXpScore100] = useState(0);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -76,10 +81,10 @@ export const useAssessment = (options = {}) => {
       // 2. Buscar versão ativa do assessment E carregar introduction_html + overall_ranges
       const activeVersion = await getActiveAssessmentVersion(assessmentData.id);
 
-      // Buscar introduction_html, schema, level_mode e pre_assessment_fields
+      // Buscar introduction_html, schema, level_mode, pre_assessment_fields e XP config
       const { data: versionData, error: versionError } = await supabase
         .from('assessment_versions')
-        .select('introduction_html, schema, level_mode, pre_assessment_fields')
+        .select('introduction_html, schema, level_mode, pre_assessment_fields, gamify_xp, xp_completion, xp_score_80_89, xp_score_90_99, xp_score_100')
         .eq('id', activeVersion.id)
         .single();
 
@@ -89,6 +94,15 @@ export const useAssessment = (options = {}) => {
       }
       if (versionData?.pre_assessment_fields) {
         setPreAssessmentFields(versionData.pre_assessment_fields);
+      }
+      
+      // Carregar configurações de XP
+      if (versionData?.gamify_xp) {
+        setGamifyXp(true);
+        setXpCompletion(versionData.xp_completion || 0);
+        setXpScore80(versionData.xp_score_80_89 || 0);
+        setXpScore90(versionData.xp_score_90_99 || 0);
+        setXpScore100(versionData.xp_score_100 || 0);
       }
 
       const assessmentSchema = versionData?.schema || assessmentData.schema || 'indicadores';
@@ -630,6 +644,11 @@ export const useAssessment = (options = {}) => {
     overallRanges,
     preAssessmentFields,
     preAssessmentAnswers,
-    setPreAssessmentAnswers
+    setPreAssessmentAnswers,
+    gamifyXp,
+    xpCompletion,
+    xpScore80,
+    xpScore90,
+    xpScore100
   };
 };

@@ -132,7 +132,12 @@ export default function Results() {
               final_reflection,
               result_introduction,
               no_level_achieved_title,
-              no_level_achieved_description
+              no_level_achieved_description,
+              gamify_xp,
+              xp_completion,
+              xp_score_80_89,
+              xp_score_90_99,
+              xp_score_100
             )
           `);
 
@@ -158,8 +163,11 @@ export default function Results() {
           // Verificar se XP já foi concedido anteriormente
           const isFirstVisit = data.xp_awarded === false || data.xp_awarded === null;
           
-          // Atualizar progressão do usuário apenas na primeira visita E quando NÃO vier do histórico
-          if (isFirstVisit && !fromHistory) {
+          // Verificar se o assessment tem gamificação XP habilitada
+          const hasXPGamification = data?.assessment_versions?.gamify_xp && data?.assessment_versions?.xp_completion > 0;
+          
+          // Atualizar progressão do usuário apenas na primeira visita E quando NÃO vier do histórico E quando gamificação estiver ativada
+          if (isFirstVisit && !fromHistory && hasXPGamification) {
             try {
               if (data?.total_score !== undefined && data?.max_possible_score !== undefined) {
                 const activityType = data.activity_type || 'assessment';
@@ -248,6 +256,12 @@ export default function Results() {
             } catch (progressError) {
             console.error('❌ Erro crítico ao atualizar progressão:', progressError);
           }
+          } else if (isFirstVisit && !fromHistory && !hasXPGamification) {
+            // Se a gamificação não estiver ativada, apenas marcar como processado
+            await supabase
+              .from('assessment_events')
+              .update({ xp_awarded: true })
+              .eq('id', data.id);
           }
 
           // Usar visualization_type da versão específica do assessment
@@ -657,9 +671,32 @@ export default function Results() {
   const finalReflectionText = assessmentData?.final_reflection || result?.assessment_versions?.final_reflection || '';
 
   const activityType = result.activity_type || 'assessment';
-  const xpConfig = XP_CONFIG[activityType] || XP_CONFIG.assessment;
+  let xpConfig = XP_CONFIG[activityType] || XP_CONFIG.assessment;
+  
+  // Override com configuração customizada do assessment se gamifyXp estiver ativado
+  const assessmentVersionData = result?.assessment_versions;
+  if (assessmentVersionData?.gamify_xp && assessmentVersionData?.xp_completion > 0) {
+    xpConfig = {
+      base: assessmentVersionData.xp_completion,
+      bonusThresholds: {
+        80: assessmentVersionData.xp_score_80_89 || 0,
+        90: assessmentVersionData.xp_score_90_99 || 0,
+        100: assessmentVersionData.xp_score_100 || 0
+      }
+    };
+  }
+  
   const totalXp = calculateXP(total, max, activityType);
-  const bonusXp = Math.max(0, totalXp - xpConfig.base);
+  // If custom XP config, recalculate totalXp based on custom values
+  let finalTotalXp = totalXp;
+  if (assessmentVersionData?.gamify_xp && assessmentVersionData?.xp_completion > 0) {
+    finalTotalXp = xpConfig.base;
+    if (percentage >= 100) finalTotalXp += xpConfig.bonusThresholds[100] || 0;
+    else if (percentage >= 90) finalTotalXp += xpConfig.bonusThresholds[90] || 0;
+    else if (percentage >= 80) finalTotalXp += xpConfig.bonusThresholds[80] || 0;
+  }
+  
+  const bonusXp = Math.max(0, finalTotalXp - xpConfig.base);
   const bonus80 = xpConfig.bonusThresholds?.[80] ?? 0;
   const bonus90 = xpConfig.bonusThresholds?.[90] ?? 0;
   const bonus100 = xpConfig.bonusThresholds?.[100] ?? 0;
@@ -772,7 +809,7 @@ export default function Results() {
     <div className="min-h-screen bg-gradient-to-br from-[#F5F3EC] to-[#EEF2FF]">
       <style>{textFadeOutStyles}</style>
       {/* XP Overlay - Mesmo componente do Assessment */}
-      {xpOverlayData && (
+      {assessmentVersionData?.gamify_xp && assessmentVersionData?.xp_completion > 0 && xpOverlayData && (
         <ScenarioXPOverlay
           isVisible={showXPOverlay}
           xpData={xpOverlayData}
@@ -1070,36 +1107,40 @@ export default function Results() {
           </div>
 
           {/* Card XP - sticky (apenas desktop) */}
-          <div className="hidden lg:flex flex-col gap-6">
-            <XPRewardWidget
-              totalXp={totalXp}
-              bonusXp={bonusXp}
-              xpConfig={xpConfig}
-              reached80={reached80}
-              reached90={reached90}
-              reached100={reached100}
-              bonus80={bonus80}
-              bonus90={bonus90}
-              bonus100={bonus100}
-              formatXP={formatXP}
-            />
-          </div>
+          {assessmentVersionData?.gamify_xp && assessmentVersionData?.xp_completion > 0 && (
+            <div className="hidden lg:flex flex-col gap-6">
+              <XPRewardWidget
+                totalXp={finalTotalXp}
+                bonusXp={bonusXp}
+                xpConfig={xpConfig}
+                reached80={reached80}
+                reached90={reached90}
+                reached100={reached100}
+                bonus80={bonus80}
+                bonus90={bonus90}
+                bonus100={bonus100}
+                formatXP={formatXP}
+              />
+            </div>
+          )}
 
 {/* Versão mobile do card mt-8 de XP */}
-          <div className="lg:hidden">
-            <XPRewardWidget
-              totalXp={totalXp}
-              bonusXp={bonusXp}
-              xpConfig={xpConfig}
-              reached80={reached80}
-              reached90={reached90}
-              reached100={reached100}
-              bonus80={bonus80}
-              bonus90={bonus90}
-              bonus100={bonus100}
-              formatXP={formatXP}
-            />
-          </div>
+          {assessmentVersionData?.gamify_xp && assessmentVersionData?.xp_completion > 0 && (
+            <div className="lg:hidden">
+              <XPRewardWidget
+                totalXp={finalTotalXp}
+                bonusXp={bonusXp}
+                xpConfig={xpConfig}
+                reached80={reached80}
+                reached90={reached90}
+                reached100={reached100}
+                bonus80={bonus80}
+                bonus90={bonus90}
+                bonus100={bonus100}
+                formatXP={formatXP}
+              />
+            </div>
+          )}
           
 
  {/* Card de chamada para ação para textos longos */}

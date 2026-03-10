@@ -22,11 +22,61 @@ const Assessment = () => {
     introductionHtml,
     preAssessmentFields,
     preAssessmentAnswers,
-    setPreAssessmentAnswers
+    setPreAssessmentAnswers,
+    gamifyXp,
+    xpCompletion,
+    xpScore80,
+    xpScore90,
+    xpScore100
   } = useAssessment({ assessmentIdOrSlug: id });
 
-  // XP Hooks
-  const { baseXP, bonusThresholds, rewards } = useXPRewards('assessment');
+  // XP Hooks - will be overridden by assessment-specific config if gamifyXp is true
+  let { baseXP, bonusThresholds, rewards } = useXPRewards('assessment');
+
+  // Override with assessment-specific XP config if gamification is enabled
+  if (gamifyXp && xpCompletion > 0) {
+    const customRewards = [
+      {
+        label: 'Completar o assessment',
+        xp: xpCompletion,
+        dotColor: 'rgb(129, 140, 248)',
+        className: 'bg-white/60 backdrop-blur-sm',
+        textClassName: 'text-gray-600 flex-1',
+        valueClassName: 'font-bold text-indigo-700'
+      },
+      {
+        label: 'Resultado de 80 a 89%',
+        xp: xpScore80,
+        dotColor: 'rgb(168, 85, 247)',
+        className: 'bg-white/40',
+        textClassName: 'text-gray-600 flex-1',
+        valueClassName: 'font-semibold text-purple-600'
+      },
+      {
+        label: 'Resultado de 90 a 99%',
+        xp: xpScore90,
+        dotColor: 'rgb(168, 85, 247)',
+        className: 'bg-white/40',
+        textClassName: 'text-gray-600 flex-1',
+        valueClassName: 'font-semibold text-purple-600'
+      },
+      {
+        label: 'Resultado de 100% 🎯',
+        xp: xpScore100,
+        dotColor: 'rgb(168, 85, 247)',
+        className: 'bg-gradient-to-r from-purple-100 to-pink-100 border border-purple-300/50',
+        textClassName: 'text-gray-700 font-medium flex-1',
+        valueClassName: 'font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-pink-600'
+      }
+    ];
+    baseXP = xpCompletion;
+    bonusThresholds = {
+      80: xpScore80,
+      90: xpScore90,
+      100: xpScore100
+    };
+    rewards = customRewards;
+  }
 
   // Phase state machine: 'intro' | 'pre-assessment' | 'indicator-intro' | 'question'
   const [phase, setPhase] = useState('intro');
@@ -396,13 +446,15 @@ const Assessment = () => {
                 </div>
 
                 {/* Card de Recompensas XP */}
-                <XPRewardsCard 
-                  baseXP={baseXP}
-                  bonusThresholds={bonusThresholds}
-                  title="Ganhe XP"
-                  subtitle="Complete e suba de nível"
-                  rewardsList={rewards}
-                />
+                {gamifyXp && (
+                  <XPRewardsCard 
+                    baseXP={baseXP}
+                    bonusThresholds={bonusThresholds}
+                    title="Ganhe XP"
+                    subtitle="Complete e suba de nível"
+                    rewardsList={rewards}
+                  />
+                )}
               </div>
             </div>
 
