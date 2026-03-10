@@ -407,7 +407,7 @@ const Assessment = () => {
                 </div>
                 {introductionHtml ? (
                   <div 
-                    className="prose prose-sm max-w-none text-gray-700"
+                    className="prose prose-sm max-w-none text-gray-700 [&_p]:mb-4 [&_p]:text-base [&_p]:leading-relaxed [&_ul]:my-4 [&_ol]:my-4 [&_li]:my-1 [&_strong]:font-semibold [&_em]:italic [&_a]:text-[#4F46E5] [&_a]:underline"
                     dangerouslySetInnerHTML={{ __html: introductionHtml }}
                   />
                 ) : (
@@ -444,7 +444,7 @@ const Assessment = () => {
                     </div>
                     <div>
                       <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#4F46E5] mb-1">Perguntas</p>
-                      <p className="text-sm text-gray-600">Tempo estimado: {Math.ceil(totalQuestions * 1.2)} min</p>
+                      <p className="text-sm text-gray-600">Tempo estimado: {Math.ceil(totalQuestions * 0.4)} min</p>
                     </div>
                   </div>
                 </div>

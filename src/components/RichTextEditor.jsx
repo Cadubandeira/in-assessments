@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Link from '@tiptap/extension-link';
 import Placeholder from '@tiptap/extension-placeholder';
+import { Mark } from '@tiptap/core';
 import { 
   Bold, 
   Italic, 
@@ -10,14 +11,57 @@ import {
   List, 
   ListOrdered, 
   Link as LinkIcon,
-  Heading1,
-  Heading2,
-  Heading3
+  Type,
+  RotateCcw
 } from 'lucide-react';
+
+// Extensão customizada para Font Size como Mark
+const FontSize = Mark.create({
+  name: 'fontSize',
+  addAttributes() {
+    return {
+      size: {
+        default: null,
+        parseHTML: element => {
+          const fontSize = element.style.fontSize;
+          return fontSize && fontSize.trim() ? fontSize : null;
+        },
+        renderHTML: attributes => {
+          if (!attributes.size) return {};
+          return {
+            style: `font-size: ${attributes.size}`,
+            _keepClass: true
+          };
+        }
+      }
+    };
+  },
+  parseHTML() {
+    return [
+      {
+        tag: 'span[style*="font-size"]'
+      }
+    ];
+  },
+  renderHTML({ attributes }) {
+    const style = attributes.size ? `font-size: ${attributes.size}` : '';
+    return ['span', { style }, 0];
+  },
+  addCommands() {
+    return {
+      setFontSize: (size) => ({ commands }) => {
+        return commands.setMark(this.name, { size });
+      },
+      unsetFontSize: () => ({ commands }) => {
+        return commands.unsetMark(this.name);
+      }
+    };
+  }
+});
 
 /**
  * RichTextEditor - Editor WYSIWYG com TipTap
- * Toolbar com formatação básica, auto-height, paste com formatação preservada
+ * Toolbar com formatação básica, seleção de tamanho de fonte (em rem), auto-height
  */
 export default function RichTextEditor({ 
   value = '', 
@@ -26,13 +70,27 @@ export default function RichTextEditor({
   label = '',
   maxHeight = 500
 }) {
+  const [showFontSizeMenu, setShowFontSizeMenu] = useState(false);
+
+  const fontSizes = [
+    { label: 'Pequeno', value: '0.875rem' },
+    { label: 'Normal', value: '1rem' },
+    { label: 'Grande', value: '1.125rem' },
+    { label: 'Muito Grande', value: '1.25rem' },
+    { label: 'Extragrande', value: '1.5rem' }
+  ];
+
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
-        heading: {
-          levels: [1, 2, 3]
+        heading: false, // Remove headings, usar font-size ao invés
+        paragraph: {
+          HTMLAttributes: {
+            class: 'mb-2' // Adiciona margem entre parágrafos
+          }
         }
       }),
+      FontSize,
       Link.configure({
         openOnClick: false,
         HTMLAttributes: {
@@ -50,7 +108,7 @@ export default function RichTextEditor({
     },
     editorProps: {
       attributes: {
-        class: 'prose prose-sm max-w-none focus:outline-none min-h-[120px] p-4'
+        class: 'prose prose-sm max-w-none focus:outline-none min-h-[120px] p-4 text-base'
       }
     }
   });
@@ -80,6 +138,16 @@ export default function RichTextEditor({
     }
 
     editor.chain().focus().extendMarkRange('link').setLink({ href: url }).run();
+  };
+
+  const getCurrentFontSize = () => {
+    return editor.getAttributes('fontSize').size || '1rem';
+  };
+
+  const applyFontSize = (fontSize) => {
+    // Aplicar tamanho de fonte ao texto selecionado usando Mark
+    editor.chain().focus().setMark('fontSize', { size: fontSize }).run();
+    setShowFontSizeMenu(false);
   };
 
   const ToolbarButton = ({ onClick, isActive, disabled, children, title }) => (
@@ -136,29 +204,51 @@ export default function RichTextEditor({
 
         <ToolbarDivider />
 
-        <ToolbarButton
-          onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
-          isActive={editor.isActive('heading', { level: 1 })}
-          title="Título 1"
-        >
-          <Heading1 className="w-4 h-4" />
-        </ToolbarButton>
-
-        <ToolbarButton
-          onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
-          isActive={editor.isActive('heading', { level: 2 })}
-          title="Título 2"
-        >
-          <Heading2 className="w-4 h-4" />
-        </ToolbarButton>
-
-        <ToolbarButton
-          onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
-          isActive={editor.isActive('heading', { level: 3 })}
-          title="Título 3"
-        >
-          <Heading3 className="w-4 h-4" />
-        </ToolbarButton>
+        {/* Font Size Dropdown */}
+        <div className="relative">
+          <button
+            type="button"
+            onClick={() => setShowFontSizeMenu(!showFontSizeMenu)}
+            title="Aplicar tamanho de fonte"
+            className={`p-2 rounded hover:bg-gray-100 transition-colors flex items-center gap-1 ${
+              editor.isActive('fontSize') ? 'bg-indigo-100 text-[#4F46E5]' : 'text-gray-700'
+            }`}
+          >
+            <Type className="w-4 h-4" />
+            <span className="text-xs font-semibold">Tam</span>
+          </button>
+          
+          {showFontSizeMenu && (
+            <div className="absolute top-full left-0 mt-1 bg-white border border-gray-300 rounded shadow-lg z-50">
+              {fontSizes.map(size => (
+                <button
+                  key={size.value}
+                  type="button"
+                  onClick={() => {
+                    applyFontSize(size.value);
+                  }}
+                  className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-100 transition-colors ${
+                    getCurrentFontSize() === size.value ? 'bg-indigo-100 text-[#4F46E5] font-semibold' : 'text-gray-700'
+                  }`}
+                  style={{ fontSize: size.value }}
+                >
+                  {size.label}
+                </button>
+              ))}
+              <div className="border-t border-gray-200"></div>
+              <button
+                type="button"
+                onClick={() => {
+                  editor.chain().focus().unsetMark('fontSize').run();
+                  setShowFontSizeMenu(false);
+                }}
+                className="w-full text-left px-4 py-2 text-sm hover:bg-red-50 text-gray-600 transition-colors"
+              >
+                Remover tamanho
+              </button>
+            </div>
+          )}
+        </div>
 
         <ToolbarDivider />
 
@@ -186,6 +276,20 @@ export default function RichTextEditor({
           title="Inserir/editar link"
         >
           <LinkIcon className="w-4 h-4" />
+        </ToolbarButton>
+
+        <ToolbarDivider />
+
+        <ToolbarButton
+          onClick={() => {
+            editor.chain().focus()
+              .clearNodes()
+              .unsetAllMarks()
+              .run();
+          }}
+          title="Limpar toda formatação do texto selecionado"
+        >
+          <RotateCcw className="w-4 h-4" />
         </ToolbarButton>
       </div>
 

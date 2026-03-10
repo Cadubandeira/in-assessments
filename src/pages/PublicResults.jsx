@@ -760,7 +760,7 @@ export default function PublicResults() {
                 </p>
                 <div>
                   <div
-                    className={`prose prose-sm mt-6 sm:text-lg sm:prose-base max-w-none text-gray-700 leading-relaxed text-justify [text-align-last:left] overflow-hidden transition-all duration-300 ${
+                    className={`prose prose-sm mt-6 sm:text-lg sm:prose-base max-w-none text-gray-700 leading-relaxed text-justify [text-align-last:left] overflow-hidden transition-all duration-300 [&_p]:mb-4 [&_p]:text-base [&_p]:leading-relaxed [&_ul]:my-4 [&_ol]:my-4 [&_li]:my-1 [&_strong]:font-semibold [&_em]:italic [&_a]:text-[#4F46E5] [&_a]:underline ${
                       expandedIntroduction ? '' : 'line-clamp-5 text-fade-out'
                     }`}
                     dangerouslySetInnerHTML={{ __html: introductionText }}
