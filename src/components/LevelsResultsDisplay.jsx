@@ -584,6 +584,7 @@ export default function LevelsResultsDisplay({ levelResults, levelMode, levels, 
                     indicatorResults={radarData}
                     indicatorMeta={radarMeta}
                     hideLegend={false}
+                    defaultLegendOpen={true}
                   />
                 </div>
               )}
@@ -861,6 +862,7 @@ export default function LevelsResultsDisplay({ levelResults, levelMode, levels, 
                     indicatorResults={radarData}
                     indicatorMeta={radarMeta}
                     hideLegend={false}
+                    defaultLegendOpen={true}
                   />
                 </div>
 

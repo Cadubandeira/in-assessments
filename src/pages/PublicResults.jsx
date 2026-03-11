@@ -78,6 +78,10 @@ const getClassificationFromRanges = (score, maxScore, ranges, indicatorName) => 
 export default function PublicResults() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const normalizedRouteId = typeof id === 'string' ? id.trim() : '';
+  const hasRouteId = normalizedRouteId.length > 0 && normalizedRouteId !== 'undefined' && normalizedRouteId !== 'null';
+  const isValidUuid = (value) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value || ''));
+  const isRouteIdValidUuid = hasRouteId && isValidUuid(normalizedRouteId);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [result, setResult] = useState(null);
@@ -106,6 +110,12 @@ export default function PublicResults() {
     const fetchResult = async () => {
       setLoading(true);
       try {
+        if (hasRouteId && !isRouteIdValidUuid) {
+          setError('Link de resultado inválido.');
+          setLoading(false);
+          return;
+        }
+
         let query = supabase
           .from('assessment_events')
           .select(`
@@ -126,8 +136,8 @@ export default function PublicResults() {
             )
           `);
 
-        if (id) {
-          query = query.eq('id', id);
+        if (hasRouteId) {
+          query = query.eq('id', normalizedRouteId);
         } else {
           const { data: { user } } = await supabase.auth.getUser();
           if (!user) {
@@ -478,7 +488,7 @@ export default function PublicResults() {
 
     fetchResult();
     return () => {};
-  }, [id]);
+  }, [hasRouteId, id, isRouteIdValidUuid, normalizedRouteId]);
 
   useEffect(() => {
     if (loading || assessmentSchema === 'niveis') return;
@@ -630,8 +640,6 @@ export default function PublicResults() {
     };
   };
 
-  const isUuid = (value) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value || ''));
-
   let indicatorScores = result.indicator_scores_snapshot || {};
   if (typeof indicatorScores === 'string') {
     try { indicatorScores = JSON.parse(indicatorScores); } catch (e) { indicatorScores = {}; }
@@ -662,7 +670,7 @@ export default function PublicResults() {
       const classificationData = getClassificationFromRanges(score, maxForIndicator, ranges, indicatorLabel);
       
       out[k] = {
-        indicator_id: v?.indicator_id || (isUuid(k) ? k : null),
+        indicator_id: v?.indicator_id || (isValidUuid(k) ? k : null),
         name: v?.name || indicatorLabel,
         score,
         maxScore: maxForIndicator,
@@ -726,7 +734,12 @@ export default function PublicResults() {
               className="flex items-center gap-2 px-4 py-2 rounded-lg bg-white text-indigo-700 font-semibold shadow-sm hover:bg-indigo-50 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-indigo-300"
               onClick={() => {
                 // Generate public results URL
-                const publicUrl = `${window.location.origin}/#/public-results/${id}`;
+                const shareResultId = result?.id || (isRouteIdValidUuid ? normalizedRouteId : null);
+                if (!shareResultId) {
+                  alert('Não foi possível gerar o link público deste resultado.');
+                  return;
+                }
+                const publicUrl = `${window.location.origin}/#/public-results/${shareResultId}`;
                 const shareText = `Veja meu resultado no assessment: ${assessmentName}! (${publicUrl})`;
                 if (navigator.share) {
                   navigator.share({
@@ -841,7 +854,7 @@ export default function PublicResults() {
                 {/* Se ambos os gráficos estão selecionados, renderizar no mesmo card */}
                 {assessmentData.visualization_type.includes('radar') && assessmentData.visualization_type.includes('horizontal-bar') ? (
                   <div className="bg-white/80 border border-white/60 rounded-2xl p-6 shadow-sm space-y-8">
-                    <RadarChart indicatorResults={indicatorResults} indicatorMeta={indicatorsMeta} hideLegend={true} />
+                    <RadarChart indicatorResults={indicatorResults} indicatorMeta={indicatorsMeta} defaultLegendOpen={true} />
                     <div className="border-t border-gray-200 pt-6">
                       <HorizontalBarChart indicatorResults={indicatorResults} indicatorMeta={indicatorsMeta} />
                     </div>
@@ -851,7 +864,7 @@ export default function PublicResults() {
                     {/* Renderizar gráficos individualmente */}
                     {assessmentData.visualization_type.includes('radar') && (
                       <div className="bg-white/80 border border-white/60 rounded-2xl p-6 shadow-sm">
-                        <RadarChart indicatorResults={indicatorResults} indicatorMeta={indicatorsMeta} />
+                        <RadarChart indicatorResults={indicatorResults} indicatorMeta={indicatorsMeta} defaultLegendOpen={true} />
                       </div>
                     )}
                     {assessmentData.visualization_type.includes('horizontal-bar') && (

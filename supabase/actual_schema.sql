@@ -107,6 +107,12 @@ CREATE TABLE public.assessment_versions (
   pre_assessment_fields jsonb,
   no_level_achieved_title text,
   no_level_achieved_description text,
+  gamify_xp boolean DEFAULT false,
+  xp_completion numeric DEFAULT 0,
+  xp_score_80_89 numeric DEFAULT 0,
+  xp_score_90_99 numeric DEFAULT 0,
+  xp_score_100 numeric DEFAULT 0,
+  show_indicator_intro boolean DEFAULT true,
   CONSTRAINT assessment_versions_pkey PRIMARY KEY (id),
   CONSTRAINT assessment_versions_assessment_id_fkey FOREIGN KEY (assessment_id) REFERENCES public.assessments(id)
 );

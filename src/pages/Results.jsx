@@ -838,7 +838,12 @@ export default function Results() {
               className="flex items-center gap-2 px-4 py-2 rounded-lg bg-white text-indigo-700 font-semibold shadow-sm hover:bg-indigo-50 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-indigo-300"
               onClick={() => {
                 // Generate public results URL
-                const publicUrl = `${window.location.origin}/#/public-results/${id}`;
+                const shareResultId = result?.id || id;
+                if (!shareResultId || shareResultId === 'undefined' || shareResultId === 'null') {
+                  alert('Não foi possível gerar o link público deste resultado.');
+                  return;
+                }
+                const publicUrl = `${window.location.origin}/#/public-results/${shareResultId}`;
                 const shareText = `Veja meu resultado no assessment: ${assessmentName}!`;
                 if (navigator.share) {
                   navigator.share({
@@ -962,7 +967,7 @@ export default function Results() {
                 {/* Se ambos os gráficos estão selecionados, renderizar no mesmo card */}
                 {assessmentData.visualization_type.includes('radar') && assessmentData.visualization_type.includes('horizontal-bar') ? (
                   <div className="bg-white/80 border border-white/60 rounded-2xl p-6 shadow-sm space-y-8">
-                    <RadarChart indicatorResults={indicatorResults} indicatorMeta={indicatorsMeta} hideLegend={true} />
+                    <RadarChart indicatorResults={indicatorResults} indicatorMeta={indicatorsMeta} defaultLegendOpen={true} />
                     <div className="border-t border-gray-200 pt-6">
                       <HorizontalBarChart indicatorResults={indicatorResults} indicatorMeta={indicatorsMeta} />
                     </div>
@@ -972,7 +977,7 @@ export default function Results() {
                     {/* Renderizar gráficos individualmente */}
                     {assessmentData.visualization_type.includes('radar') && (
                       <div className="bg-white/80 border border-white/60 rounded-2xl p-6 shadow-sm">
-                        <RadarChart indicatorResults={indicatorResults} indicatorMeta={indicatorsMeta} />
+                        <RadarChart indicatorResults={indicatorResults} indicatorMeta={indicatorsMeta} defaultLegendOpen={true} />
                       </div>
                     )}
                     {assessmentData.visualization_type.includes('horizontal-bar') && (
