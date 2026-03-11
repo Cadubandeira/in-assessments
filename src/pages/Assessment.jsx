@@ -93,15 +93,19 @@ const Assessment = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [phase, currentIndicatorIndex, currentQuestionIndexInIndicator]);
 
-  // Wrapper function to handle answer change and scroll to next button
+  // Wrapper function to handle answer change and scroll to next button (mobile only)
   const handleAnswerChangeWithScroll = (questionId, value) => {
     handleAnswerChange(questionId, value);
-    // Small delay to allow the UI to update before scrolling
-    setTimeout(() => {
-      if (nextButtonRef.current) {
-        nextButtonRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }
-    }, 100);
+    // Only scroll on mobile devices
+    const isMobile = window.innerWidth < 768;
+    if (isMobile) {
+      // Small delay to allow the UI to update before scrolling
+      setTimeout(() => {
+        if (nextButtonRef.current) {
+          nextButtonRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }, 100);
+    }
   };
 
   // Defesas contra formatos inesperados vindos do backend
