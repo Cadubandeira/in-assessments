@@ -27,7 +27,8 @@ const Assessment = () => {
     xpCompletion,
     xpScore80,
     xpScore90,
-    xpScore100
+    xpScore100,
+    showIndicatorIntro
   } = useAssessment({ assessmentIdOrSlug: id });
 
   // XP Hooks - will be overridden by assessment-specific config if gamifyXp is true
@@ -200,7 +201,13 @@ const Assessment = () => {
       if (preAssessmentFields?.length > 0) {
         setPhase('pre-assessment');
       } else {
-        setPhase('indicator-intro');
+        // Se showIndicatorIntro for false, pular direto para as perguntas
+        if (showIndicatorIntro) {
+          setPhase('indicator-intro');
+        } else {
+          setPhase('question');
+          setCurrentQuestionIndexInIndicator(0);
+        }
       }
     } else if (phase === 'pre-assessment') {
       // Validar campos obrigatórios do pré-assessment
@@ -211,7 +218,13 @@ const Assessment = () => {
         alert('Por favor, preencha todos os campos obrigatórios antes de continuar.');
         return;
       }
-      setPhase('indicator-intro');
+      // Se showIndicatorIntro for false, pular direto para as perguntas
+      if (showIndicatorIntro) {
+        setPhase('indicator-intro');
+      } else {
+        setPhase('question');
+        setCurrentQuestionIndexInIndicator(0);
+      }
     } else if (phase === 'indicator-intro') {
       setPhase('question');
       setCurrentQuestionIndexInIndicator(0);
@@ -222,7 +235,12 @@ const Assessment = () => {
         // Finished all questions for current item (indicator or level)
         if (currentIndicatorIndex < items.length - 1) {
           setCurrentIndicatorIndex(prev => prev + 1);
-          setPhase('indicator-intro');
+          // Se showIndicatorIntro for false, pular direto para as perguntas do próximo indicador/nível
+          if (showIndicatorIntro) {
+            setPhase('indicator-intro');
+          } else {
+            setPhase('question');
+          }
           setCurrentQuestionIndexInIndicator(0);
         } else {
           // Finished entire assessment - submit and redirect to Results
@@ -543,47 +561,49 @@ const Assessment = () => {
         {phase === 'question' && currentQuestion && (
           <div className="space-y-8 pt-8">
             {/* Question Header */}
-            <div className="bg-white/80 backdrop-blur-sm border border-white/60 rounded-2xl p-6 shadow-sm">
-              <div className="flex items-center justify-between flex-wrap gap-4">
-                <div className="flex items-center gap-4">
-                  {!isNiveisSchema && IconComponent && indicatorMeta?.color && (
-                    <div 
-                      className="w-12 h-12 rounded-full flex items-center justify-center"
-                      style={{ backgroundColor: indicatorMeta.color }}
-                    >
-                      <IconComponent className="w-6 h-6 text-white" strokeWidth={2} />
+            {showIndicatorIntro && (
+              <div className="bg-white/80 backdrop-blur-sm border border-white/60 rounded-2xl p-6 shadow-sm">
+                <div className="flex items-center justify-between flex-wrap gap-4">
+                  <div className="flex items-center gap-4">
+                    {!isNiveisSchema && IconComponent && indicatorMeta?.color && (
+                      <div 
+                        className="w-12 h-12 rounded-full flex items-center justify-center"
+                        style={{ backgroundColor: indicatorMeta.color }}
+                      >
+                        <IconComponent className="w-6 h-6 text-white" strokeWidth={2} />
+                      </div>
+                    )}
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#4F46E5] mb-1">
+                        {currentItem?.name || 'Sem nome'}
+                      </p>
+                      <p className="text-sm text-gray-600">
+                        Pergunta {currentQuestionIndexInIndicator + 1} de {currentQuestions.length}
+                      </p>
                     </div>
-                  )}
-                  <div>
-                    <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#4F46E5] mb-1">
-                      {currentItem?.name || 'Sem nome'}
-                    </p>
-                    <p className="text-sm text-gray-600">
-                      Pergunta {currentQuestionIndexInIndicator + 1} de {currentQuestions.length}
-                    </p>
                   </div>
-                </div>
-                <div className="text-right">
-                  <p className="text-xs font-bold uppercase tracking-[0.2em] text-gray-500 mb-1">
-                    Progresso {isNiveisSchema ? 'do nível' : 'do indicador'}
-                  </p>
-                  <div className="flex items-center gap-2">
-                    {Array.from({ length: currentQuestions.length }).map((_, idx) => (
-                      <div
-                        key={idx}
-                        className={`h-2 w-8 rounded-full transition-all ${
-                          idx < currentQuestionIndexInIndicator
-                            ? 'bg-[#4F46E5]'
-                            : idx === currentQuestionIndexInIndicator
-                            ? 'bg-gradient-to-r from-[#4F46E5] to-[#6366F1] animate-pulse'
-                            : 'bg-gray-200'
-                        }`}
-                      ></div>
-                    ))}
+                  <div className="text-right">
+                    <p className="text-xs font-bold uppercase tracking-[0.2em] text-gray-500 mb-1">
+                      Progresso {isNiveisSchema ? 'do nível' : 'do indicador'}
+                    </p>
+                    <div className="flex items-center gap-2">
+                      {Array.from({ length: currentQuestions.length }).map((_, idx) => (
+                        <div
+                          key={idx}
+                          className={`h-2 w-8 rounded-full transition-all ${
+                            idx < currentQuestionIndexInIndicator
+                              ? 'bg-[#4F46E5]'
+                              : idx === currentQuestionIndexInIndicator
+                              ? 'bg-gradient-to-r from-[#4F46E5] to-[#6366F1] animate-pulse'
+                              : 'bg-gray-200'
+                          }`}
+                        ></div>
+                      ))}
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
+            )}
 
             {/* Question Card - Mobile Optimized */}
             <div className="space-y-5">

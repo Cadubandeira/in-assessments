@@ -78,6 +78,9 @@ export default function AssessmentBuilder() {
   const [xpScore90, setXpScore90] = useState(0);
   const [xpScore100, setXpScore100] = useState(0);
 
+  // Estado para controlar exibição de intros de indicadores/níveis
+  const [showIndicatorIntro, setShowIndicatorIntro] = useState(true);
+
   // Helper: derive active elements from loaded version data
   const deriveActiveElements = (versionData) => {
     const hasContent = (str) => {
@@ -156,6 +159,16 @@ export default function AssessmentBuilder() {
     });
     setLevels([]);
     setOverallRanges([]);
+    
+    // Reset XP gamification states
+    setGamifyXp(false);
+    setXpCompletion(0);
+    setXpScore80(0);
+    setXpScore90(0);
+    setXpScore100(0);
+    
+    // Reset indicator intro display state
+    setShowIndicatorIntro(true);
 
     try {
       // 1. Buscar dados do assessment
@@ -264,6 +277,9 @@ export default function AssessmentBuilder() {
     setXpScore80(0);
     setXpScore90(0);
     setXpScore100(0);
+    
+    // Reset indicator intro display state
+    setShowIndicatorIntro(true);
   };
 
   const loadVersionIndicators = async (versionId, assessmentId) => {
@@ -285,7 +301,7 @@ export default function AssessmentBuilder() {
     // Buscar introduction_html, reflexao final, pre_assessment_fields, overall_ranges e XP config da versão
     const { data: versionData, error: versionError } = await supabase
       .from('assessment_versions')
-      .select('introduction_html, final_reflection, result_introduction, pre_assessment_fields, gamify_xp, xp_completion, xp_score_80_89, xp_score_90_99, xp_score_100')
+      .select('introduction_html, final_reflection, result_introduction, pre_assessment_fields, gamify_xp, xp_completion, xp_score_80_89, xp_score_90_99, xp_score_100, show_indicator_intro')
       .eq('id', versionId)
       .single();
 
@@ -301,6 +317,9 @@ export default function AssessmentBuilder() {
       setXpScore80(versionData.xp_score_80_89 || 0);
       setXpScore90(versionData.xp_score_90_99 || 0);
       setXpScore100(versionData.xp_score_100 || 0);
+      
+      // Carregar configuração de exibição de intros de indicadores/níveis
+      setShowIndicatorIntro(versionData.show_indicator_intro !== false);
       
       // Derive and set active elements based on loaded content
       const activeElements = deriveActiveElements(versionData);
@@ -411,7 +430,7 @@ export default function AssessmentBuilder() {
       // Buscar introduction_html, reflexao final, pre_assessment_fields, campos de não conquista e XP config da versão
       const { data: versionData, error: versionError } = await supabase
         .from('assessment_versions')
-        .select('introduction_html, final_reflection, result_introduction, pre_assessment_fields, no_level_achieved_title, no_level_achieved_description, level_mode, gamify_xp, xp_completion, xp_score_80_89, xp_score_90_99, xp_score_100')
+        .select('introduction_html, final_reflection, result_introduction, pre_assessment_fields, no_level_achieved_title, no_level_achieved_description, level_mode, gamify_xp, xp_completion, xp_score_80_89, xp_score_90_99, xp_score_100, show_indicator_intro')
         .eq('id', versionId)
         .single();
 
@@ -432,6 +451,9 @@ export default function AssessmentBuilder() {
         setXpScore80(versionData.xp_score_80_89 || 0);
         setXpScore90(versionData.xp_score_90_99 || 0);
         setXpScore100(versionData.xp_score_100 || 0);
+        
+        // Carregar configuração de exibição de intros de indicadores/níveis
+        setShowIndicatorIntro(versionData.show_indicator_intro !== false);
         
         // Derive and set active elements based on loaded content
         const activeElements = deriveActiveElements(versionData);
@@ -938,7 +960,8 @@ export default function AssessmentBuilder() {
             xp_completion: gamifyXp ? xpCompletion : 0,
             xp_score_80_89: gamifyXp ? xpScore80 : 0,
             xp_score_90_99: gamifyXp ? xpScore90 : 0,
-            xp_score_100: gamifyXp ? xpScore100 : 0
+            xp_score_100: gamifyXp ? xpScore100 : 0,
+            show_indicator_intro: showIndicatorIntro !== false
           }])
           .select()
           .single();
@@ -984,7 +1007,8 @@ export default function AssessmentBuilder() {
             xp_completion: gamifyXp ? xpCompletion : 0,
             xp_score_80_89: gamifyXp ? xpScore80 : 0,
             xp_score_90_99: gamifyXp ? xpScore90 : 0,
-            xp_score_100: gamifyXp ? xpScore100 : 0
+            xp_score_100: gamifyXp ? xpScore100 : 0,
+            show_indicator_intro: showIndicatorIntro !== false
           }])
           .select()
           .single();
@@ -1261,7 +1285,8 @@ export default function AssessmentBuilder() {
             xp_completion: gamifyXp ? xpCompletion : 0,
             xp_score_80_89: gamifyXp ? xpScore80 : 0,
             xp_score_90_99: gamifyXp ? xpScore90 : 0,
-            xp_score_100: gamifyXp ? xpScore100 : 0
+            xp_score_100: gamifyXp ? xpScore100 : 0,
+            show_indicator_intro: showIndicatorIntro !== false
           }])
           .select()
           .single();
@@ -1315,6 +1340,7 @@ export default function AssessmentBuilder() {
         versionUpdateFields.xp_score_80_89 = gamifyXp ? xpScore80 : 0;
         versionUpdateFields.xp_score_90_99 = gamifyXp ? xpScore90 : 0;
         versionUpdateFields.xp_score_100 = gamifyXp ? xpScore100 : 0;
+        versionUpdateFields.show_indicator_intro = showIndicatorIntro !== false;
         
         if (Object.keys(versionUpdateFields).length > 0) {
           const { error: updateVersionError } = await supabase
@@ -1457,6 +1483,7 @@ export default function AssessmentBuilder() {
         versionTextUpdate.xp_score_80_89 = gamifyXp ? xpScore80 : 0;
         versionTextUpdate.xp_score_90_99 = gamifyXp ? xpScore90 : 0;
         versionTextUpdate.xp_score_100 = gamifyXp ? xpScore100 : 0;
+        versionTextUpdate.show_indicator_intro = showIndicatorIntro !== false;
         
         if (Object.keys(versionTextUpdate).length > 0) {
           const { error: updateVersionError } = await supabase
@@ -2288,6 +2315,35 @@ Deseja continuar?`;
                   onXpScore90Change={setXpScore90}
                   onXpScore100Change={setXpScore100}
                 />
+              </div>
+
+              {/* 3.6. EXIBIÇÃO DE INTRODUÇÕES DE INDICADORES/NÍVEIS */}
+              <div className="bg-white/80 backdrop-blur-sm border border-white/60 rounded-2xl p-6 sm:p-8 shadow-lg">
+                <h2 className={`text-2xl font-bold mb-4 bg-gradient-to-r from-[#4F46E5] via-[#6366F1] to-[#818CF8] bg-clip-text text-transparent ${TOKENS.fonts.serif}`}>
+                  Exibição de {assessmentSchema === 'niveis' ? 'Níveis' : 'Indicadores'}
+                </h2>
+                <p className="text-sm text-gray-600 mb-6">
+                  Configure se deseja exibir uma tela de introdução antes das perguntas de cada {assessmentSchema === 'niveis' ? 'nível' : 'indicador'}. 
+                  Ao ocultar, o usuário verá apenas o progresso geral do assessment, sem contador individual por {assessmentSchema === 'niveis' ? 'nível' : 'indicador'}.
+                </p>
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setShowIndicatorIntro(!showIndicatorIntro)}
+                    className={`relative inline-flex h-7 w-14 items-center rounded-full transition-colors ${
+                      showIndicatorIntro ? 'bg-[#4F46E5]' : 'bg-gray-300'
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
+                        showIndicatorIntro ? 'translate-x-8' : 'translate-x-1'
+                      }`}
+                    />
+                  </button>
+                  <span className="text-sm font-medium text-gray-700">
+                    {showIndicatorIntro ? 'Exibir' : 'Ocultar'} introduções de {assessmentSchema === 'niveis' ? 'níveis' : 'indicadores'}
+                  </span>
+                </div>
               </div>
 
               {/* 4. INDICADORES / NÍVEIS - Schema Dependent */}
