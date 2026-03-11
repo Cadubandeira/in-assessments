@@ -296,6 +296,7 @@ export default function PublicResults() {
                     let potentialScore = 0;
                     let maxLevelScore = 0;
                     let maxPotentialScore = 0;
+                    let maxTotalScore = 0;
 
                     if (questionsData) {
                       questionsData.forEach(question => {
@@ -303,10 +304,15 @@ export default function PublicResults() {
 
                         let questionMaxLevel = 0;
                         let questionMaxPotential = 0;
+                        let questionMaxTotal = 0;
 
                         question.alternatives.forEach(alt => {
                           const altTarget = alt.score_target || 'level';
                           const altScore = parseFloat(alt.score_value) || 0;
+
+                          if (altScore > questionMaxTotal) {
+                            questionMaxTotal = altScore;
+                          }
 
                           if (altTarget === 'level' && altScore > questionMaxLevel) {
                             questionMaxLevel = altScore;
@@ -317,6 +323,7 @@ export default function PublicResults() {
 
                         maxLevelScore += questionMaxLevel;
                         maxPotentialScore += questionMaxPotential;
+                        maxTotalScore += questionMaxTotal;
 
                         if (answer !== undefined && answer !== null) {
                           const answerNumeric = Number(answer);
@@ -353,6 +360,7 @@ export default function PublicResults() {
                       potentialScore,
                       maxLevelScore,
                       maxPotentialScore,
+                      maxTotalScore,
                       display_order: level.display_order,
                       acquire_threshold: level.acquire_threshold
                     };

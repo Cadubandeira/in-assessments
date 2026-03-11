@@ -371,6 +371,7 @@ export default function Results() {
                     let potentialScore = 0;
                     let maxLevelScore = 0;
                     let maxPotentialScore = 0;
+                    let maxTotalScore = 0;
 
                     if (questionsData) {
                       questionsData.forEach(question => {
@@ -379,10 +380,15 @@ export default function Results() {
                         // Buscar máximos possíveis
                         let questionMaxLevel = 0;
                         let questionMaxPotential = 0;
+                        let questionMaxTotal = 0;
                         
                         question.alternatives.forEach(alt => {
                           const altTarget = alt.score_target || 'level';
                           const altScore = parseFloat(alt.score_value) || 0;
+
+                          if (altScore > questionMaxTotal) {
+                            questionMaxTotal = altScore;
+                          }
                           
                           if (altTarget === 'level' && altScore > questionMaxLevel) {
                             questionMaxLevel = altScore;
@@ -393,6 +399,7 @@ export default function Results() {
                         
                         maxLevelScore += questionMaxLevel;
                         maxPotentialScore += questionMaxPotential;
+                        maxTotalScore += questionMaxTotal;
 
                         // Se respondeu, somar
                         if (answer !== undefined && answer !== null) {
@@ -430,6 +437,7 @@ export default function Results() {
                       potentialScore,
                       maxLevelScore,
                       maxPotentialScore,
+                      maxTotalScore,
                       display_order: level.display_order,
                       acquire_threshold: level.acquire_threshold
                     };

@@ -66,7 +66,7 @@ const DesktopHeader = ({ user, role, onStartAssessment }) => {
               }`}
             >
               <TrendingUp className="w-5 h-5" />
-              <span>Evolução</span>
+              <span>Histórico</span>
             </button>
             <button
               type="button"

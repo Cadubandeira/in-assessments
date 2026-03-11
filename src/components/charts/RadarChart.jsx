@@ -326,7 +326,7 @@ export default function RadarChart({ indicatorResults = {}, indicatorMeta = {}, 
                   {/* Nome e percentual */}
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold text-[#1E1B4B] truncate">{name}</p>
-                    <p className="text-xs text-gray-500">{percentage} / 100</p>
+                    <p className="text-xs text-gray-500">{percentage}%</p>
                   </div>
                 </div>
               );

@@ -192,6 +192,45 @@ const getLevelBadgeStyle = (percentage) => {
   }
 };
 
+const getRadarMetricsForLevel = (levelResult = {}) => {
+  const levelScore = Number(levelResult.levelScore) || 0;
+  const potentialScore = Number(levelResult.potentialScore) || 0;
+  const maxLevelScore = Number(levelResult.maxLevelScore) || 0;
+  const maxPotentialScore = Number(levelResult.maxPotentialScore) || 0;
+  const maxTotalScore = Number(levelResult.maxTotalScore) || 0;
+
+  if (maxTotalScore > 0) {
+    return {
+      score: levelScore + potentialScore,
+      maxScore: maxTotalScore,
+    };
+  }
+
+  if (maxLevelScore > 0) {
+    return {
+      score: levelScore,
+      maxScore: maxLevelScore,
+    };
+  }
+
+  if (maxPotentialScore > 0) {
+    return {
+      score: potentialScore,
+      maxScore: maxPotentialScore,
+    };
+  }
+
+  return {
+    score: 0,
+    maxScore: 0,
+  };
+};
+
+const getRadarPercentageForLevel = (levelResult = {}) => {
+  const { score, maxScore } = getRadarMetricsForLevel(levelResult);
+  return maxScore > 0 ? Math.round((score / maxScore) * 100) : 0;
+};
+
 // Componente para card individual
 function LevelCardAnimated({ level, expandedLevelId, setExpandedLevelId }) {
   const [isTruncated, setIsTruncated] = useState(false);
@@ -497,12 +536,7 @@ export default function LevelsResultsDisplay({ levelResults, levelMode, levels, 
           levels.forEach((level) => {
             if (level.id) {
               const levelResult = levelResults[level.id] || {};
-              // Calcular a pontuação total (levelScore + potentialScore)
-              const totalScore = (levelResult.levelScore || 0) + (levelResult.potentialScore || 0);
-              const maxTotal = (levelResult.maxLevelScore || 0) + (levelResult.maxPotentialScore || 0);
-              
-              // Normalizar para 0-100
-              const percentage = maxTotal > 0 ? Math.round((totalScore / maxTotal) * 100) : 0;
+              const percentage = getRadarPercentageForLevel(levelResult);
               
               radarData[level.id] = {
                 name: level.name,
@@ -823,12 +857,7 @@ export default function LevelsResultsDisplay({ levelResults, levelMode, levels, 
 
             allLevels.forEach((level) => {
               if (level.id) {
-                // Calcular a pontuação total (levelScore + potentialScore)
-                const totalScore = (level.levelScore || 0) + (level.potentialScore || 0);
-                const maxTotal = (level.maxLevelScore || 0) + (level.maxPotentialScore || 0);
-                
-                // Normalizar para 0-100
-                const percentage = maxTotal > 0 ? Math.round((totalScore / maxTotal) * 100) : 0;
+                const percentage = getRadarPercentageForLevel(level);
                 
                 radarData[level.id] = {
                   name: level.name,
