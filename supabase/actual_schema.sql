@@ -113,6 +113,7 @@ CREATE TABLE public.assessment_versions (
   xp_score_90_99 numeric DEFAULT 0,
   xp_score_100 numeric DEFAULT 0,
   show_indicator_intro boolean DEFAULT true,
+  show_level_badges boolean NOT NULL DEFAULT true,
   CONSTRAINT assessment_versions_pkey PRIMARY KEY (id),
   CONSTRAINT assessment_versions_assessment_id_fkey FOREIGN KEY (assessment_id) REFERENCES public.assessments(id)
 );

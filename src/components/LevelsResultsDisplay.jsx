@@ -3,6 +3,7 @@ import LevelBadge from './LevelBadge';
 import LevelBadgeAlternative from './LevelBadgeAlternative';
 import LevelDetailModal from './LevelDetailModal';
 import RadarChart from './charts/RadarChart';
+import ItemResponsesModal from './ItemResponsesModal';
 import { TOKENS } from '../config/tokens';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 
@@ -349,9 +350,11 @@ function LevelCardAnimated({ level, expandedLevelId, setExpandedLevelId }) {
   );
 }
 
-export default function LevelsResultsDisplay({ levelResults, levelMode, levels, levelRanges = {}, noLevelAchievedTitle, noLevelAchievedDescription, showLevelBadges = true }) {
+export default function LevelsResultsDisplay({ levelResults, levelMode, levels, levelRanges = {}, noLevelAchievedTitle, noLevelAchievedDescription, showLevelBadges = true, levelAnswerItems = {} }) {
   const [selectedLevel, setSelectedLevel] = useState(null);
   const [showLevelModal, setShowLevelModal] = useState(false);
+  const [showLevelAnswersModal, setShowLevelAnswersModal] = useState(false);
+  const [selectedLevelAnswersKey, setSelectedLevelAnswersKey] = useState('');
   const [expandedLevelId, setExpandedLevelId] = useState(null);
   const [expandedInterpretations, setExpandedInterpretations] = useState({}); // Para múltiplas interpretações
   const [truncatedInterpretations, setTruncatedInterpretations] = useState({}); // Quais estão truncadas
@@ -383,6 +386,16 @@ export default function LevelsResultsDisplay({ levelResults, levelMode, levels, 
       namesText: formatNaturalList(names),
     };
   }, [levels]);
+
+  const levelModalItems = useMemo(() => {
+    return [...levels]
+      .sort((a, b) => (a.display_order || 0) - (b.display_order || 0))
+      .map((level) => ({
+        key: String(level.id),
+        label: stripHtml(level.name || 'Nível'),
+        questions: levelAnswerItems[level.id]?.questions || []
+      }));
+  }, [levels, levelAnswerItems]);
 
   // Detectar se o texto está truncado (modo single)
   useEffect(() => {
@@ -469,6 +482,11 @@ export default function LevelsResultsDisplay({ levelResults, levelMode, levels, 
   const handleLevelClick = (level) => {
     setSelectedLevel(level);
     setShowLevelModal(true);
+  };
+
+  const openLevelAnswers = (levelId) => {
+    setSelectedLevelAnswersKey(String(levelId));
+    setShowLevelAnswersModal(true);
   };
 
   const toggleInterpretation = (levelId) => {
@@ -612,21 +630,48 @@ export default function LevelsResultsDisplay({ levelResults, levelMode, levels, 
                       />
                       
                       {singleLevelCardData.description && isTruncated && expandedLevelId !== singleLevelCardData.levelId && (
-                        <button
-                          onClick={() => setExpandedLevelId(singleLevelCardData.levelId)}
-                          className="mt-2 text-white font-semibold text-base hover:opacity-90 transition-opacity flex items-center gap-1"
-                        >
-                          Ver mais <ChevronDown size={16} />
-                        </button>
+                        <div className="mt-2 flex items-center justify-between gap-4">
+                          <button
+                            onClick={() => setExpandedLevelId(singleLevelCardData.levelId)}
+                            className="text-white font-semibold text-base hover:opacity-90 transition-opacity flex items-center gap-1"
+                          >
+                            Ver mais <ChevronDown size={16} />
+                          </button>
+                          <button
+                            onClick={() => openLevelAnswers(singleLevelCardData.levelId)}
+                            className="text-white font-semibold text-base hover:opacity-90 transition-opacity"
+                          >
+                            Ver respostas
+                          </button>
+                        </div>
                       )}
                       
                       {expandedLevelId === singleLevelCardData.levelId && (
-                        <button
-                          onClick={() => setExpandedLevelId(null)}
-                          className="mt-3 text-white font-semibold text-base hover:opacity-90 transition-opacity flex items-center gap-1"
-                        >
-                          Ver menos <ChevronUp size={16} />
-                        </button>
+                        <div className="mt-3 flex items-center justify-between gap-4">
+                          <button
+                            onClick={() => setExpandedLevelId(null)}
+                            className="text-white font-semibold text-base hover:opacity-90 transition-opacity flex items-center gap-1"
+                          >
+                            Ver menos <ChevronUp size={16} />
+                          </button>
+                          <button
+                            onClick={() => openLevelAnswers(singleLevelCardData.levelId)}
+                            className="text-white font-semibold text-base hover:opacity-90 transition-opacity"
+                          >
+                            Ver respostas
+                          </button>
+                        </div>
+                      )}
+
+                      {!singleLevelCardData.description && (
+                        <div className="mt-2 flex justify-end">
+                          <button
+                            onClick={() => openLevelAnswers(singleLevelCardData.levelId)}
+                            className="text-white font-semibold text-base hover:opacity-90 transition-opacity"
+                          >
+                            Ver respostas
+                          </button>
+                        </div>
                       )}
                     </div>
                   </div>
@@ -782,24 +827,34 @@ export default function LevelsResultsDisplay({ levelResults, levelMode, levels, 
                                 />
                                 
                                 {/* "Ver mais" quando truncado e não expandido */}
-                                {truncatedInterpretations[level.id] && !expandedInterpretations[level.id] && (
+                                <div className="mt-2 flex items-center justify-between gap-4">
+                                  <div>
+                                    {truncatedInterpretations[level.id] && !expandedInterpretations[level.id] && (
+                                      <button
+                                        onClick={() => toggleInterpretation(level.id)}
+                                        className="text-[#4F46E5] font-semibold text-base hover:opacity-90 transition-opacity flex items-center gap-1"
+                                      >
+                                        Ver mais <ChevronDown size={16} />
+                                      </button>
+                                    )}
+
+                                    {expandedInterpretations[level.id] && (
+                                      <button
+                                        onClick={() => toggleInterpretation(level.id)}
+                                        className="text-[#4F46E5] font-semibold text-base hover:opacity-90 transition-opacity flex items-center gap-1"
+                                      >
+                                        Ver menos <ChevronUp size={16} />
+                                      </button>
+                                    )}
+                                  </div>
+
                                   <button
-                                    onClick={() => toggleInterpretation(level.id)}
-                                    className="mt-2 text-[#4F46E5] font-semibold text-base hover:opacity-90 transition-opacity flex items-center gap-1"
+                                    onClick={() => openLevelAnswers(level.id)}
+                                    className="text-[#4F46E5] font-semibold text-base hover:opacity-90 transition-opacity"
                                   >
-                                    Ver mais <ChevronDown size={16} />
+                                    Ver respostas
                                   </button>
-                                )}
-                                
-                                {/* "Ver menos" quando expandido */}
-                                {expandedInterpretations[level.id] && (
-                                  <button
-                                    onClick={() => toggleInterpretation(level.id)}
-                                    className="mt-3 text-[#4F46E5] font-semibold text-base hover:opacity-90 transition-opacity flex items-center gap-1"
-                                  >
-                                    Ver menos <ChevronUp size={16} />
-                                  </button>
-                                )}
+                                </div>
                               </div>
                             )}
                           </div>
@@ -1076,24 +1131,34 @@ export default function LevelsResultsDisplay({ levelResults, levelMode, levels, 
                                   />
                                   
                                   {/* "Ver mais" quando truncado e não expandido */}
-                                  {truncatedInterpretations[level.id] && !expandedInterpretations[level.id] && (
+                                  <div className="mt-2 flex items-center justify-between gap-4">
+                                    <div>
+                                      {truncatedInterpretations[level.id] && !expandedInterpretations[level.id] && (
+                                        <button
+                                          onClick={() => toggleInterpretation(level.id)}
+                                          className="text-[#4F46E5] font-semibold text-base hover:opacity-90 transition-opacity flex items-center gap-1"
+                                        >
+                                          Ver mais <ChevronDown size={16} />
+                                        </button>
+                                      )}
+
+                                      {expandedInterpretations[level.id] && (
+                                        <button
+                                          onClick={() => toggleInterpretation(level.id)}
+                                          className="text-[#4F46E5] font-semibold text-base hover:opacity-90 transition-opacity flex items-center gap-1"
+                                        >
+                                          Ver menos <ChevronUp size={16} />
+                                        </button>
+                                      )}
+                                    </div>
+
                                     <button
-                                      onClick={() => toggleInterpretation(level.id)}
-                                      className="mt-2 text-[#4F46E5] font-semibold text-base hover:opacity-90 transition-opacity flex items-center gap-1"
+                                      onClick={() => openLevelAnswers(level.id)}
+                                      className="text-[#4F46E5] font-semibold text-base hover:opacity-90 transition-opacity"
                                     >
-                                      Ver mais <ChevronDown size={16} />
+                                      Ver respostas
                                     </button>
-                                  )}
-                                  
-                                  {/* "Ver menos" quando expandido */}
-                                  {expandedInterpretations[level.id] && (
-                                    <button
-                                      onClick={() => toggleInterpretation(level.id)}
-                                      className="mt-3 text-[#4F46E5] font-semibold text-base hover:opacity-90 transition-opacity flex items-center gap-1"
-                                    >
-                                      Ver menos <ChevronUp size={16} />
-                                    </button>
-                                  )}
+                                  </div>
                                 </div>
                               )}
                             </div>
@@ -1131,6 +1196,16 @@ export default function LevelsResultsDisplay({ levelResults, levelMode, levels, 
           );
         })()
       }
+
+      <ItemResponsesModal
+        isOpen={showLevelAnswersModal}
+        onClose={() => setShowLevelAnswersModal(false)}
+        title="Respostas por nível"
+        itemLabel="Nível"
+        items={levelModalItems}
+        selectedKey={selectedLevelAnswersKey}
+        onSelect={setSelectedLevelAnswersKey}
+      />
     </>
   );
 }

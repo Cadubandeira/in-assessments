@@ -8,6 +8,7 @@ import RadarChart from '../components/charts/RadarChart';
 import HorizontalBarChart from '../components/charts/HorizontalBarChart';
 import ScenarioXPOverlay from '../components/ScenarioXPOverlay';
 import LevelsResultsDisplay from '../components/LevelsResultsDisplay';
+import ItemResponsesModal from '../components/ItemResponsesModal';
 import { useProgressionUpdate } from '../hooks/useProgressionUpdate';
 import { TOKENS } from '../config/tokens';
 import { getLucideIcon } from '../utils/iconUtils';
@@ -76,6 +77,35 @@ const getClassificationFromRanges = (score, maxScore, ranges, indicatorName) => 
   };
 };
 
+const normalizeAnswersSnapshot = (snapshot) => {
+  if (!snapshot) return {};
+  if (typeof snapshot === 'string') {
+    try {
+      return JSON.parse(snapshot);
+    } catch {
+      return {};
+    }
+  }
+  return snapshot;
+};
+
+const findSelectedAlternative = (alternatives = [], answerValue) => {
+  if (answerValue === undefined || answerValue === null) return null;
+
+  const answerNumeric = Number(answerValue);
+
+  return alternatives.find((alt) => {
+    if (alt.id == answerValue || alt.score_value == answerValue) return true;
+
+    const altNumeric = Number(alt.score_value);
+    if (!Number.isNaN(answerNumeric) && !Number.isNaN(altNumeric)) {
+      return altNumeric === answerNumeric;
+    }
+
+    return false;
+  }) || null;
+};
+
 export default function Results() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -105,6 +135,10 @@ export default function Results() {
   const [expandedIndicatorInterpretations, setExpandedIndicatorInterpretations] = useState({});
   const [truncatedIndicatorInterpretations, setTruncatedIndicatorInterpretations] = useState({});
   const [showLevelBadges, setShowLevelBadges] = useState(true);
+  const [indicatorAnswersMap, setIndicatorAnswersMap] = useState({});
+  const [levelAnswersMap, setLevelAnswersMap] = useState({});
+  const [showIndicatorAnswersModal, setShowIndicatorAnswersModal] = useState(false);
+  const [selectedIndicatorAnswersKey, setSelectedIndicatorAnswersKey] = useState('');
 
   useEffect(() => {
     let mounted = true;
@@ -161,6 +195,7 @@ export default function Results() {
           }
         } else {
           if (mounted) setResult(data);
+          const answersData = normalizeAnswersSnapshot(data.answers_snapshot);
 
           // Verificar se XP já foi concedido anteriormente
           const isFirstVisit = data.xp_awarded === false || data.xp_awarded === null;
@@ -352,7 +387,7 @@ export default function Results() {
 
                 // Calcular resultados de níveis com base nas respostas
                 const levelResultsMap = {};
-                const answersData = data.answers_snapshot || {};
+                const levelAnswersPayload = {};
                 
                 // Buscar as questões e alternativas para cada nível
                 if (levelsData.length > 0) {
@@ -361,9 +396,11 @@ export default function Results() {
                       .from('questions')
                       .select(`
                         id,
+                        text,
                         display_order,
                         alternatives (
                           id,
+                          text,
                           score_value,
                           score_target
                         )
@@ -379,6 +416,20 @@ export default function Results() {
                     if (questionsData) {
                       questionsData.forEach(question => {
                         const answer = answersData[question.id];
+                        const selectedAlternative = findSelectedAlternative(question.alternatives, answer);
+
+                        levelAnswersPayload[level.id] = levelAnswersPayload[level.id] || {
+                          itemId: level.id,
+                          name: level.name,
+                          questions: []
+                        };
+                        levelAnswersPayload[level.id].questions.push({
+                          questionId: question.id,
+                          questionText: question.text || `Pergunta ${question.display_order || ''}`.trim(),
+                          answerText: selectedAlternative?.text || null,
+                          answerValue: selectedAlternative?.score_value ?? answer ?? null,
+                          isAnswered: !!selectedAlternative
+                        });
                         
                         // Buscar máximos possíveis
                         let questionMaxLevel = 0;
@@ -406,18 +457,6 @@ export default function Results() {
 
                         // Se respondeu, somar
                         if (answer !== undefined && answer !== null) {
-                          const answerNumeric = Number(answer);
-                          const selectedAlternative = question.alternatives.find(alt => {
-                            if (alt.id == answer || alt.score_value == answer) return true;
-
-                            const altNumeric = Number(alt.score_value);
-                            if (!Number.isNaN(answerNumeric) && !Number.isNaN(altNumeric)) {
-                              return altNumeric === answerNumeric;
-                            }
-
-                            return false;
-                          });
-
                           if (selectedAlternative) {
                             const scoreValue = parseFloat(selectedAlternative.score_value) || 0;
                             const scoreTarget = selectedAlternative.score_target || 'level';
@@ -449,6 +488,7 @@ export default function Results() {
 
                 if (mounted) {
                   setLevelResults(levelResultsMap);
+                  setLevelAnswersMap(levelAnswersPayload);
                 }
               }
             } else {
@@ -553,6 +593,92 @@ export default function Results() {
               if (mounted) {
                 setAssessmentRanges(rangesMap);
                 setIndicatorsMeta(metaMap);
+              }
+
+              const answerQuestionIds = Object.keys(answersData || {});
+              if (answerQuestionIds.length > 0) {
+                const { data: answeredQuestionsData } = await supabase
+                  .from('questions')
+                  .select(`
+                    id,
+                    text,
+                    display_order,
+                    indicator_id,
+                    indicators (
+                      id,
+                      name,
+                      indicator_master_id
+                    ),
+                    alternatives (
+                      id,
+                      text,
+                      score_value
+                    )
+                  `)
+                  .in('id', answerQuestionIds);
+
+                if (answeredQuestionsData && mounted) {
+                  const questionsByMasterId = {};
+                  const questionsByIndicatorName = {};
+
+                  answeredQuestionsData.forEach((question) => {
+                    const indicatorRow = Array.isArray(question.indicators)
+                      ? question.indicators[0]
+                      : question.indicators;
+
+                    if (indicatorRow?.indicator_master_id) {
+                      const masterKey = String(indicatorRow.indicator_master_id);
+                      questionsByMasterId[masterKey] = questionsByMasterId[masterKey] || [];
+                      questionsByMasterId[masterKey].push(question);
+                    }
+
+                    if (indicatorRow?.name) {
+                      const nameKey = String(indicatorRow.name);
+                      questionsByIndicatorName[nameKey] = questionsByIndicatorName[nameKey] || [];
+                      questionsByIndicatorName[nameKey].push(question);
+                    }
+                  });
+
+                  const answersPayload = {};
+                  indicatorsData.forEach((indicator) => {
+                    const indicatorMasterId = indicator.indicator_master_id ? String(indicator.indicator_master_id) : null;
+                    const indicatorName = indicator.indicators_master?.name ? String(indicator.indicators_master.name) : null;
+
+                    const sourceQuestions = [
+                      ...(indicatorMasterId ? (questionsByMasterId[indicatorMasterId] || []) : []),
+                      ...(indicatorName ? (questionsByIndicatorName[indicatorName] || []) : [])
+                    ];
+
+                    const uniqueQuestions = Array.from(
+                      new Map(sourceQuestions.map((q) => [q.id, q])).values()
+                    ).sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
+
+                    const questions = uniqueQuestions.map((question) => {
+                      const answer = answersData[question.id];
+                      const selectedAlternative = findSelectedAlternative(question.alternatives, answer);
+
+                      return {
+                        questionId: question.id,
+                        questionText: question.text || `Pergunta ${question.display_order || ''}`.trim(),
+                        answerText: selectedAlternative?.text || null,
+                        answerValue: selectedAlternative?.score_value ?? answer ?? null,
+                        isAnswered: !!selectedAlternative
+                      };
+                    });
+
+                    const itemPayload = {
+                      itemId: indicator.id,
+                      name: indicator.indicators_master?.name || 'Indicador',
+                      questions
+                    };
+
+                    if (indicator.id) answersPayload[String(indicator.id)] = itemPayload;
+                    if (indicator.indicator_master_id) answersPayload[String(indicator.indicator_master_id)] = itemPayload;
+                    if (itemPayload.name) answersPayload[String(itemPayload.name)] = itemPayload;
+                  });
+
+                  setIndicatorAnswersMap(answersPayload);
+                }
               }
             }
             }
@@ -816,6 +942,28 @@ export default function Results() {
     }));
   };
 
+  const sortedIndicators = Object.entries(indicatorResults)
+    .sort(([, a], [, b]) => (b?.percentage ?? 0) - (a?.percentage ?? 0));
+
+  const indicatorModalItems = sortedIndicators.map(([key, value]) => {
+    const possibleKeys = [value?.indicator_id, key, value?.name].filter(Boolean).map(String);
+    const selectedKey = possibleKeys.find((k) => indicatorAnswersMap[k]) || possibleKeys[0] || String(key);
+    const answersData = indicatorAnswersMap[selectedKey];
+
+    return {
+      key: selectedKey,
+      label: resolveName(key, value),
+      questions: answersData?.questions || []
+    };
+  });
+
+  const openIndicatorAnswers = (key, value) => {
+    const possibleKeys = [value?.indicator_id, key, value?.name].filter(Boolean).map(String);
+    const selectedKey = possibleKeys.find((k) => indicatorAnswersMap[k]) || possibleKeys[0] || String(key);
+    setSelectedIndicatorAnswersKey(selectedKey);
+    setShowIndicatorAnswersModal(true);
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#F5F3EC] to-[#EEF2FF]">
       <style>{textFadeOutStyles}</style>
@@ -828,6 +976,16 @@ export default function Results() {
           onClose={() => setShowXPOverlay(false)}
         />
       )}
+
+      <ItemResponsesModal
+        isOpen={showIndicatorAnswersModal}
+        onClose={() => setShowIndicatorAnswersModal(false)}
+        title="Respostas por indicador"
+        itemLabel="Indicador"
+        items={indicatorModalItems}
+        selectedKey={selectedIndicatorAnswersKey}
+        onSelect={setSelectedIndicatorAnswersKey}
+      />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 pb-16 pt-8">
         <div className="text-center mb-12">
@@ -970,6 +1128,7 @@ export default function Results() {
                 noLevelAchievedTitle={noLevelAchievedTitle}
                 noLevelAchievedDescription={noLevelAchievedDescription}
                 showLevelBadges={showLevelBadges}
+                levelAnswerItems={levelAnswersMap}
               />
             )}
 
@@ -1004,8 +1163,7 @@ export default function Results() {
 
             {assessmentSchema !== 'niveis' && (
             <div className="mt-8 grid gap-4">
-              {Object.entries(indicatorResults)
-                .sort(([, a], [, b]) => (b?.percentage ?? 0) - (a?.percentage ?? 0))
+              {sortedIndicators
                 .map(([k, v]) => {
                 const meta = resolveMeta(k, v);
                 const displayName = resolveName(k, v);
@@ -1070,8 +1228,8 @@ export default function Results() {
                       </div>
                     </div>
 
-                    {v.interpretation && (
-                      <div className="mt-6">
+                    <div className="mt-6">
+                      {v.interpretation && (
                         <p
                           data-indicator-interpretation-key={indicatorKey}
                           className={`text-base sm:text-lg text-gray-700 leading-relaxed text-justify [text-align-last:left] ${
@@ -1084,26 +1242,41 @@ export default function Results() {
                         >
                           {v.interpretation}
                         </p>
+                      )}
 
-                        {truncatedIndicatorInterpretations[indicatorKey] && !expandedIndicatorInterpretations[indicatorKey] && (
-                          <button
-                            onClick={() => toggleIndicatorInterpretation(indicatorKey)}
-                            className="mt-2 text-[#4F46E5] font-semibold text-base hover:opacity-90 transition-opacity"
-                          >
-                            Ver mais
-                          </button>
-                        )}
+                      <div className="mt-2 flex items-center justify-between gap-4">
+                        <div>
+                          {v.interpretation && (
+                            <>
+                            {truncatedIndicatorInterpretations[indicatorKey] && !expandedIndicatorInterpretations[indicatorKey] && (
+                              <button
+                                onClick={() => toggleIndicatorInterpretation(indicatorKey)}
+                                className="text-[#4F46E5] font-semibold text-base hover:opacity-90 transition-opacity"
+                              >
+                                Ver mais
+                              </button>
+                            )}
 
-                        {expandedIndicatorInterpretations[indicatorKey] && (
-                          <button
-                            onClick={() => toggleIndicatorInterpretation(indicatorKey)}
-                            className="mt-3 text-[#4F46E5] font-semibold text-base hover:opacity-90 transition-opacity"
-                          >
-                            Ver menos
-                          </button>
-                        )}
+                            {expandedIndicatorInterpretations[indicatorKey] && (
+                              <button
+                                onClick={() => toggleIndicatorInterpretation(indicatorKey)}
+                                className="text-[#4F46E5] font-semibold text-base hover:opacity-90 transition-opacity"
+                              >
+                                Ver menos
+                              </button>
+                            )}
+                            </>
+                          )}
+                        </div>
+
+                        <button
+                          onClick={() => openIndicatorAnswers(indicatorKey, v)}
+                          className="text-[#4F46E5] font-semibold text-base hover:opacity-90 transition-opacity"
+                        >
+                          Ver respostas
+                        </button>
                       </div>
-                    )}
+                    </div>
                   </div>
                 );
               })}

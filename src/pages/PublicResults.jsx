@@ -8,6 +8,7 @@ import RadarChart from '../components/charts/RadarChart';
 import HorizontalBarChart from '../components/charts/HorizontalBarChart';
 import ScenarioXPOverlay from '../components/ScenarioXPOverlay';
 import LevelsResultsDisplay from '../components/LevelsResultsDisplay';
+import ItemResponsesModal from '../components/ItemResponsesModal';
 import { TOKENS } from '../config/tokens';
 import { getLucideIcon } from '../utils/iconUtils';
 import { XP_CONFIG, calculateXP, formatXP } from '../utils/gamificationUtils';
@@ -75,6 +76,35 @@ const getClassificationFromRanges = (score, maxScore, ranges, indicatorName) => 
   };
 };
 
+const normalizeAnswersSnapshot = (snapshot) => {
+  if (!snapshot) return {};
+  if (typeof snapshot === 'string') {
+    try {
+      return JSON.parse(snapshot);
+    } catch {
+      return {};
+    }
+  }
+  return snapshot;
+};
+
+const findSelectedAlternative = (alternatives = [], answerValue) => {
+  if (answerValue === undefined || answerValue === null) return null;
+
+  const answerNumeric = Number(answerValue);
+
+  return alternatives.find((alt) => {
+    if (alt.id == answerValue || alt.score_value == answerValue) return true;
+
+    const altNumeric = Number(alt.score_value);
+    if (!Number.isNaN(answerNumeric) && !Number.isNaN(altNumeric)) {
+      return altNumeric === answerNumeric;
+    }
+
+    return false;
+  }) || null;
+};
+
 export default function PublicResults() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -105,6 +135,10 @@ export default function PublicResults() {
   const [expandedIndicatorInterpretations, setExpandedIndicatorInterpretations] = useState({});
   const [truncatedIndicatorInterpretations, setTruncatedIndicatorInterpretations] = useState({});
   const [showLevelBadges, setShowLevelBadges] = useState(true);
+  const [indicatorAnswersMap, setIndicatorAnswersMap] = useState({});
+  const [levelAnswersMap, setLevelAnswersMap] = useState({});
+  const [showIndicatorAnswersModal, setShowIndicatorAnswersModal] = useState(false);
+  const [selectedIndicatorAnswersKey, setSelectedIndicatorAnswersKey] = useState('');
 
   useEffect(() => {
     // Removido: let mounted = true; (não necessário para página pública)
@@ -167,6 +201,7 @@ export default function PublicResults() {
           }
         } else {
           setResult(data);
+          const answersData = normalizeAnswersSnapshot(data.answers_snapshot);
           // Usar visualization_type da versão específica do assessment
           if (data?.assessment_versions) {
             // Normalizar visualization_type para array
@@ -233,6 +268,46 @@ export default function PublicResults() {
               if (!levelsError && levelsData) {
                 setLevels(levelsData);
 
+                const levelAnswersPayload = {};
+
+                if (levelsData.length > 0) {
+                  for (const level of levelsData) {
+                    const { data: levelQuestionsForAnswers } = await supabase
+                      .from('questions')
+                      .select(`
+                        id,
+                        text,
+                        display_order,
+                        alternatives (
+                          id,
+                          text,
+                          score_value
+                        )
+                      `)
+                      .eq('level_id', level.id)
+                      .order('display_order', { ascending: true });
+
+                    levelAnswersPayload[level.id] = {
+                      itemId: level.id,
+                      name: level.name,
+                      questions: (levelQuestionsForAnswers || []).map((question) => {
+                        const answer = answersData[question.id];
+                        const selectedAlternative = findSelectedAlternative(question.alternatives, answer);
+
+                        return {
+                          questionId: question.id,
+                          questionText: question.text || `Pergunta ${question.display_order || ''}`.trim(),
+                          answerText: selectedAlternative?.text || null,
+                          answerValue: selectedAlternative?.score_value ?? answer ?? null,
+                          isAnswered: !!selectedAlternative
+                        };
+                      })
+                    };
+                  }
+                }
+
+                setLevelAnswersMap(levelAnswersPayload);
+
                 // Carregar ranges de interpretação para cada nível
                 const levelIds = levelsData.map(l => l.id);
                 if (levelIds.length > 0) {
@@ -288,7 +363,6 @@ export default function PublicResults() {
                 // 2) Fallback client-side (mantido por segurança)
                 if (!hasRpcLevelResults) {
                   const levelResultsMap = {};
-                  const answersData = data.answers_snapshot || {};
 
                   if (levelsData.length > 0) {
                     for (const level of levelsData) {
@@ -296,9 +370,11 @@ export default function PublicResults() {
                         .from('questions')
                         .select(`
                           id,
+                          text,
                           display_order,
                           alternatives (
                             id,
+                            text,
                             score_value,
                             score_target
                           )
@@ -321,6 +397,7 @@ export default function PublicResults() {
                       if (questionsData) {
                         questionsData.forEach(question => {
                           const answer = answersData[question.id];
+                          const selectedAlternative = findSelectedAlternative(question.alternatives, answer);
 
                           let questionMaxLevel = 0;
                           let questionMaxPotential = 0;
@@ -346,18 +423,6 @@ export default function PublicResults() {
                           maxTotalScore += questionMaxTotal;
 
                           if (answer !== undefined && answer !== null) {
-                            const answerNumeric = Number(answer);
-                            const selectedAlternative = question.alternatives.find(alt => {
-                              if (alt.id == answer || alt.score_value == answer) return true;
-
-                              const altNumeric = Number(alt.score_value);
-                              if (!Number.isNaN(answerNumeric) && !Number.isNaN(altNumeric)) {
-                                return altNumeric === answerNumeric;
-                              }
-
-                              return false;
-                            });
-
                             if (selectedAlternative) {
                               const scoreValue = parseFloat(selectedAlternative.score_value) || 0;
                               const scoreTarget = selectedAlternative.score_target || 'level';
@@ -491,6 +556,92 @@ export default function PublicResults() {
               
               setAssessmentRanges(rangesMap);
               setIndicatorsMeta(metaMap);
+
+              const answerQuestionIds = Object.keys(answersData || {});
+              if (answerQuestionIds.length > 0) {
+                const { data: answeredQuestionsData } = await supabase
+                  .from('questions')
+                  .select(`
+                    id,
+                    text,
+                    display_order,
+                    indicator_id,
+                    indicators (
+                      id,
+                      name,
+                      indicator_master_id
+                    ),
+                    alternatives (
+                      id,
+                      text,
+                      score_value
+                    )
+                  `)
+                  .in('id', answerQuestionIds);
+
+                if (answeredQuestionsData) {
+                  const questionsByMasterId = {};
+                  const questionsByIndicatorName = {};
+
+                  answeredQuestionsData.forEach((question) => {
+                    const indicatorRow = Array.isArray(question.indicators)
+                      ? question.indicators[0]
+                      : question.indicators;
+
+                    if (indicatorRow?.indicator_master_id) {
+                      const masterKey = String(indicatorRow.indicator_master_id);
+                      questionsByMasterId[masterKey] = questionsByMasterId[masterKey] || [];
+                      questionsByMasterId[masterKey].push(question);
+                    }
+
+                    if (indicatorRow?.name) {
+                      const nameKey = String(indicatorRow.name);
+                      questionsByIndicatorName[nameKey] = questionsByIndicatorName[nameKey] || [];
+                      questionsByIndicatorName[nameKey].push(question);
+                    }
+                  });
+
+                  const answersPayload = {};
+                  indicatorsData.forEach((indicator) => {
+                    const indicatorMasterId = indicator.indicator_master_id ? String(indicator.indicator_master_id) : null;
+                    const indicatorName = indicator.indicators_master?.name ? String(indicator.indicators_master.name) : null;
+
+                    const sourceQuestions = [
+                      ...(indicatorMasterId ? (questionsByMasterId[indicatorMasterId] || []) : []),
+                      ...(indicatorName ? (questionsByIndicatorName[indicatorName] || []) : [])
+                    ];
+
+                    const uniqueQuestions = Array.from(
+                      new Map(sourceQuestions.map((q) => [q.id, q])).values()
+                    ).sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
+
+                    const questions = uniqueQuestions.map((question) => {
+                      const answer = answersData[question.id];
+                      const selectedAlternative = findSelectedAlternative(question.alternatives, answer);
+
+                      return {
+                        questionId: question.id,
+                        questionText: question.text || `Pergunta ${question.display_order || ''}`.trim(),
+                        answerText: selectedAlternative?.text || null,
+                        answerValue: selectedAlternative?.score_value ?? answer ?? null,
+                        isAnswered: !!selectedAlternative
+                      };
+                    });
+
+                    const itemPayload = {
+                      itemId: indicator.id,
+                      name: indicator.indicators_master?.name || 'Indicador',
+                      questions
+                    };
+
+                    if (indicator.id) answersPayload[String(indicator.id)] = itemPayload;
+                    if (indicator.indicator_master_id) answersPayload[String(indicator.indicator_master_id)] = itemPayload;
+                    if (itemPayload.name) answersPayload[String(itemPayload.name)] = itemPayload;
+                  });
+
+                  setIndicatorAnswersMap(answersPayload);
+                }
+              }
             }
             }
 
@@ -734,6 +885,28 @@ export default function PublicResults() {
     }));
   };
 
+  const sortedIndicators = Object.entries(indicatorResults)
+    .sort(([, a], [, b]) => (b?.percentage ?? 0) - (a?.percentage ?? 0));
+
+  const indicatorModalItems = sortedIndicators.map(([key, value]) => {
+    const possibleKeys = [value?.indicator_id, key, value?.name].filter(Boolean).map(String);
+    const selectedKey = possibleKeys.find((k) => indicatorAnswersMap[k]) || possibleKeys[0] || String(key);
+    const answersData = indicatorAnswersMap[selectedKey];
+
+    return {
+      key: selectedKey,
+      label: resolveName(key, value),
+      questions: answersData?.questions || []
+    };
+  });
+
+  const openIndicatorAnswers = (key, value) => {
+    const possibleKeys = [value?.indicator_id, key, value?.name].filter(Boolean).map(String);
+    const selectedKey = possibleKeys.find((k) => indicatorAnswersMap[k]) || possibleKeys[0] || String(key);
+    setSelectedIndicatorAnswersKey(selectedKey);
+    setShowIndicatorAnswersModal(true);
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#F5F3EC] to-[#EEF2FF]">
       <style>{textFadeOutStyles}</style>
@@ -746,6 +919,16 @@ export default function PublicResults() {
           onClose={() => setShowXPOverlay(false)}
         />
       )}
+
+      <ItemResponsesModal
+        isOpen={showIndicatorAnswersModal}
+        onClose={() => setShowIndicatorAnswersModal(false)}
+        title="Respostas por indicador"
+        itemLabel="Indicador"
+        items={indicatorModalItems}
+        selectedKey={selectedIndicatorAnswersKey}
+        onSelect={setSelectedIndicatorAnswersKey}
+      />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 pb-16 pt-8">
         <div className="text-center mb-12">
@@ -879,6 +1062,7 @@ export default function PublicResults() {
                 noLevelAchievedTitle={noLevelAchievedTitle}
                 noLevelAchievedDescription={noLevelAchievedDescription}
                 showLevelBadges={showLevelBadges}
+                levelAnswerItems={levelAnswersMap}
               />
             )}
 
@@ -913,8 +1097,7 @@ export default function PublicResults() {
 
             {assessmentSchema !== 'niveis' && (
             <div className="mt-8 grid gap-4">
-              {Object.entries(indicatorResults)
-                .sort(([, a], [, b]) => (b?.percentage ?? 0) - (a?.percentage ?? 0))
+              {sortedIndicators
                 .map(([key, value]) => {
                   const meta = resolveMeta(key, value);
                   const displayName = resolveName(key, value);
@@ -988,23 +1171,34 @@ export default function PublicResults() {
                           {value.interpretation}
                         </p>
 
-                        {truncatedIndicatorInterpretations[indicatorKey] && !expandedIndicatorInterpretations[indicatorKey] && (
-                          <button
-                            onClick={() => toggleIndicatorInterpretation(indicatorKey)}
-                            className="mt-2 text-[#4F46E5] font-semibold text-base hover:opacity-90 transition-opacity"
-                          >
-                            Ver mais
-                          </button>
-                        )}
+                        <div className="mt-2 flex items-center justify-between gap-4">
+                          <div>
+                            {truncatedIndicatorInterpretations[indicatorKey] && !expandedIndicatorInterpretations[indicatorKey] && (
+                              <button
+                                onClick={() => toggleIndicatorInterpretation(indicatorKey)}
+                                className="text-[#4F46E5] font-semibold text-base hover:opacity-90 transition-opacity"
+                              >
+                                Ver mais
+                              </button>
+                            )}
 
-                        {expandedIndicatorInterpretations[indicatorKey] && (
+                            {expandedIndicatorInterpretations[indicatorKey] && (
+                              <button
+                                onClick={() => toggleIndicatorInterpretation(indicatorKey)}
+                                className="text-[#4F46E5] font-semibold text-base hover:opacity-90 transition-opacity"
+                              >
+                                Ver menos
+                              </button>
+                            )}
+                          </div>
+
                           <button
-                            onClick={() => toggleIndicatorInterpretation(indicatorKey)}
-                            className="mt-3 text-[#4F46E5] font-semibold text-base hover:opacity-90 transition-opacity"
+                            onClick={() => openIndicatorAnswers(indicatorKey, value)}
+                            className="text-[#4F46E5] font-semibold text-base hover:opacity-90 transition-opacity"
                           >
-                            Ver menos
+                            Ver respostas
                           </button>
-                        )}
+                        </div>
                       </div>
                     </div>
                   );
