@@ -104,6 +104,7 @@ export default function Results() {
   const [noLevelAchievedDescription, setNoLevelAchievedDescription] = useState('');
   const [expandedIndicatorInterpretations, setExpandedIndicatorInterpretations] = useState({});
   const [truncatedIndicatorInterpretations, setTruncatedIndicatorInterpretations] = useState({});
+  const [showLevelBadges, setShowLevelBadges] = useState(true);
 
   useEffect(() => {
     let mounted = true;
@@ -137,7 +138,8 @@ export default function Results() {
               xp_completion,
               xp_score_80_89,
               xp_score_90_99,
-              xp_score_100
+              xp_score_100,
+              show_level_badges
             )
           `);
 
@@ -308,6 +310,7 @@ export default function Results() {
               setLevelMode(data.assessment_versions?.level_mode || 'single');
               setNoLevelAchievedTitle(data.assessment_versions?.no_level_achieved_title || '');
               setNoLevelAchievedDescription(data.assessment_versions?.no_level_achieved_description || '');
+              setShowLevelBadges(data.assessment_versions?.show_level_badges !== false);
             }
 
             // Se for assessment de níveis, buscar dados dos níveis
@@ -966,6 +969,7 @@ export default function Results() {
                 levelRanges={levelRanges}
                 noLevelAchievedTitle={noLevelAchievedTitle}
                 noLevelAchievedDescription={noLevelAchievedDescription}
+                showLevelBadges={showLevelBadges}
               />
             )}
 

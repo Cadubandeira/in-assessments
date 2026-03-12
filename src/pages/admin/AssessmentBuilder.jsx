@@ -81,6 +81,9 @@ export default function AssessmentBuilder() {
   // Estado para controlar exibição de intros de indicadores/níveis
   const [showIndicatorIntro, setShowIndicatorIntro] = useState(true);
 
+  // Estado para controlar exibição de emblemas de níveis (multi-level mode)
+  const [showLevelBadges, setShowLevelBadges] = useState(true);
+
   // Estado para duplicação
   const [isDuplicating, setIsDuplicating] = useState(false);
 
@@ -172,6 +175,7 @@ export default function AssessmentBuilder() {
     
     // Reset indicator intro display state
     setShowIndicatorIntro(true);
+    setShowLevelBadges(true);
 
     try {
       // 1. Buscar dados do assessment
@@ -283,6 +287,7 @@ export default function AssessmentBuilder() {
     
     // Reset indicator intro display state
     setShowIndicatorIntro(true);
+    setShowLevelBadges(true);
   };
 
   const loadVersionIndicators = async (versionId, assessmentId) => {
@@ -445,6 +450,8 @@ export default function AssessmentBuilder() {
         setNoLevelAchievedTitle(versionData.no_level_achieved_title || '');
         setNoLevelAchievedDescription(versionData.no_level_achieved_description || '');
         if (versionData.level_mode) {
+           setShowIndicatorIntro(versionData.show_indicator_intro !== false);
+           setShowLevelBadges(versionData.show_level_badges !== false);
           setLevelMode(versionData.level_mode);
         }
         
@@ -457,6 +464,7 @@ export default function AssessmentBuilder() {
         
         // Carregar configuração de exibição de intros de indicadores/níveis
         setShowIndicatorIntro(versionData.show_indicator_intro !== false);
+        setShowLevelBadges(versionData.show_level_badges !== false);
         
         // Derive and set active elements based on loaded content
         const activeElements = deriveActiveElements(versionData);
@@ -923,7 +931,6 @@ export default function AssessmentBuilder() {
 
       // CENÁRIO 1: CRIAR NOVO ASSESSMENT
       if (selectedAssessment === 'new') {
-        // 1. Inserir Assessment com schema='niveis'
         const { data: newAssData, error: newAssError } = await supabase
           .from('assessments')
           .insert([{
@@ -943,7 +950,6 @@ export default function AssessmentBuilder() {
         if (newAssError) throw newAssError;
         targetAssessmentId = newAssData.id;
 
-        // 2. Inserir Versão 1 com level_mode e campos de não conquista
         const { data: newVerData, error: newVerError } = await supabase
           .from('assessment_versions')
           .insert([{
@@ -964,39 +970,36 @@ export default function AssessmentBuilder() {
             xp_score_80_89: gamifyXp ? xpScore80 : 0,
             xp_score_90_99: gamifyXp ? xpScore90 : 0,
             xp_score_100: gamifyXp ? xpScore100 : 0,
-            show_indicator_intro: showIndicatorIntro !== false
+            show_indicator_intro: showIndicatorIntro !== false,
+            show_level_badges: showLevelBadges !== false
           }])
           .select()
           .single();
 
         if (newVerError) throw newVerError;
         targetVersionId = newVerData.id;
-
       } else {
         // CENÁRIO 2: ATUALIZAR EXISTENTE (criar nova versão)
-        
-        // 1. Buscar o maior version_number existente para este assessment
         const { data: existingVersions, error: versionsError } = await supabase
           .from('assessment_versions')
           .select('version_number')
           .eq('assessment_id', selectedAssessment)
           .order('version_number', { ascending: false })
           .limit(1);
-        
+
         if (versionsError) throw versionsError;
-        
-        const maxVersionNumber = existingVersions && existingVersions.length > 0 
-          ? existingVersions[0].version_number 
+
+        const maxVersionNumber = existingVersions && existingVersions.length > 0
+          ? existingVersions[0].version_number
           : 0;
         const nextVersionNumber = maxVersionNumber + 1;
-        
-        // 2. Criar nova versão com campos de não conquista e pre_assessment_fields
+
         const { data: newVerData, error: newVerError } = await supabase
           .from('assessment_versions')
           .insert([{
             assessment_id: selectedAssessment,
             version_number: nextVersionNumber,
-            is_active: false, // Nova versão começa como inativa
+            is_active: false,
             schema: 'niveis',
             level_mode: levelMode,
             introduction_html: introductionHtml,
@@ -1011,7 +1014,8 @@ export default function AssessmentBuilder() {
             xp_score_80_89: gamifyXp ? xpScore80 : 0,
             xp_score_90_99: gamifyXp ? xpScore90 : 0,
             xp_score_100: gamifyXp ? xpScore100 : 0,
-            show_indicator_intro: showIndicatorIntro !== false
+            show_indicator_intro: showIndicatorIntro !== false,
+            show_level_badges: showLevelBadges !== false
           }])
           .select()
           .single();
@@ -1019,7 +1023,6 @@ export default function AssessmentBuilder() {
         if (newVerError) throw newVerError;
         targetVersionId = newVerData.id;
 
-        // 3. Atualizar dados do assessment se mudou algo
         if (assessmentDataEdited && assessmentData) {
           const changeFields = {};
           ['name', 'type', 'aggregation_type', 'visualization_type', 'availability_type', 'is_active', 'description'].forEach(field => {
@@ -1027,7 +1030,7 @@ export default function AssessmentBuilder() {
               changeFields[field] = assessmentDataEdited[field];
             }
           });
-          
+
           if (Object.keys(changeFields).length > 0) {
             const { error: updateError } = await supabase
               .from('assessments')
@@ -1347,6 +1350,7 @@ export default function AssessmentBuilder() {
         versionUpdateFields.xp_score_90_99 = gamifyXp ? xpScore90 : 0;
         versionUpdateFields.xp_score_100 = gamifyXp ? xpScore100 : 0;
         versionUpdateFields.show_indicator_intro = showIndicatorIntro !== false;
+        versionUpdateFields.show_level_badges = showLevelBadges !== false;
         
         if (Object.keys(versionUpdateFields).length > 0) {
           const { error: updateVersionError } = await supabase
@@ -1490,6 +1494,7 @@ export default function AssessmentBuilder() {
         versionTextUpdate.xp_score_90_99 = gamifyXp ? xpScore90 : 0;
         versionTextUpdate.xp_score_100 = gamifyXp ? xpScore100 : 0;
         versionTextUpdate.show_indicator_intro = showIndicatorIntro !== false;
+        versionTextUpdate.show_level_badges = showLevelBadges !== false;
         
         if (Object.keys(versionTextUpdate).length > 0) {
           const { error: updateVersionError } = await supabase
@@ -2661,6 +2666,36 @@ Deseja continuar?`;
                   </span>
                 </div>
               </div>
+
+              {/* 3.7. EXIBIÇÃO DE EMBLEMAS DE NÍVEIS (apenas para schema='niveis' e levelMode='multi') */}
+              {assessmentSchema === 'niveis' && levelMode === 'multi' && (
+                <div className="bg-white/80 backdrop-blur-sm border border-white/60 rounded-2xl p-6 sm:p-8 shadow-lg">
+                  <h2 className={`text-2xl font-bold mb-4 bg-gradient-to-r from-[#4F46E5] via-[#6366F1] to-[#818CF8] bg-clip-text text-transparent ${TOKENS.fonts.serif}`}>
+                    Emblemas de Níveis
+                  </h2>
+                  <p className="text-sm text-gray-600 mb-6">
+                    Configure se deseja exibir os emblemas dos níveis conquistados. Ao desativar, apenas os cards detalhados de todos os níveis serão exibidos.
+                  </p>
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setShowLevelBadges(!showLevelBadges)}
+                      className={`relative inline-flex h-7 w-14 items-center rounded-full transition-colors ${
+                        showLevelBadges ? 'bg-[#4F46E5]' : 'bg-gray-300'
+                      }`}
+                    >
+                      <span
+                        className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
+                          showLevelBadges ? 'translate-x-8' : 'translate-x-1'
+                        }`}
+                      />
+                    </button>
+                    <span className="text-sm font-medium text-gray-700">
+                      {showLevelBadges ? 'Exibir' : 'Ocultar'} emblemas de níveis
+                    </span>
+                  </div>
+                </div>
+              )}
 
               {/* 4. INDICADORES / NÍVEIS - Schema Dependent */}
               {assessmentSchema === 'indicadores' ? (

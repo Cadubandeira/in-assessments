@@ -61,6 +61,15 @@ const generateEmojiFromName = (name) => {
   return '⭐';
 };
 
+const stripHtml = (value = '') => value.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+
+const formatNaturalList = (items = []) => {
+  if (items.length === 0) return '';
+  if (items.length === 1) return items[0];
+  if (items.length === 2) return `${items[0]} e ${items[1]}`;
+  return `${items.slice(0, -1).join(', ')} e ${items[items.length - 1]}`;
+};
+
 // Estilo para fade-out do texto truncado
 const textFadeOutStyles = `
   .text-fade-out {
@@ -340,7 +349,7 @@ function LevelCardAnimated({ level, expandedLevelId, setExpandedLevelId }) {
   );
 }
 
-export default function LevelsResultsDisplay({ levelResults, levelMode, levels, levelRanges = {}, noLevelAchievedTitle, noLevelAchievedDescription }) {
+export default function LevelsResultsDisplay({ levelResults, levelMode, levels, levelRanges = {}, noLevelAchievedTitle, noLevelAchievedDescription, showLevelBadges = true }) {
   const [selectedLevel, setSelectedLevel] = useState(null);
   const [showLevelModal, setShowLevelModal] = useState(false);
   const [expandedLevelId, setExpandedLevelId] = useState(null);
@@ -360,6 +369,20 @@ export default function LevelsResultsDisplay({ levelResults, levelMode, levels, 
       })
       .sort((a, b) => b.display_order - a.display_order); // Ordenar em reverso (maior ordem primeiro)
   }, [levelResults, levels]);
+
+  const levelsSummary = useMemo(() => {
+    const orderedLevels = [...levels]
+      .sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
+
+    const names = orderedLevels
+      .map(level => stripHtml(level.name || ''))
+      .filter(Boolean);
+
+    return {
+      count: names.length,
+      namesText: formatNaturalList(names),
+    };
+  }, [levels]);
 
   // Detectar se o texto está truncado (modo single)
   useEffect(() => {
@@ -878,12 +901,14 @@ export default function LevelsResultsDisplay({ levelResults, levelMode, levels, 
 
             return (
               <div className="mt-8 space-y-6 sm:space-y-8">
-                {/* Mensagem Interativa */}
-                <div className="p-4 bg-blue-50 border-l-4 border-blue-400 rounded-lg">
-                  <p className="text-blue-800 font-medium text-sm">
-                    💬 Clique sobre um emblema para ver mais sobre o nível obtido.
-                  </p>
-                </div>
+                {levelsSummary.count > 0 && (
+                  <div className="p-4 bg-blue-50 border-l-4 border-blue-400 rounded-lg">
+                    <p className="text-blue-800 font-medium text-sm sm:text-base leading-relaxed text-justify [text-align-last:left]">
+                      Veja a seguir os detalhes da sua pontuação que é descrita em{' '}
+                      {levelsSummary.count} {levelsSummary.count === 1 ? 'nível' : 'níveis'}: {levelsSummary.namesText}.
+                    </p>
+                  </div>
+                )}
 
                 {/* Radar Chart com Pontuações dos Níveis */}
                 <div className="bg-white/80 border border-white/60 rounded-2xl p-6 shadow-sm">
@@ -898,20 +923,22 @@ export default function LevelsResultsDisplay({ levelResults, levelMode, levels, 
                 </div>
 
                 {/* Grid de Emblemas */}
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                  {allLevels.map((level) => (
-                    <div
-                      key={level.id}
-                      onClick={() => level.isAchieved && handleLevelClick(level)}
-                      className={level.isAchieved ? 'cursor-pointer' : 'cursor-default'}
-                    >
-                      <LevelBadgeAlternative
-                        level={level}
-                        isAchieved={level.isAchieved}
-                      />
-                    </div>
-                  ))}
-                </div>
+                {showLevelBadges && (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                    {allLevels.map((level) => (
+                      <div
+                        key={level.id}
+                        onClick={() => level.isAchieved && handleLevelClick(level)}
+                        className={level.isAchieved ? 'cursor-pointer' : 'cursor-default'}
+                      >
+                        <LevelBadgeAlternative
+                          level={level}
+                          isAchieved={level.isAchieved}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                )}
 
                 {/* Cards de Níveis Não Alcançados */}
                 {(() => {
@@ -927,20 +954,24 @@ export default function LevelsResultsDisplay({ levelResults, levelMode, levels, 
                   const achievedLevelIds = achievedLevels.map(al => al.level_id);
 
                   // Filtrar apenas níveis NÃO alcançados
-                  const unachivedLevelsList = allLevels.filter(level => !level.isAchieved);
+                  const unachivedLevelsList = showLevelBadges
+                    ? allLevels.filter(level => !level.isAchieved)
+                    : allLevels;
 
-                  // Não mostrar cards se o nível de maior ordem foi alcançado
-                  if (maxOrderAchieved || unachivedLevelsList.length === 0) {
+                  // Com emblemas ativos, mantém regra atual. Sem emblemas, sempre mostra todos os cards.
+                  if ((showLevelBadges && maxOrderAchieved) || unachivedLevelsList.length === 0) {
                     return null;
                   }
 
                   return (
                     <>
-                      <div className="mt-4">
-                        <h3 className="text-base sm:text-lg font-bold text-[#1E1B4B] mb-4">
-                          🎯 Veja como conquistar os demais níveis
-                        </h3>
-                      </div>
+                      {showLevelBadges && (
+                        <div className="mt-4">
+                          <h3 className="text-base sm:text-lg font-bold text-[#1E1B4B] mb-4">
+                            🎯 Veja como conquistar os demais níveis
+                          </h3>
+                        </div>
+                      )}
 
                       <div className="grid gap-4">
                         {unachivedLevelsList.map((level) => {

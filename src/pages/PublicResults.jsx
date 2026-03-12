@@ -104,6 +104,7 @@ export default function PublicResults() {
   const [noLevelAchievedDescription, setNoLevelAchievedDescription] = useState('');
   const [expandedIndicatorInterpretations, setExpandedIndicatorInterpretations] = useState({});
   const [truncatedIndicatorInterpretations, setTruncatedIndicatorInterpretations] = useState({});
+  const [showLevelBadges, setShowLevelBadges] = useState(true);
 
   useEffect(() => {
     // Removido: let mounted = true; (não necessário para página pública)
@@ -134,6 +135,7 @@ export default function PublicResults() {
               result_introduction,
               no_level_achieved_title,
               no_level_achieved_description,
+              show_level_badges,
               assessments (
                 id,
                 name,
@@ -218,6 +220,7 @@ export default function PublicResults() {
             setLevelMode(data.assessment_versions?.level_mode || 'single');
             setNoLevelAchievedTitle(data.assessment_versions?.no_level_achieved_title || '');
             setNoLevelAchievedDescription(data.assessment_versions?.no_level_achieved_description || '');
+            setShowLevelBadges(data.assessment_versions?.show_level_badges !== false);
 
             // Se for assessment de níveis, buscar dados dos níveis
             if (data.assessment_versions.schema === 'niveis') {
@@ -875,6 +878,7 @@ export default function PublicResults() {
                 levelRanges={levelRanges}
                 noLevelAchievedTitle={noLevelAchievedTitle}
                 noLevelAchievedDescription={noLevelAchievedDescription}
+                showLevelBadges={showLevelBadges}
               />
             )}
 
