@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { supabase } from '../../supabaseClient';
 import { useUserRole } from '../../hooks/useUserRole';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Trash2, ArrowLeft, Save, GitBranch, Sparkles, X, Copy } from 'lucide-react';
+import { Plus, Trash2, ArrowLeft, Save, GitBranch, Sparkles, X, Copy, Power } from 'lucide-react';
 import RichTextEditor from '../../components/RichTextEditor';
 import OverallRangesEditor from '../../components/OverallRangesEditor';
 import AssessmentElementsModal from '../../components/AssessmentElementsModal';
@@ -12,7 +12,6 @@ import LevelRangesEditor from '../../components/LevelRangesEditor';
 import XPGameificationEditor from '../../components/XPGameificationEditor';
 import { TOKENS } from '../../config/tokens';
 import { 
-  getActiveAssessmentVersion, 
   createNewAssessmentVersion, 
   activateAssessmentVersion,
   listAssessmentVersions 
@@ -70,6 +69,10 @@ export default function AssessmentBuilder() {
   const [showRemoveElementModal, setShowRemoveElementModal] = useState(false);
   const [elementToRemove, setElementToRemove] = useState(null);
   const [removeConfirmed, setRemoveConfirmed] = useState(false);
+  const [showUnpublishModal, setShowUnpublishModal] = useState(false);
+  const [assessmentToUnpublish, setAssessmentToUnpublish] = useState(null);
+  const [unpublishConfirmed, setUnpublishConfirmed] = useState(false);
+  const [isUnpublishing, setIsUnpublishing] = useState(false);
 
   // Estados para Gamificação XP
   const [gamifyXp, setGamifyXp] = useState(false);
@@ -116,7 +119,7 @@ export default function AssessmentBuilder() {
       try {
         setLoading(true);
         const [assRes, indRes] = await Promise.all([
-          supabase.from('assessments').select('id, name, description'),
+          supabase.from('assessments').select('id, name, description, is_active'),
           supabase.from('indicators_master').select('id, name'),
         ]);
 
@@ -205,19 +208,20 @@ export default function AssessmentBuilder() {
       // Inicializar cópia para edição
       setAssessmentDataEdited(JSON.parse(JSON.stringify(normalized)));
 
-      // 2. Buscar versão ativa
-      const activeVer = await getActiveAssessmentVersion(assessmentId);
-      setCurrentVersion(activeVer);
-
-      // 3. Listar todas as versões
+      // 2. Listar todas as versões e usar sempre a mais recente como atual
       const allVersions = await listAssessmentVersions(assessmentId);
       setVersions(allVersions);
+      const latestVersion = allVersions?.[0];
+      if (!latestVersion) {
+        throw new Error('Nenhuma versão encontrada para este assessment.');
+      }
+      setCurrentVersion(latestVersion);
 
-      // 4. Verificar se é schema 'niveis' ou 'indicadores'
+      // 3. Verificar se é schema 'niveis' ou 'indicadores'
       const { data: versionData, error: versionError } = await supabase
         .from('assessment_versions')
         .select('schema, level_mode')
-        .eq('id', activeVer.id)
+        .eq('id', latestVersion.id)
         .single();
 
       const schema = versionData?.schema || assData.schema || 'indicadores';
@@ -226,10 +230,10 @@ export default function AssessmentBuilder() {
       if (schema === 'niveis') {
         // Carregar níveis
         setLevelMode(versionData?.level_mode || 'single');
-        await loadVersionLevels(activeVer.id);
+        await loadVersionLevels(latestVersion.id);
       } else {
         // Carregar indicadores (existente)
-        await loadVersionIndicators(activeVer.id, assessmentId);
+        await loadVersionIndicators(latestVersion.id, assessmentId);
       }
       
       // Check if this selection is still active (not replaced by rapid switching)
@@ -1201,20 +1205,18 @@ export default function AssessmentBuilder() {
 
         setAssessmentData((prev) => (prev ? { ...prev, is_active: true } : prev));
         setAssessmentDataEdited((prev) => (prev ? { ...prev, is_active: true } : prev));
-        
-        // Atualizar estado da versão atual
-        const activeVer = await getActiveAssessmentVersion(finalAssessmentId);
-        setCurrentVersion(activeVer);
-        
+
         // Recarregar versões novamente
         const updatedVersions = await listAssessmentVersions(finalAssessmentId);
         setVersions(updatedVersions);
+        setCurrentVersion(updatedVersions?.[0] || { id: targetVersionId, version_number: versionNumber, is_active: true });
         
         alert(`✓ Versão v${versionNumber} publicada com sucesso!\nEla agora é a versão ativa do assessment.`);
       } else {
         // Recarregar lista de versões
         const allVersions = await listAssessmentVersions(finalAssessmentId);
         setVersions(allVersions);
+        setCurrentVersion(allVersions?.[0] || { id: targetVersionId, version_number: versionNumber, is_active: false });
         
         alert(`✓ Versão v${versionNumber} criada com sucesso!\nVocê pode publicá-la mais tarde clicando em "Publicar".`);
       }
@@ -1765,17 +1767,15 @@ export default function AssessmentBuilder() {
 
         setAssessmentData((prev) => (prev ? { ...prev, is_active: true } : prev));
         setAssessmentDataEdited((prev) => (prev ? { ...prev, is_active: true } : prev));
-        
-        // Atualizar estado da versão atual
-        const activeVer = await getActiveAssessmentVersion(targetAssessmentId);
-        setCurrentVersion(activeVer);
-        
+
         // Recarregar versões novamente
         const updatedVersions = await listAssessmentVersions(targetAssessmentId);
         setVersions(updatedVersions);
+        setCurrentVersion(updatedVersions?.[0] || newVersionObj);
         
         alert(`✓ Versão v${newVersionObj.version_number} publicada com sucesso!\nEla agora é a versão ativa do assessment.`);
       } else {
+        setCurrentVersion(newVersionObj);
         alert(`✓ Versão v${newVersionObj.version_number} criada com sucesso!\nVocê pode publicá-la mais tarde clicando em "Publicar".`);
       }
     } catch (err) {
@@ -1843,9 +1843,8 @@ Deseja continuar?`;
       const allVersions = await listAssessmentVersions(selectedAssessment);
       setVersions(allVersions);
 
-      // Atualizar estado da versão atual
-      const activeVer = await getActiveAssessmentVersion(selectedAssessment);
-      setCurrentVersion(activeVer);
+      // Manter a versão mais recente como atual
+      setCurrentVersion(allVersions?.[0] || currentVersion);
       
       alert('Versão publicada com sucesso!');
     } catch (err) {
@@ -2178,7 +2177,7 @@ Deseja continuar?`;
       // Atualizar lista de assessments
       const { data: updatedList } = await supabase
         .from('assessments')
-        .select('id, name, description');
+        .select('id, name, description, is_active');
       if (updatedList) setAssessments(updatedList);
 
       alert(`Assessment "${src.name} [cópia]" criado com sucesso!`);
@@ -2187,6 +2186,48 @@ Deseja continuar?`;
       alert('Erro ao duplicar: ' + (err.message || String(err)));
     } finally {
       setIsDuplicating(false);
+    }
+  };
+
+  const handleRequestUnpublishAssessment = (assessment, e) => {
+    e.stopPropagation();
+    if (!assessment?.id || assessment?.is_active === false) return;
+    setAssessmentToUnpublish(assessment);
+    setUnpublishConfirmed(false);
+    setShowUnpublishModal(true);
+  };
+
+  const handleConfirmUnpublishAssessment = async () => {
+    if (!assessmentToUnpublish?.id || !unpublishConfirmed || isUnpublishing) return;
+
+    setIsUnpublishing(true);
+    try {
+      const { error: updateError } = await supabase
+        .from('assessments')
+        .update({ is_active: false })
+        .eq('id', assessmentToUnpublish.id);
+
+      if (updateError) throw updateError;
+
+      setAssessments((prev) => prev.map((assessment) => (
+        assessment.id === assessmentToUnpublish.id
+          ? { ...assessment, is_active: false }
+          : assessment
+      )));
+
+      if (selectedAssessment === assessmentToUnpublish.id) {
+        setAssessmentData((prev) => prev ? { ...prev, is_active: false } : prev);
+        setAssessmentDataEdited((prev) => prev ? { ...prev, is_active: false } : prev);
+      }
+
+      setShowUnpublishModal(false);
+      setAssessmentToUnpublish(null);
+      setUnpublishConfirmed(false);
+    } catch (err) {
+      console.error('Erro ao remover publicação do assessment:', err);
+      alert('Erro ao remover publicação: ' + (err.message || String(err)));
+    } finally {
+      setIsUnpublishing(false);
     }
   };
 
@@ -2234,7 +2275,7 @@ Deseja continuar?`;
               {assessments.map((a) => (
                 <div
                   key={a.id}
-                  className={`group flex items-center justify-between rounded-lg border-2 transition-all ${
+                  className={`flex items-center justify-between rounded-lg border-2 transition-all ${
                     selectedAssessment === a.id
                       ? 'bg-gradient-to-r from-[#4F46E5] to-[#6366F1] border-[#4F46E5] shadow-lg'
                       : 'border-gray-200 hover:border-[#4F46E5] bg-white'
@@ -2248,20 +2289,30 @@ Deseja continuar?`;
                   >
                     {a.name}
                   </button>
-                  <button
-                    onClick={(e) => handleDuplicateAssessment(a.id, e)}
-                    disabled={isDuplicating}
-                    title="Duplicar"
-                    className={`flex-shrink-0 mr-2 p-1.5 rounded opacity-0 group-hover:opacity-100 transition-opacity disabled:cursor-not-allowed ${
-                      selectedAssessment === a.id
-                        ? 'text-white/80 hover:text-white hover:bg-white/20'
-                        : 'text-gray-400 hover:text-[#4F46E5] hover:bg-[#4F46E5]/10'
-                    }`}
-                  >
-                    {isDuplicating
-                      ? <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                      : <Copy className="w-4 h-4" />}
-                  </button>
+                  {selectedAssessment === a.id && (
+                    <div className="flex items-center gap-1.5 pr-2">
+                      <button
+                        onClick={(e) => handleDuplicateAssessment(a.id, e)}
+                        disabled={isDuplicating}
+                        title="Duplicar"
+                        className="flex-shrink-0 p-1.5 rounded transition-colors disabled:cursor-not-allowed text-white/80 hover:text-white hover:bg-white/20"
+                      >
+                        {isDuplicating
+                          ? <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                          : <Copy className="w-4 h-4" />}
+                      </button>
+
+                      {a.is_active !== false && (
+                        <button
+                          onClick={(e) => handleRequestUnpublishAssessment(a, e)}
+                          title="Remover publicação"
+                          className="flex-shrink-0 p-1.5 rounded transition-colors text-white/80 hover:text-white hover:bg-red-500/30"
+                        >
+                          <Power className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -3679,6 +3730,88 @@ Deseja continuar?`;
                 }`}
               >
                 {removeConfirmed ? 'Remover Elemento' : 'Confirme acima para remover'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Confirmação de Remoção de Publicação */}
+      {showUnpublishModal && assessmentToUnpublish && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full">
+            <div className="bg-gradient-to-r from-red-500 via-red-600 to-red-700 px-6 py-5 rounded-t-2xl">
+              <h2 className="text-xl font-bold text-white flex items-center gap-3">
+                <div className="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center">
+                  <Power className="w-6 h-6" />
+                </div>
+                Remover Publicação
+              </h2>
+            </div>
+
+            <div className="p-6">
+              <div className="mb-6">
+                <p className="text-lg font-semibold text-gray-900 mb-3">
+                  Você está prestes a remover a publicação do assessment:
+                </p>
+                <div className="p-4 bg-red-50 border-2 border-red-200 rounded-xl">
+                  <p className="text-red-900 font-bold text-lg">
+                    {assessmentToUnpublish.name}
+                  </p>
+                </div>
+              </div>
+
+              <div className="bg-amber-50 border-l-4 border-amber-500 p-4 mb-6 rounded-r-lg">
+                <div className="flex gap-3">
+                  <span className="text-amber-600 text-2xl flex-shrink-0">⚠️</span>
+                  <div className="space-y-2 text-sm text-amber-900">
+                    <p className="font-bold">ATENÇÃO: esta ação deixará o assessment indisponível.</p>
+                    <ul className="list-disc list-inside space-y-1 ml-2">
+                      <li>O assessment deixará de aparecer como publicado para os usuários</li>
+                      <li>O valor de <strong>is_active</strong> será alterado para <strong>false</strong></li>
+                      <li>Você poderá revisar o assessment no builder, mas ele não ficará mais publicado</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-gray-50 border-2 border-gray-200 rounded-xl p-4 mb-6">
+                <label className="flex items-start gap-3 cursor-pointer group">
+                  <input
+                    type="checkbox"
+                    checked={unpublishConfirmed}
+                    onChange={(e) => setUnpublishConfirmed(e.target.checked)}
+                    className="mt-1 w-5 h-5 text-red-600 rounded cursor-pointer flex-shrink-0"
+                  />
+                  <span className="text-sm text-gray-700 font-medium group-hover:text-gray-900 transition-colors">
+                    Confirmo que desejo remover a publicação do assessment{' '}
+                    <strong className="text-red-700">{assessmentToUnpublish.name}</strong>
+                  </span>
+                </label>
+              </div>
+            </div>
+
+            <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 flex gap-3 rounded-b-2xl">
+              <button
+                onClick={() => {
+                  setShowUnpublishModal(false);
+                  setAssessmentToUnpublish(null);
+                  setUnpublishConfirmed(false);
+                }}
+                className="flex-1 px-4 py-2.5 border-2 border-gray-300 text-gray-700 rounded-lg font-semibold hover:bg-gray-100 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleConfirmUnpublishAssessment}
+                disabled={!unpublishConfirmed || isUnpublishing}
+                className={`flex-1 px-4 py-2.5 rounded-lg font-semibold transition-all ${
+                  unpublishConfirmed && !isUnpublishing
+                    ? 'bg-gradient-to-r from-red-600 to-red-700 text-white hover:shadow-lg hover:from-red-700 hover:to-red-800'
+                    : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                }`}
+              >
+                {isUnpublishing ? '⏳ Removendo...' : unpublishConfirmed ? 'Remover Publicação' : 'Confirme acima para remover'}
               </button>
             </div>
           </div>
