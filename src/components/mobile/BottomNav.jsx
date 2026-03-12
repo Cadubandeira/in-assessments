@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Home, Zap, TrendingUp, Users, Settings } from 'lucide-react';
+import { Home, Zap, History, Users, Settings } from 'lucide-react';
 
 const MobileBottomNav = ({ onStartAssessment, role }) => {
   const navigate = useNavigate();
@@ -30,8 +30,8 @@ const MobileBottomNav = ({ onStartAssessment, role }) => {
         onClick={() => navigate('/history')}
         className={`${isActive('/history') ? 'text-[#4F46E5]' : 'text-gray-500'} flex flex-col items-center gap-1`}
       >
-        <TrendingUp className="w-6 h-6" />
-        <span className="text-[10px] font-bold">Evolução</span>
+        <History className="w-6 h-6" />
+        <span className="text-[10px] font-bold">Histórico</span>
       </button>
       
       <button 

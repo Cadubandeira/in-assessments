@@ -109,6 +109,7 @@ export default function PublicResults() {
     // Removido: let mounted = true; (não necessário para página pública)
     const fetchResult = async () => {
       setLoading(true);
+      setOverallRanges([]);
       try {
         if (hasRouteId && !isRouteIdValidUuid) {
           setError('Link de resultado inválido.');
@@ -132,7 +133,12 @@ export default function PublicResults() {
               final_reflection,
               result_introduction,
               no_level_achieved_title,
-              no_level_achieved_description
+              no_level_achieved_description,
+              assessments (
+                id,
+                name,
+                description
+              )
             )
           `);
 
@@ -184,14 +190,23 @@ export default function PublicResults() {
             }
             
             // Buscar dados do assessment (nome e descrição)
-            const { data: assessmentInfo, error: assessmentError } = await supabase
-              .from('assessments')
-              .select('name, description')
-              .eq('id', data.assessment_versions.assessment_id)
-              .single();
+            // Preferir join já carregado para manter compatibilidade com links públicos.
+            const nestedAssessmentInfo = data.assessment_versions?.assessments;
+            let assessmentInfo = Array.isArray(nestedAssessmentInfo)
+              ? (nestedAssessmentInfo[0] || null)
+              : (nestedAssessmentInfo || null);
+            if (!assessmentInfo && data.assessment_versions?.assessment_id) {
+              const { data: fetchedAssessmentInfo } = await supabase
+                .from('assessments')
+                .select('id, name, description')
+                .eq('id', data.assessment_versions.assessment_id)
+                .maybeSingle();
+              assessmentInfo = fetchedAssessmentInfo || null;
+            }
             
             setAssessmentData({
               ...data.assessment_versions,
+              id: assessmentInfo?.id || data.assessment_versions.assessment_id,
               name: assessmentInfo?.name || 'Assessment',
               description: assessmentInfo?.description || '',
               visualization_type: visualizationType,
@@ -242,6 +257,7 @@ export default function PublicResults() {
                 }
 
                 // 1) Fonte principal: cálculo server-side (mais confiável em links públicos)
+                let hasRpcLevelResults = false;
                 try {
                   const { data: rpcLevelResults, error: rpcError } = await supabase
                     .rpc('get_public_level_results', { p_event_id: data.id });
@@ -253,11 +269,11 @@ export default function PublicResults() {
 
                     if (rpcHasAnyScore) {
                       setLevelResults(rpcLevelResults);
+                      hasRpcLevelResults = true;
                       console.warn('PublicResults: resultados de níveis carregados via RPC.', {
                         eventId: data.id,
                         levelsCount: Object.keys(rpcLevelResults).length
                       });
-                      return;
                     }
                   } else if (rpcError) {
                     console.warn('PublicResults: erro ao executar RPC de níveis:', rpcError);
@@ -267,107 +283,109 @@ export default function PublicResults() {
                 }
 
                 // 2) Fallback client-side (mantido por segurança)
-                const levelResultsMap = {};
-                const answersData = data.answers_snapshot || {};
+                if (!hasRpcLevelResults) {
+                  const levelResultsMap = {};
+                  const answersData = data.answers_snapshot || {};
 
-                if (levelsData.length > 0) {
-                  for (const level of levelsData) {
-                    const { data: questionsData, error: questionsError } = await supabase
-                      .from('questions')
-                      .select(`
-                        id,
-                        display_order,
-                        alternatives (
+                  if (levelsData.length > 0) {
+                    for (const level of levelsData) {
+                      const { data: questionsData, error: questionsError } = await supabase
+                        .from('questions')
+                        .select(`
                           id,
-                          score_value,
-                          score_target
-                        )
-                      `)
-                      .eq('level_id', level.id);
+                          display_order,
+                          alternatives (
+                            id,
+                            score_value,
+                            score_target
+                          )
+                        `)
+                        .eq('level_id', level.id);
 
-                    if (questionsError) {
-                      console.warn('Erro ao carregar perguntas do nível em PublicResults:', {
-                        levelId: level.id,
-                        error: questionsError
-                      });
-                    }
-
-                    let levelScore = 0;
-                    let potentialScore = 0;
-                    let maxLevelScore = 0;
-                    let maxPotentialScore = 0;
-                    let maxTotalScore = 0;
-
-                    if (questionsData) {
-                      questionsData.forEach(question => {
-                        const answer = answersData[question.id];
-
-                        let questionMaxLevel = 0;
-                        let questionMaxPotential = 0;
-                        let questionMaxTotal = 0;
-
-                        question.alternatives.forEach(alt => {
-                          const altTarget = alt.score_target || 'level';
-                          const altScore = parseFloat(alt.score_value) || 0;
-
-                          if (altScore > questionMaxTotal) {
-                            questionMaxTotal = altScore;
-                          }
-
-                          if (altTarget === 'level' && altScore > questionMaxLevel) {
-                            questionMaxLevel = altScore;
-                          } else if (altTarget === 'potential' && altScore > questionMaxPotential) {
-                            questionMaxPotential = altScore;
-                          }
+                      if (questionsError) {
+                        console.warn('Erro ao carregar perguntas do nível em PublicResults:', {
+                          levelId: level.id,
+                          error: questionsError
                         });
+                      }
 
-                        maxLevelScore += questionMaxLevel;
-                        maxPotentialScore += questionMaxPotential;
-                        maxTotalScore += questionMaxTotal;
+                      let levelScore = 0;
+                      let potentialScore = 0;
+                      let maxLevelScore = 0;
+                      let maxPotentialScore = 0;
+                      let maxTotalScore = 0;
 
-                        if (answer !== undefined && answer !== null) {
-                          const answerNumeric = Number(answer);
-                          const selectedAlternative = question.alternatives.find(alt => {
-                            if (alt.id == answer || alt.score_value == answer) return true;
+                      if (questionsData) {
+                        questionsData.forEach(question => {
+                          const answer = answersData[question.id];
 
-                            const altNumeric = Number(alt.score_value);
-                            if (!Number.isNaN(answerNumeric) && !Number.isNaN(altNumeric)) {
-                              return altNumeric === answerNumeric;
+                          let questionMaxLevel = 0;
+                          let questionMaxPotential = 0;
+                          let questionMaxTotal = 0;
+
+                          question.alternatives.forEach(alt => {
+                            const altTarget = alt.score_target || 'level';
+                            const altScore = parseFloat(alt.score_value) || 0;
+
+                            if (altScore > questionMaxTotal) {
+                              questionMaxTotal = altScore;
                             }
 
-                            return false;
+                            if (altTarget === 'level' && altScore > questionMaxLevel) {
+                              questionMaxLevel = altScore;
+                            } else if (altTarget === 'potential' && altScore > questionMaxPotential) {
+                              questionMaxPotential = altScore;
+                            }
                           });
 
-                          if (selectedAlternative) {
-                            const scoreValue = parseFloat(selectedAlternative.score_value) || 0;
-                            const scoreTarget = selectedAlternative.score_target || 'level';
+                          maxLevelScore += questionMaxLevel;
+                          maxPotentialScore += questionMaxPotential;
+                          maxTotalScore += questionMaxTotal;
 
-                            if (scoreTarget === 'level') {
-                              levelScore += scoreValue;
-                            } else if (scoreTarget === 'potential') {
-                              potentialScore += scoreValue;
+                          if (answer !== undefined && answer !== null) {
+                            const answerNumeric = Number(answer);
+                            const selectedAlternative = question.alternatives.find(alt => {
+                              if (alt.id == answer || alt.score_value == answer) return true;
+
+                              const altNumeric = Number(alt.score_value);
+                              if (!Number.isNaN(answerNumeric) && !Number.isNaN(altNumeric)) {
+                                return altNumeric === answerNumeric;
+                              }
+
+                              return false;
+                            });
+
+                            if (selectedAlternative) {
+                              const scoreValue = parseFloat(selectedAlternative.score_value) || 0;
+                              const scoreTarget = selectedAlternative.score_target || 'level';
+
+                              if (scoreTarget === 'level') {
+                                levelScore += scoreValue;
+                              } else if (scoreTarget === 'potential') {
+                                potentialScore += scoreValue;
+                              }
                             }
                           }
-                        }
-                      });
+                        });
+                      }
+
+                      levelResultsMap[level.id] = {
+                        level_id: level.id,
+                        name: level.name,
+                        description: level.description,
+                        levelScore,
+                        potentialScore,
+                        maxLevelScore,
+                        maxPotentialScore,
+                        maxTotalScore,
+                        display_order: level.display_order,
+                        acquire_threshold: level.acquire_threshold
+                      };
                     }
-
-                    levelResultsMap[level.id] = {
-                      level_id: level.id,
-                      name: level.name,
-                      description: level.description,
-                      levelScore,
-                      potentialScore,
-                      maxLevelScore,
-                      maxPotentialScore,
-                      maxTotalScore,
-                      display_order: level.display_order,
-                      acquire_threshold: level.acquire_threshold
-                    };
                   }
-                }
 
-                setLevelResults(levelResultsMap);
+                  setLevelResults(levelResultsMap);
+                }
               }
             } else {
               // Lógica original para indicadores
@@ -474,16 +492,20 @@ export default function PublicResults() {
             }
 
             // Buscar overall_ranges para interpretação do resultado geral
+            const versionId = data.assessment_version_id;
             const { data: overallRangesData, error: overallError } = await supabase
               .from('assessment_overall_ranges')
               .select('*')
-              .eq('assessment_version_id', data.assessment_version_id)
+              .eq('assessment_version_id', versionId)
               .order('min_score', { ascending: true });
 
-            if (!overallError && overallRangesData) {
+            if (!overallError && overallRangesData && overallRangesData.length > 0) {
               setOverallRanges(overallRangesData);
-            } else if (overallError) {
-              console.warn('⚠️ Aviso ao carregar overall_ranges:', overallError);
+            } else {
+              if (overallError) {
+                console.warn('⚠️ Aviso ao carregar overall_ranges via select direto:', overallError);
+              }
+              setOverallRanges([]);
             }
           }
         }
@@ -592,7 +614,7 @@ export default function PublicResults() {
       overallInterpretation = range.interpretation || '';
     }
   }
-  
+
   const classification = overallLabel;
 
   const assessmentName = assessmentData?.name || result?.assessment_versions?.assessment_id || 'Assessment';
@@ -862,7 +884,7 @@ export default function PublicResults() {
                 {/* Se ambos os gráficos estão selecionados, renderizar no mesmo card */}
                 {assessmentData.visualization_type.includes('radar') && assessmentData.visualization_type.includes('horizontal-bar') ? (
                   <div className="bg-white/80 border border-white/60 rounded-2xl p-6 shadow-sm space-y-8">
-                    <RadarChart indicatorResults={indicatorResults} indicatorMeta={indicatorsMeta} defaultLegendOpen={true} />
+                    <RadarChart indicatorResults={indicatorResults} indicatorMeta={indicatorsMeta} defaultLegendOpen={false} onItemClick={(key) => { document.getElementById(`indicator-card-${String(key)}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }} />
                     <div className="border-t border-gray-200 pt-6">
                       <HorizontalBarChart indicatorResults={indicatorResults} indicatorMeta={indicatorsMeta} />
                     </div>
@@ -872,7 +894,7 @@ export default function PublicResults() {
                     {/* Renderizar gráficos individualmente */}
                     {assessmentData.visualization_type.includes('radar') && (
                       <div className="bg-white/80 border border-white/60 rounded-2xl p-6 shadow-sm">
-                        <RadarChart indicatorResults={indicatorResults} indicatorMeta={indicatorsMeta} defaultLegendOpen={true} />
+                        <RadarChart indicatorResults={indicatorResults} indicatorMeta={indicatorsMeta} defaultLegendOpen={false} onItemClick={(key) => { document.getElementById(`indicator-card-${String(key)}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }} />
                       </div>
                     )}
                     {assessmentData.visualization_type.includes('horizontal-bar') && (
@@ -896,7 +918,7 @@ export default function PublicResults() {
                   const IndicatorIcon = meta?.icon ? getLucideIcon(meta.icon) : null;
                   const badgeStyle = getIndicatorBadgeStyle(value.percentage);
                   return (
-                    <div key={key} className="bg-white/80 border border-white/60 rounded-2xl p-6 shadow-sm">
+                    <div key={key} id={`indicator-card-${String(key)}`} className="bg-white/80 border border-white/60 rounded-2xl p-6 shadow-sm">
                       {/* Mobile layout */}
                       <div className="sm:hidden">
                         <div className="flex items-center gap-4 mb-3">

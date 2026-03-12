@@ -618,7 +618,8 @@ export default function LevelsResultsDisplay({ levelResults, levelMode, levels, 
                     indicatorResults={radarData}
                     indicatorMeta={radarMeta}
                     hideLegend={false}
-                    defaultLegendOpen={true}
+                    defaultLegendOpen={false}
+                    onItemClick={(levelId) => { document.getElementById(`level-card-${levelId}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }}
                   />
                 </div>
               )}
@@ -675,7 +676,7 @@ export default function LevelsResultsDisplay({ levelResults, levelMode, levels, 
                         const hexColor = colorMap[levelColors.bg] || '#8B5CF6';
                         
                         return (
-                          <div key={level.id} className="bg-white/80 border border-white/60 rounded-2xl p-6 shadow-sm">
+                          <div key={level.id} id={`level-card-${level.id}`} className="bg-white/80 border border-white/60 rounded-2xl p-6 shadow-sm">
                             {/* Layout Mobile */}
                             <div className="sm:hidden">
                               <div className="flex items-center gap-4 mb-3">
@@ -891,7 +892,8 @@ export default function LevelsResultsDisplay({ levelResults, levelMode, levels, 
                     indicatorResults={radarData}
                     indicatorMeta={radarMeta}
                     hideLegend={false}
-                    defaultLegendOpen={true}
+                    defaultLegendOpen={false}
+                    onItemClick={(levelId) => { document.getElementById(`level-card-${levelId}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }}
                   />
                 </div>
 
@@ -960,7 +962,7 @@ export default function LevelsResultsDisplay({ levelResults, levelMode, levels, 
                           const hexColor = colorMap[colors.bg] || '#8B5CF6';
                           
                           return (
-                            <div key={level.id} className="bg-white/80 border border-white/60 rounded-2xl p-6 shadow-sm">
+                            <div key={level.id} id={`level-card-${level.id}`} className="bg-white/80 border border-white/60 rounded-2xl p-6 shadow-sm">
                               {/* Layout Mobile */}
                               <div className="sm:hidden">
                                 <div className="flex items-center gap-4 mb-3">

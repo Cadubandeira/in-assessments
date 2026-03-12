@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { supabase } from '../../supabaseClient';
 import { useUserRole } from '../../hooks/useUserRole';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Trash2, ArrowLeft, Save, GitBranch, Sparkles, X } from 'lucide-react';
+import { Plus, Trash2, ArrowLeft, Save, GitBranch, Sparkles, X, Copy } from 'lucide-react';
 import RichTextEditor from '../../components/RichTextEditor';
 import OverallRangesEditor from '../../components/OverallRangesEditor';
 import AssessmentElementsModal from '../../components/AssessmentElementsModal';
@@ -80,6 +80,9 @@ export default function AssessmentBuilder() {
 
   // Estado para controlar exibição de intros de indicadores/níveis
   const [showIndicatorIntro, setShowIndicatorIntro] = useState(true);
+
+  // Estado para duplicação
+  const [isDuplicating, setIsDuplicating] = useState(false);
 
   // Helper: derive active elements from loaded version data
   const deriveActiveElements = (versionData) => {
@@ -1192,6 +1195,9 @@ export default function AssessmentBuilder() {
 
       if (shouldPublish) {
         await activateAssessmentVersion(finalAssessmentId, targetVersionId);
+
+        setAssessmentData((prev) => (prev ? { ...prev, is_active: true } : prev));
+        setAssessmentDataEdited((prev) => (prev ? { ...prev, is_active: true } : prev));
         
         // Atualizar estado da versão atual
         const activeVer = await getActiveAssessmentVersion(finalAssessmentId);
@@ -1751,6 +1757,9 @@ export default function AssessmentBuilder() {
 
       if (shouldPublish) {
         await activateAssessmentVersion(targetAssessmentId, targetVersionId);
+
+        setAssessmentData((prev) => (prev ? { ...prev, is_active: true } : prev));
+        setAssessmentDataEdited((prev) => (prev ? { ...prev, is_active: true } : prev));
         
         // Atualizar estado da versão atual
         const activeVer = await getActiveAssessmentVersion(targetAssessmentId);
@@ -1820,6 +1829,10 @@ Deseja continuar?`;
 
     try {
       await activateAssessmentVersion(selectedAssessment, currentVersion.id);
+
+      // Sincronizar estado local do assessment (publicado)
+      setAssessmentData((prev) => (prev ? { ...prev, is_active: true } : prev));
+      setAssessmentDataEdited((prev) => (prev ? { ...prev, is_active: true } : prev));
       
       // Recarregar versões
       const allVersions = await listAssessmentVersions(selectedAssessment);
@@ -1835,7 +1848,8 @@ Deseja continuar?`;
     }
   };
 
-  const isDeactivatingAssessment = assessmentDataEdited?.is_active === false;
+  const isDeactivatingAssessment = assessmentData?.is_active === true && assessmentDataEdited?.is_active === false;
+  const isAssessmentPublished = assessmentData?.is_active === true;
 
   if (roleLoading || loading) {
     return <AssessmentBuilderSkeleton />;
@@ -1903,6 +1917,274 @@ Deseja continuar?`;
 
   const hasNiveisContent = levels.length > 0 && levels.some(level => (level.questions || []).length > 0);
 
+  const handleDuplicateAssessment = async (assessmentId, e) => {
+    e.stopPropagation();
+    if (isDuplicating) return;
+    setIsDuplicating(true);
+    try {
+      // 1. Buscar assessment fonte
+      const { data: src, error: srcErr } = await supabase
+        .from('assessments')
+        .select('*')
+        .eq('id', assessmentId)
+        .single();
+      if (srcErr) throw srcErr;
+
+      // 2. Buscar versão mais recente
+      const { data: srcVersions, error: verErr } = await supabase
+        .from('assessment_versions')
+        .select('*')
+        .eq('assessment_id', assessmentId)
+        .order('version_number', { ascending: false })
+        .limit(1);
+      if (verErr) throw verErr;
+      const srcVer = srcVersions?.[0];
+      if (!srcVer) throw new Error('Nenhuma versão encontrada');
+
+      // 3. Buscar overall_ranges
+      const { data: srcOverallRanges } = await supabase
+        .from('assessment_overall_ranges')
+        .select('*')
+        .eq('assessment_version_id', srcVer.id);
+
+      // 4. Criar novo assessment (não publicado)
+      const { data: newAss, error: newAssErr } = await supabase
+        .from('assessments')
+        .insert([{
+          name: `${src.name} [cópia]`,
+          description: src.description,
+          type: src.type,
+          schema: src.schema,
+          aggregation_type: src.aggregation_type,
+          visualization_type: src.visualization_type,
+          availability_type: src.availability_type,
+          is_active: false,
+          version: '1'
+        }])
+        .select()
+        .single();
+      if (newAssErr) throw newAssErr;
+
+      // 5. Criar nova versão
+      const { data: newVer, error: newVerErr } = await supabase
+        .from('assessment_versions')
+        .insert([{
+          assessment_id: newAss.id,
+          version_number: 1,
+          is_active: false,
+          schema: srcVer.schema,
+          level_mode: srcVer.level_mode,
+          introduction_html: srcVer.introduction_html,
+          final_reflection: srcVer.final_reflection,
+          result_introduction: srcVer.result_introduction,
+          pre_assessment_fields: srcVer.pre_assessment_fields,
+          no_level_achieved_title: srcVer.no_level_achieved_title,
+          no_level_achieved_description: srcVer.no_level_achieved_description,
+          visualization_type: srcVer.visualization_type,
+          gamify_xp: srcVer.gamify_xp,
+          xp_completion: srcVer.xp_completion,
+          xp_score_80_89: srcVer.xp_score_80_89,
+          xp_score_90_99: srcVer.xp_score_90_99,
+          xp_score_100: srcVer.xp_score_100,
+          show_indicator_intro: srcVer.show_indicator_intro
+        }])
+        .select()
+        .single();
+      if (newVerErr) throw newVerErr;
+
+      // 6. Copiar overall_ranges
+      if (srcOverallRanges?.length > 0) {
+        const { error: orErr } = await supabase
+          .from('assessment_overall_ranges')
+          .insert(srcOverallRanges.map(r => ({
+            assessment_version_id: newVer.id,
+            min_score: r.min_score,
+            max_score: r.max_score,
+            label: r.label,
+            interpretation: r.interpretation
+          })));
+        if (orErr) throw orErr;
+      }
+
+      if (src.schema === 'niveis') {
+        // 7. Copiar níveis
+        const { data: srcLevels } = await supabase
+          .from('assessment_levels')
+          .select('*')
+          .eq('assessment_version_id', srcVer.id)
+          .order('display_order', { ascending: true });
+
+        for (const level of (srcLevels || [])) {
+          const { data: newLevel, error: lvlErr } = await supabase
+            .from('assessment_levels')
+            .insert([{
+              assessment_version_id: newVer.id,
+              name: level.name,
+              description: level.description,
+              display_order: level.display_order,
+              acquire_threshold: level.acquire_threshold,
+              not_acquired_title: level.not_acquired_title,
+              not_acquired_description: level.not_acquired_description
+            }])
+            .select()
+            .single();
+          if (lvlErr) throw lvlErr;
+
+          // Copiar level ranges
+          const { data: lvlRanges } = await supabase
+            .from('assessment_level_ranges')
+            .select('*')
+            .eq('assessment_level_id', level.id);
+          if (lvlRanges?.length > 0) {
+            await supabase.from('assessment_level_ranges').insert(
+              lvlRanges.map(r => ({
+                assessment_level_id: newLevel.id,
+                min_score: r.min_score,
+                max_score: r.max_score,
+                label: r.label,
+                interpretation: r.interpretation
+              }))
+            );
+          }
+
+          // Copiar perguntas do nível
+          const { data: lvlQuestions } = await supabase
+            .from('questions')
+            .select('*')
+            .eq('level_id', level.id)
+            .order('display_order', { ascending: true });
+
+          for (const q of (lvlQuestions || [])) {
+            const { data: newQ, error: qErr } = await supabase
+              .from('questions')
+              .insert([{
+                level_id: newLevel.id,
+                text: q.text,
+                response_type: q.response_type,
+                is_required: q.is_required,
+                display_order: q.display_order
+              }])
+              .select()
+              .single();
+            if (qErr) throw qErr;
+
+            const { data: alts } = await supabase
+              .from('alternatives')
+              .select('*')
+              .eq('question_id', q.id)
+              .order('display_order', { ascending: true });
+            if (alts?.length > 0) {
+              await supabase.from('alternatives').insert(
+                alts.map(a => ({
+                  question_id: newQ.id,
+                  text: a.text,
+                  score_value: a.score_value,
+                  display_order: a.display_order
+                }))
+              );
+            }
+          }
+        }
+      } else {
+        // 7. Copiar assessment_indicators
+        const { data: srcAI } = await supabase
+          .from('assessment_indicators')
+          .select('*, assessment_indicator_ranges(*)')
+          .eq('assessment_version_id', srcVer.id)
+          .order('display_order', { ascending: true });
+
+        for (const ai of (srcAI || [])) {
+          const { data: newAI, error: aiErr } = await supabase
+            .from('assessment_indicators')
+            .insert([{
+              assessment_version_id: newVer.id,
+              indicator_master_id: ai.indicator_master_id,
+              display_order: ai.display_order,
+              weight: ai.weight
+            }])
+            .select()
+            .single();
+          if (aiErr) throw aiErr;
+
+          if (ai.assessment_indicator_ranges?.length > 0) {
+            await supabase.from('assessment_indicator_ranges').insert(
+              ai.assessment_indicator_ranges.map(r => ({
+                assessment_indicator_id: newAI.id,
+                min_score: r.min_score,
+                max_score: r.max_score,
+                label: r.label,
+                interpretation: r.interpretation
+              }))
+            );
+          }
+        }
+
+        // 8. Copiar indicators (com perguntas e alternativas)
+        const { data: srcInd } = await supabase
+          .from('indicators')
+          .select('*, questions(*, alternatives(*))')
+          .eq('assessment_id', assessmentId)
+          .order('display_order', { ascending: true });
+
+        for (const ind of (srcInd || [])) {
+          const { data: newInd, error: indErr } = await supabase
+            .from('indicators')
+            .insert([{
+              assessment_id: newAss.id,
+              indicator_master_id: ind.indicator_master_id,
+              name: ind.name,
+              conceptual_description: ind.conceptual_description,
+              display_order: ind.display_order,
+              weight: ind.weight
+            }])
+            .select()
+            .single();
+          if (indErr) throw indErr;
+
+          for (const q of (ind.questions || [])) {
+            const { data: newQ, error: qErr } = await supabase
+              .from('questions')
+              .insert([{
+                indicator_id: newInd.id,
+                text: q.text,
+                response_type: q.response_type,
+                is_required: q.is_required,
+                display_order: q.display_order
+              }])
+              .select()
+              .single();
+            if (qErr) throw qErr;
+
+            const alts = q.alternatives || [];
+            if (alts.length > 0) {
+              await supabase.from('alternatives').insert(
+                alts.map(a => ({
+                  question_id: newQ.id,
+                  text: a.text,
+                  score_value: a.score_value,
+                  display_order: a.display_order
+                }))
+              );
+            }
+          }
+        }
+      }
+
+      // Atualizar lista de assessments
+      const { data: updatedList } = await supabase
+        .from('assessments')
+        .select('id, name, description');
+      if (updatedList) setAssessments(updatedList);
+
+      alert(`Assessment "${src.name} [cópia]" criado com sucesso!`);
+    } catch (err) {
+      console.error('Erro ao duplicar assessment:', err);
+      alert('Erro ao duplicar: ' + (err.message || String(err)));
+    } finally {
+      setIsDuplicating(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#F5F3EC] to-[#EEF2FF]">
       {/* HERO SECTION */}
@@ -1945,17 +2227,37 @@ Deseja continuar?`;
             </div>
             <div className="space-y-2">
               {assessments.map((a) => (
-                <button
+                <div
                   key={a.id}
-                  onClick={() => handleSelectAssessment(a.id)}
-                  className={`w-full text-left px-4 py-3 rounded-lg border-2 transition-all font-medium ${
+                  className={`group flex items-center justify-between rounded-lg border-2 transition-all ${
                     selectedAssessment === a.id
-                      ? 'bg-gradient-to-r from-[#4F46E5] to-[#6366F1] text-white border-[#4F46E5] shadow-lg'
+                      ? 'bg-gradient-to-r from-[#4F46E5] to-[#6366F1] border-[#4F46E5] shadow-lg'
                       : 'border-gray-200 hover:border-[#4F46E5] bg-white'
                   }`}
                 >
-                  {a.name}
-                </button>
+                  <button
+                    onClick={() => handleSelectAssessment(a.id)}
+                    className={`flex-1 text-left px-4 py-3 font-medium truncate ${
+                      selectedAssessment === a.id ? 'text-white' : 'text-gray-800'
+                    }`}
+                  >
+                    {a.name}
+                  </button>
+                  <button
+                    onClick={(e) => handleDuplicateAssessment(a.id, e)}
+                    disabled={isDuplicating}
+                    title="Duplicar"
+                    className={`flex-shrink-0 mr-2 p-1.5 rounded opacity-0 group-hover:opacity-100 transition-opacity disabled:cursor-not-allowed ${
+                      selectedAssessment === a.id
+                        ? 'text-white/80 hover:text-white hover:bg-white/20'
+                        : 'text-gray-400 hover:text-[#4F46E5] hover:bg-[#4F46E5]/10'
+                    }`}
+                  >
+                    {isDuplicating
+                      ? <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                      : <Copy className="w-4 h-4" />}
+                  </button>
+                </div>
               ))}
             </div>
           </div>
@@ -1981,13 +2283,27 @@ Deseja continuar?`;
                   >
                     <div className="flex items-center justify-between">
                       <span className="font-bold text-gray-900">v{v.version_number}</span>
-                      {isDeactivatingAssessment && v.id === currentVersion.id ? (
-                        <span className="text-xs bg-red-100 text-red-700 px-2.5 py-1 rounded-full font-semibold">Desativado</span>
-                      ) : v.is_active ? (
-                        <span className="text-xs bg-green-100 text-green-700 px-2.5 py-1 rounded-full font-semibold">Ativa</span>
-                      ) : (
-                        <span className="text-xs bg-gray-100 text-gray-600 px-2.5 py-1 rounded-full font-semibold">Desativada</span>
-                      )}
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={`text-xs px-2.5 py-1 rounded-full font-semibold ${
+                            v.id === currentVersion.id
+                              ? 'bg-indigo-100 text-indigo-700'
+                              : 'bg-gray-100 text-gray-600'
+                          }`}
+                        >
+                          {v.id === currentVersion.id ? 'Atual' : 'Antiga'}
+                        </span>
+
+                        {isDeactivatingAssessment && v.id === currentVersion.id ? (
+                          <span className="text-xs bg-red-100 text-red-700 px-2.5 py-1 rounded-full font-semibold">Desativando</span>
+                        ) : (v.is_active && isAssessmentPublished) ? (
+                          <span className="text-xs bg-green-100 text-green-700 px-2.5 py-1 rounded-full font-semibold">Publicada</span>
+                        ) : (v.is_active && !isAssessmentPublished) ? (
+                          <span className="text-xs bg-orange-100 text-orange-700 px-2.5 py-1 rounded-full font-semibold">Não publicada</span>
+                        ) : (
+                          <span className="text-xs bg-amber-100 text-amber-700 px-2.5 py-1 rounded-full font-semibold">Não publicada</span>
+                        )}
+                      </div>
                     </div>
                     <div className="text-xs text-gray-500 mt-1 font-medium">
                       {new Date(v.created_at).toLocaleString('pt-BR')}
@@ -1996,7 +2312,7 @@ Deseja continuar?`;
                 ))}
               </div>
 
-              {currentVersion && !currentVersion.is_active && (
+              {currentVersion && (!currentVersion.is_active || !isAssessmentPublished) && (
                 <button
                   onClick={handlePublishVersion}
                   className="w-full mt-4 px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 text-sm font-medium"

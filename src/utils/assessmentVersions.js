@@ -14,12 +14,24 @@ export async function getActiveAssessmentVersion(assessmentId) {
     .select('*')
     .eq('assessment_id', assessmentId)
     .eq('is_active', true)
-    .single();
+    .maybeSingle();
 
   if (error) throw error;
-  if (!data) throw new Error('Nenhuma versão ativa encontrada para este assessment.');
+  if (data) return data;
 
-  return data;
+  // Retrocompatibilidade: assessments legados/duplicados podem não ter versão ativa ainda.
+  const { data: latestVersion, error: latestError } = await supabase
+    .from('assessment_versions')
+    .select('*')
+    .eq('assessment_id', assessmentId)
+    .order('version_number', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (latestError) throw latestError;
+  if (!latestVersion) throw new Error('Nenhuma versão encontrada para este assessment.');
+
+  return latestVersion;
 }
 
 /**
@@ -201,6 +213,14 @@ export async function activateAssessmentVersion(assessmentId, versionId) {
     .eq('id', versionId);
 
   if (activateError) throw activateError;
+
+  // 3. Garantir que o assessment pai fique ativo/publicado
+  const { error: activateAssessmentError } = await supabase
+    .from('assessments')
+    .update({ is_active: true })
+    .eq('id', assessmentId);
+
+  if (activateAssessmentError) throw activateAssessmentError;
 }
 
 /**

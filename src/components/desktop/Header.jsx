@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Home, LogOut, Settings, TrendingUp, Users, Zap } from 'lucide-react';
+import { Home, LogOut, Settings, History, Users, Zap } from 'lucide-react';
 import { supabase } from '../../supabaseClient';
 import Logo from '../ui/Logo';
 
@@ -65,7 +65,7 @@ const DesktopHeader = ({ user, role, onStartAssessment }) => {
                 isActive('/history') ? 'text-[#4F46E5]' : 'text-gray-600 hover:text-[#4F46E5]'
               }`}
             >
-              <TrendingUp className="w-5 h-5" />
+              <History className="w-5 h-5" />
               <span>Histórico</span>
             </button>
             <button
