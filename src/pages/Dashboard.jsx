@@ -5,7 +5,7 @@ import {
   Zap, 
   History, 
   Trophy,
-  Target,
+  TriangleAlert,
   Sparkles,
   Circle
 } from 'lucide-react';
@@ -245,6 +245,8 @@ const Dashboard = ({ user }) => {
     navigate('/assessment/active');
   };
 
+  const violenceZeroAssessmentPath = '/assessment/violencia-zero';
+
   if (loading) {
     return <DashboardSkeleton />;
   }
@@ -275,6 +277,45 @@ const Dashboard = ({ user }) => {
           
           {/* COLUNA ESQUERDA */}
           <div className="lg:col-span-8 flex flex-col gap-4 sm:gap-6 lg:gap-8 w-full">
+
+            <button
+              type="button"
+              onClick={() => navigate(violenceZeroAssessmentPath)}
+              className="group relative overflow-hidden rounded-xl sm:rounded-2xl bg-gradient-to-r from-[#7C2D12] via-[#DC2626] to-[#FB7185] p-[1px] text-left shadow-2xl transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_24px_60px_rgba(220,38,38,0.35)]"
+              aria-label="Ir para o assessment Violência Zero"
+            >
+              <div className="relative overflow-hidden rounded-[calc(theme(borderRadius.2xl)-1px)] bg-[#1F1221] px-5 py-5 sm:px-6 sm:py-6 lg:px-8 lg:py-7 text-white">
+                <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,_rgba(255,255,255,0.22),_transparent_35%),radial-gradient(circle_at_bottom_left,_rgba(251,113,133,0.26),_transparent_30%)] opacity-90" />
+                <div className="absolute -right-10 -top-10 h-32 w-32 rounded-full bg-white/10 blur-3xl" />
+                <div className="absolute -bottom-12 left-8 h-28 w-28 rounded-full bg-[#FB7185]/20 blur-3xl" />
+
+                <div className="relative z-10 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="max-w-3xl">
+                    <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.24em] text-white/85">
+                      <span className="h-2 w-2 rounded-full bg-[#FDE68A] animate-pulse" />
+                      Novo assessment
+                    </div>
+
+                    <h2 className={`${TOKENS.fonts.serif} text-2xl sm:text-3xl lg:text-4xl font-extrabold leading-tight mb-2`}>
+                      Violência Zero
+                    </h2>
+
+                    <p className="text-sm sm:text-base lg:text-lg text-white/85 leading-relaxed max-w-2xl">
+                      Identifique sinais críticos, avalie decisões e fortaleça uma cultura de segurança com uma experiência rápida e direta.
+                    </p>
+
+                    <div className="mt-5 inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-black uppercase tracking-[0.18em] text-[#B91C1C] transition-transform duration-300 group-hover:translate-x-1">
+                      Realizar agora
+                      <ArrowRight className="h-4 w-4" />
+                    </div>
+                  </div>
+
+                  <div className="hidden sm:flex h-20 w-20 lg:h-24 lg:w-24 flex-shrink-0 items-center justify-center rounded-[28px] border border-white/15 bg-white/10 shadow-lg">
+                    <TriangleAlert className="h-10 w-10 lg:h-12 lg:w-12 text-white" />
+                  </div>
+                </div>
+              </div>
+            </button>
             
             {/* CARD DE PERFORMANCE */}
             <div className="bg-white/80 backdrop-blur-sm border border-white/50 p-4 sm:p-6 lg:p-8 rounded-xl sm:rounded-2xl shadow-xl w-full">
@@ -340,7 +381,7 @@ const Dashboard = ({ user }) => {
 
                      
 
-                      {/* Buttons */}
+                      {/* Buttons 
                       <div className="flex gap-3 pt-2">
                         <button
                           onClick={() => setShowRankingModal(true)}
@@ -355,6 +396,7 @@ const Dashboard = ({ user }) => {
                           Ver conquistas
                         </button>
                       </div>
+                      */}
                     </div>
                   )}
                 
@@ -362,14 +404,7 @@ const Dashboard = ({ user }) => {
               </div>
             </div>
 
-            {/* BANNER CTA ASSESSMENT */}
-            <CallToActionCard
-              icon={<Zap size={32} />}
-              title="Pronto para uma novo desafio?"
-              description="Mapeie seu crescimento em competências e revele insights."
-              buttonText="Vamos lá!"
-              onButtonClick={() => navigate('/activities')}
-            />
+            
 
             {/* MEU DESENVOLVIMENTO */}
             <div className={`bg-white rounded-xl sm:rounded-2xl p-4 sm:p-6 lg:p-8 shadow-sm w-full overflow-hidden ${developmentIndicators.length > 7 ? 'lg:min-h-[950px]' : ''}`}>
@@ -384,6 +419,16 @@ const Dashboard = ({ user }) => {
                 />
               </div>
             </div>
+
+            {/* BANNER CTA ASSESSMENT */}
+            <CallToActionCard
+              icon={<Zap size={32} />}
+              title="Pronto para uma novo desafio?"
+              description="Mapeie seu crescimento em competências e revele insights."
+              buttonText="Vamos lá!"
+              onButtonClick={() => navigate('/activities')}
+            />
+            
           </div>
 
           {/* COLUNA DIREITA */}
