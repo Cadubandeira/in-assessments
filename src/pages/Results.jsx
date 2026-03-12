@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { Share2, ArrowRight, ToolCase, Zap, Check, X, Download, ChevronDown, ChevronUp } from 'lucide-react';
+import { Share2, ArrowRight, ToolCase, Zap, Check, X, Download, ChevronDown, ChevronUp, Info } from 'lucide-react';
 import XPRewardWidget from '../components/XPRewardWidget';
 import CallToActionCardLong from '../components/CallToActionCardLong';
 import { supabase } from '../supabaseClient';
@@ -1138,6 +1138,15 @@ export default function Results() {
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_400px] gap-6 items-start">
           {/* Coluna principal - rola normalmente */}
           <div>
+            <div className="mb-6 bg-white/50 border border-white/60 rounded-xl p-4">
+              <div className="flex items-center gap-3">
+                <Info className="w-8 h-8 text-[#4F46E5] flex-shrink-0" />
+                <p className="text-sm sm:text-base font-medium text-gray-700 leading-relaxed">
+                  Estes resultados permancerão disponíveis na página Histórico e poderão ser revistos, baixados e compartilhados a qualquer momento.
+                </p>
+              </div>
+            </div>
+
             {introductionText && (
               <div className="mb-8 bg-white/80 backdrop-blur-sm border border-white/60 rounded-2xl p-6 sm:p-8 shadow-sm">
                 <p className="text-[#4F46E5] font-bold text-xs uppercase tracking-widest mb-3">
