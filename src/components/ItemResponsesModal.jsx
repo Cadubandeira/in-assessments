@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 
@@ -17,9 +17,24 @@ export default function ItemResponsesModal({
   const selectedItemIndex = Math.max(0, items.findIndex((item) => String(item.key) === normalizedSelectedKey));
   const selectedItem = items[selectedItemIndex] || null;
   const selectedQuestions = selectedItem?.questions || [];
+  const chipRefs = useRef({});
   const previousQuestionsCount = items
     .slice(0, selectedItemIndex)
     .reduce((sum, item) => sum + (item?.questions?.length || 0), 0);
+
+  useEffect(() => {
+    const selectedKeyString = String(selectedItem?.key || '');
+    const selectedChip = chipRefs.current[selectedKeyString];
+    if (!selectedChip) return;
+
+    if (window.innerWidth < 768) {
+      selectedChip.scrollIntoView({
+        behavior: 'smooth',
+        block: 'nearest',
+        inline: 'start'
+      });
+    }
+  }, [selectedItem?.key, isOpen]);
 
   const modalContent = (
     <div className="fixed inset-0 z-[9998] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
@@ -41,12 +56,15 @@ export default function ItemResponsesModal({
         </div>
 
         <div className="p-6 overflow-y-auto max-h-[calc(90vh-84px)] space-y-6">
-          <div className="flex gap-2 overflow-x-auto pb-1">
+          <div className="flex md:flex-wrap gap-2 overflow-x-auto md:overflow-visible pb-1 md:pb-0">
             {items.map((item) => {
               const isSelected = String(item.key) === String(selectedItem?.key);
               return (
                 <button
                   key={item.key}
+                  ref={(el) => {
+                    chipRefs.current[String(item.key)] = el;
+                  }}
                   onClick={() => onSelect(String(item.key))}
                   className={`whitespace-nowrap px-4 py-2 rounded-lg border text-sm font-semibold transition-colors ${
                     isSelected
