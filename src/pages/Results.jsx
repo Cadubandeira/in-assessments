@@ -139,6 +139,7 @@ export default function Results() {
   const [levelAnswersMap, setLevelAnswersMap] = useState({});
   const [showIndicatorAnswersModal, setShowIndicatorAnswersModal] = useState(false);
   const [selectedIndicatorAnswersKey, setSelectedIndicatorAnswersKey] = useState('');
+  const [isPreAssessmentAccordionOpen, setIsPreAssessmentAccordionOpen] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -164,6 +165,7 @@ export default function Results() {
               schema,
               level_mode,
               visualization_type,
+              pre_assessment_fields,
               final_reflection,
               result_introduction,
               no_level_achieved_title,
@@ -338,6 +340,7 @@ export default function Results() {
                 name: assessmentInfo?.name || 'Assessment',
                 description: assessmentInfo?.description || '',
                 visualization_type: visualizationType,
+                pre_assessment_fields: data.assessment_versions?.pre_assessment_fields || [],
                 final_reflection: data.assessment_versions?.final_reflection || '',
                 result_introduction: data.assessment_versions?.result_introduction || ''
               });
@@ -809,9 +812,91 @@ export default function Results() {
 
   const activityType = result.activity_type || 'assessment';
   let xpConfig = XP_CONFIG[activityType] || XP_CONFIG.assessment;
+  const assessmentVersionData = result?.assessment_versions;
+
+  const preAssessmentData = normalizeAnswersSnapshot(result?.pre_assessment_data);
+  const configuredPreAssessmentFields = Array.isArray(assessmentData?.pre_assessment_fields)
+    ? assessmentData.pre_assessment_fields
+    : Array.isArray(result?.assessment_versions?.pre_assessment_fields)
+      ? result.assessment_versions.pre_assessment_fields
+      : [];
+
+  const hasPreAssessmentValue = (value) => {
+    if (value === null || value === undefined) return false;
+    if (typeof value === 'string') return value.trim().length > 0;
+    if (Array.isArray(value)) return value.length > 0;
+    return true;
+  };
+
+  const formatPreAssessmentValue = (value) => {
+    if (!hasPreAssessmentValue(value)) return 'Não informado';
+    if (Array.isArray(value)) return value.join(', ');
+    if (typeof value === 'boolean') return value ? 'Sim' : 'Não';
+    if (typeof value === 'object' && value !== null) return JSON.stringify(value);
+    return String(value);
+  };
+
+  const preAssessmentAnswerItems = (() => {
+    const consumedKeys = new Set();
+
+    const fromConfiguredFields = configuredPreAssessmentFields
+      .map((field) => {
+        const fieldKey = String(field.id);
+        consumedKeys.add(fieldKey);
+        return {
+          key: fieldKey,
+          label: field.label || fieldKey,
+          value: preAssessmentData?.[field.id]
+        };
+      });
+
+    const additionalAnswers = Object.entries(preAssessmentData || {})
+      .filter(([key, value]) => !consumedKeys.has(String(key)) && hasPreAssessmentValue(value))
+      .map(([key, value]) => ({
+        key,
+        label: key,
+        value
+      }));
+
+    return [...fromConfiguredFields, ...additionalAnswers];
+  })();
+
+  const shouldShowPreAssessmentAnswers = configuredPreAssessmentFields.length > 0 && preAssessmentAnswerItems.length > 0;
+  const hasAssessmentXP = assessmentVersionData?.gamify_xp && assessmentVersionData?.xp_completion > 0;
+
+  const renderPreAssessmentAnswersCard = () => (
+    <div className="bg-white/80 backdrop-blur-sm border border-white/60 rounded-2xl p-6 sm:p-8 shadow-sm">
+      <div>
+        <button
+          type="button"
+          onClick={() => setIsPreAssessmentAccordionOpen((prev) => !prev)}
+          className="w-full flex items-center justify-between text-left py-1 mb-2 min-h-6"
+        >
+          <span className="text-[#4F46E5] font-bold text-xs uppercase tracking-widest leading-none">
+            Respostas pré-assessment
+          </span>
+          <span className="inline-flex items-center justify-center h-[18px] w-[18px] flex-shrink-0">
+            {isPreAssessmentAccordionOpen ? <ChevronUp size={18} className="text-[#4F46E5]" /> : <ChevronDown size={18} className="text-[#4F46E5]" />}
+          </span>
+        </button>
+
+        {isPreAssessmentAccordionOpen && (
+          <div className="space-y-4 mt-3">
+            {preAssessmentAnswerItems.map((item) => (
+              <div key={item.key} className="border-b border-gray-100 pb-3 last:border-b-0 last:pb-0">
+                <p className="text-sm font-semibold text-[#1E1B4B] mb-1">{item.label}</p>
+                <p className="text-sm sm:text-base text-gray-700 leading-relaxed break-words">
+                  {formatPreAssessmentValue(item.value)}
+                </p>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
   
   // Override com configuração customizada do assessment se gamifyXp estiver ativado
-  const assessmentVersionData = result?.assessment_versions;
   if (assessmentVersionData?.gamify_xp && assessmentVersionData?.xp_completion > 0) {
     xpConfig = {
       base: assessmentVersionData.xp_completion,
@@ -1283,6 +1368,12 @@ export default function Results() {
             </div>
             )}
 
+            {shouldShowPreAssessmentAnswers && (
+              <div className="lg:hidden mt-8">
+                {renderPreAssessmentAnswersCard()}
+              </div>
+            )}
+
             {finalReflectionText && (
               <div className="mt-6 bg-white/80 backdrop-blur-sm border border-white/60 rounded-2xl p-6 sm:p-8 shadow-sm">
                 <p className="text-[#4F46E5] font-bold text-xs uppercase tracking-widest mb-3">
@@ -1297,7 +1388,7 @@ export default function Results() {
           </div>
 
           {/* Card XP - sticky (apenas desktop) */}
-          {assessmentVersionData?.gamify_xp && assessmentVersionData?.xp_completion > 0 && (
+          {hasAssessmentXP && (
             <div className="hidden lg:flex flex-col gap-6">
               <XPRewardWidget
                 totalXp={finalTotalXp}
@@ -1311,11 +1402,13 @@ export default function Results() {
                 bonus100={bonus100}
                 formatXP={formatXP}
               />
+
+              {shouldShowPreAssessmentAnswers && renderPreAssessmentAnswersCard()}
             </div>
           )}
 
 {/* Versão mobile do card mt-8 de XP */}
-          {assessmentVersionData?.gamify_xp && assessmentVersionData?.xp_completion > 0 && (
+          {hasAssessmentXP && (
             <div className="lg:hidden">
               <XPRewardWidget
                 totalXp={finalTotalXp}
@@ -1343,6 +1436,12 @@ export default function Results() {
                   onButtonClick={() => window.open('https://www.innernetworking.com.br/', '_blank')}
                 />
               </div>
+
+              {shouldShowPreAssessmentAnswers && !hasAssessmentXP && (
+                <div className="hidden lg:block mt-6">
+                  {renderPreAssessmentAnswersCard()}
+                </div>
+              )}
 
           
 
