@@ -779,6 +779,11 @@ export default function Results() {
     fetchSuggested();
   }, [assessmentData?.id, result?.assessment_versions?.assessment_id]);
 
+  useEffect(() => {
+    const isDesktop = window.innerWidth >= 1024;
+    setIsPreAssessmentAccordionOpen(isDesktop);
+  }, [result?.id]);
+
   if (loading) return <ResultsSkeleton />;
   if (error) return <div className="p-12 text-center text-red-600">{error}</div>;
   if (!result) return <div className="p-12 text-center">Nenhum assessment encontrado.</div>;
@@ -1387,9 +1392,9 @@ export default function Results() {
             )}
           </div>
 
-          {/* Card XP - sticky (apenas desktop) */}
-          {hasAssessmentXP && (
-            <div className="hidden lg:flex flex-col gap-6">
+          {/* Coluna lateral desktop */}
+          <div className="hidden lg:flex flex-col gap-6">
+            {hasAssessmentXP && (
               <XPRewardWidget
                 totalXp={finalTotalXp}
                 bonusXp={bonusXp}
@@ -1402,10 +1407,20 @@ export default function Results() {
                 bonus100={bonus100}
                 formatXP={formatXP}
               />
+            )}
 
-              {shouldShowPreAssessmentAnswers && renderPreAssessmentAnswersCard()}
-            </div>
-          )}
+            {shouldShowPreAssessmentAnswers && hasAssessmentXP && renderPreAssessmentAnswersCard()}
+
+            <CallToActionCardLong
+              icon={<ToolCase size={32} />}
+              title="Aprofundamento"
+              description={`Para saber mais sobre o seu ${assessmentName}, você pode acessar os materiais de aprofundamento gratuitos.`}
+              buttonText="Acessar materiais"
+              onButtonClick={() => window.open('https://www.innernetworking.com.br/', '_blank')}
+            />
+
+            {shouldShowPreAssessmentAnswers && !hasAssessmentXP && renderPreAssessmentAnswersCard()}
+          </div>
 
 {/* Versão mobile do card mt-8 de XP */}
           {hasAssessmentXP && (
@@ -1427,7 +1442,7 @@ export default function Results() {
           
 
  {/* Card de chamada para ação para textos longos */}
-              <div>
+              <div className="lg:hidden">
                 <CallToActionCardLong
                   icon={<ToolCase size={32} />}
                   title="Aprofundamento"
@@ -1436,12 +1451,6 @@ export default function Results() {
                   onButtonClick={() => window.open('https://www.innernetworking.com.br/', '_blank')}
                 />
               </div>
-
-              {shouldShowPreAssessmentAnswers && !hasAssessmentXP && (
-                <div className="hidden lg:block mt-6">
-                  {renderPreAssessmentAnswersCard()}
-                </div>
-              )}
 
           
 
