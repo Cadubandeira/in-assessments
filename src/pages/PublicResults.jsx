@@ -139,6 +139,7 @@ export default function PublicResults() {
   const [levelAnswersMap, setLevelAnswersMap] = useState({});
   const [showIndicatorAnswersModal, setShowIndicatorAnswersModal] = useState(false);
   const [selectedIndicatorAnswersKey, setSelectedIndicatorAnswersKey] = useState('');
+  const [isPreAssessmentAccordionOpen, setIsPreAssessmentAccordionOpen] = useState(false);
 
   useEffect(() => {
     // Removido: let mounted = true; (não necessário para página pública)
@@ -165,6 +166,9 @@ export default function PublicResults() {
               schema,
               level_mode,
               visualization_type,
+              pre_assessment_fields,
+              gamify_xp,
+              xp_completion,
               final_reflection,
               result_introduction,
               no_level_achieved_title,
@@ -247,6 +251,7 @@ export default function PublicResults() {
               name: assessmentInfo?.name || 'Assessment',
               description: assessmentInfo?.description || '',
               visualization_type: visualizationType,
+              pre_assessment_fields: data.assessment_versions?.pre_assessment_fields || [],
               final_reflection: data.assessment_versions?.final_reflection || '',
               result_introduction: data.assessment_versions?.result_introduction || ''
             });
@@ -811,6 +816,11 @@ export default function PublicResults() {
     fetchSuggested();
   }, [assessmentData?.id, result?.assessment_versions?.assessment_id]);
 
+  useEffect(() => {
+    const isDesktop = window.innerWidth >= 1024;
+    setIsPreAssessmentAccordionOpen(isDesktop);
+  }, [result?.id]);
+
   if (loading) return <ResultsSkeleton />;
   if (error) return <div className="p-12 text-center text-red-600">{error}</div>;
   if (!result) return <div className="p-12 text-center">Nenhum assessment encontrado.</div>;
@@ -953,6 +963,86 @@ export default function PublicResults() {
 
   const sortedIndicators = Object.entries(indicatorResults)
     .sort(([, a], [, b]) => (b?.percentage ?? 0) - (a?.percentage ?? 0));
+
+  const preAssessmentData = normalizeAnswersSnapshot(result?.pre_assessment_data);
+  const configuredPreAssessmentFields = Array.isArray(assessmentData?.pre_assessment_fields)
+    ? assessmentData.pre_assessment_fields
+    : Array.isArray(result?.assessment_versions?.pre_assessment_fields)
+      ? result.assessment_versions.pre_assessment_fields
+      : [];
+
+  const hasPreAssessmentValue = (value) => {
+    if (value === null || value === undefined) return false;
+    if (typeof value === 'string') return value.trim().length > 0;
+    if (Array.isArray(value)) return value.length > 0;
+    return true;
+  };
+
+  const formatPreAssessmentValue = (value) => {
+    if (!hasPreAssessmentValue(value)) return 'Não informado';
+    if (Array.isArray(value)) return value.join(', ');
+    if (typeof value === 'boolean') return value ? 'Sim' : 'Não';
+    if (typeof value === 'object' && value !== null) return JSON.stringify(value);
+    return String(value);
+  };
+
+  const preAssessmentAnswerItems = (() => {
+    const consumedKeys = new Set();
+
+    const fromConfiguredFields = configuredPreAssessmentFields.map((field) => {
+      const fieldKey = String(field.id);
+      consumedKeys.add(fieldKey);
+      return {
+        key: fieldKey,
+        label: field.label || fieldKey,
+        value: preAssessmentData?.[field.id]
+      };
+    });
+
+    const additionalAnswers = Object.entries(preAssessmentData || {})
+      .filter(([key, value]) => !consumedKeys.has(String(key)) && hasPreAssessmentValue(value))
+      .map(([key, value]) => ({
+        key,
+        label: key,
+        value
+      }));
+
+    return [...fromConfiguredFields, ...additionalAnswers];
+  })();
+
+  const shouldShowPreAssessmentAnswers = configuredPreAssessmentFields.length > 0 && preAssessmentAnswerItems.length > 0;
+
+  const renderPreAssessmentAnswersCard = () => (
+    <div className="bg-white/80 backdrop-blur-sm border border-white/60 rounded-2xl p-6 sm:p-8 shadow-sm">
+      <div>
+        <button
+          type="button"
+          onClick={() => setIsPreAssessmentAccordionOpen((prev) => !prev)}
+          className="w-full flex items-center justify-between text-left py-1 mb-2 min-h-6"
+        >
+          <span className="text-[#4F46E5] font-bold text-xs uppercase tracking-widest leading-none">
+            Respostas pré-assessment
+          </span>
+          <span className="inline-flex items-center justify-center h-[18px] w-[18px] flex-shrink-0">
+            {isPreAssessmentAccordionOpen ? <ChevronUp size={18} className="text-[#4F46E5]" /> : <ChevronDown size={18} className="text-[#4F46E5]" />}
+          </span>
+        </button>
+
+        {isPreAssessmentAccordionOpen && (
+          <div className="space-y-4 mt-3">
+            {preAssessmentAnswerItems.map((item) => (
+              <div key={item.key} className="border-b border-gray-100 pb-3 last:border-b-0 last:pb-0">
+                <p className="text-sm font-semibold text-[#1E1B4B] mb-1">{item.label}</p>
+                <p className="text-sm sm:text-base text-gray-700 leading-relaxed break-words">
+                  {formatPreAssessmentValue(item.value)}
+                </p>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
 
   const indicatorModalItems = sortedIndicators.map(([key, value]) => {
     const possibleKeys = [value?.indicator_id, key, value?.name].filter(Boolean).map(String);
@@ -1271,6 +1361,12 @@ export default function PublicResults() {
                 })}
             </div>
             )}
+
+            {shouldShowPreAssessmentAnswers && (
+              <div className="lg:hidden mt-8">
+                {renderPreAssessmentAnswersCard()}
+              </div>
+            )}
           </div>
 
           {/* Coluna Lateral (aderente no desktop) */}
@@ -1285,6 +1381,12 @@ export default function PublicResults() {
                     buttonText="Criar minha conta"
                     onButtonClick={() => navigate('/login')}
                   />
+
+                  {shouldShowPreAssessmentAnswers && (
+                    <div className="hidden lg:block">
+                      {renderPreAssessmentAnswersCard()}
+                    </div>
+                  )}
                 </div>
               ) : (
                 // Versão para usuário logado
@@ -1302,6 +1404,12 @@ export default function PublicResults() {
                       bonus100={bonus100}
                       formatXP={formatXP}
                     />
+
+                    {shouldShowPreAssessmentAnswers && (
+                      <div className="hidden lg:block">
+                        {renderPreAssessmentAnswersCard()}
+                      </div>
+                    )}
                     
                     {/* Sugestão de Assessments */}
                     {!suggestedLoading && suggestedAssessments.length > 0 && (

@@ -980,9 +980,9 @@ export default function LevelsResultsDisplay({ levelResults, levelMode, levels, 
             return (
               <div className="mt-8 space-y-6 sm:space-y-8">
                 {levelsSummary.count > 0 && (
-                  <div className="p-4 bg-blue-50 border-l-4 border-blue-400 rounded-lg">
-                    <p className="text-blue-800 font-medium text-sm sm:text-base leading-relaxed text-justify [text-align-last:left]">
-                      Veja a seguir os detalhes da sua pontuação que é descrita em{' '}
+                  <div className="bg-white/50 border border-white/60 rounded-xl p-4">
+                    <p className="text-sm sm:text-base font-medium text-gray-700 leading-relaxed">
+                      Veja a seguir os detalhes da sua pontuação descrita em{' '}
                       {levelsSummary.count} {levelsSummary.count === 1 ? 'nível' : 'níveis'}: {levelsSummary.namesText}.
                     </p>
                   </div>
