@@ -11,8 +11,6 @@ export default function ItemResponsesModal({
   selectedKey,
   onSelect
 }) {
-  if (!isOpen) return null;
-
   const normalizedSelectedKey = selectedKey ? String(selectedKey) : '';
   const selectedItemIndex = Math.max(0, items.findIndex((item) => String(item.key) === normalizedSelectedKey));
   const selectedItem = items[selectedItemIndex] || null;
@@ -23,6 +21,8 @@ export default function ItemResponsesModal({
     .reduce((sum, item) => sum + (item?.questions?.length || 0), 0);
 
   useEffect(() => {
+    if (!isOpen) return;
+
     const selectedKeyString = String(selectedItem?.key || '');
     const selectedChip = chipRefs.current[selectedKeyString];
     if (!selectedChip) return;
@@ -38,6 +38,7 @@ export default function ItemResponsesModal({
 
   useEffect(() => {
     if (typeof document === 'undefined') return;
+    if (!isOpen) return;
 
     const originalBodyOverflow = document.body.style.overflow;
     const originalHtmlOverflow = document.documentElement.style.overflow;
@@ -49,7 +50,9 @@ export default function ItemResponsesModal({
       document.body.style.overflow = originalBodyOverflow;
       document.documentElement.style.overflow = originalHtmlOverflow;
     };
-  }, []);
+  }, [isOpen]);
+
+  if (!isOpen) return null;
 
   const modalContent = (
     <div className="fixed inset-0 z-[9998] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">

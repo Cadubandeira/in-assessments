@@ -268,10 +268,76 @@ export default function PublicResults() {
               if (!levelsError && levelsData) {
                 setLevels(levelsData);
 
-                const levelAnswersPayload = {};
+                let levelAnswersPayload = {};
+                const answerQuestionIds = Object.keys(answersData || {});
+
+                try {
+                  const { data: rpcLevelResponses, error: rpcLevelResponsesError } = await supabase
+                    .rpc('get_public_level_responses', { p_event_id: data.id });
+
+                  if (!rpcLevelResponsesError && rpcLevelResponses && typeof rpcLevelResponses === 'object') {
+                    levelAnswersPayload = rpcLevelResponses;
+                  } else if (rpcLevelResponsesError) {
+                    console.warn('PublicResults: erro ao executar RPC de respostas por nível:', rpcLevelResponsesError);
+                  }
+                } catch (rpcLevelResponsesException) {
+                  console.warn('PublicResults: exceção ao executar RPC de respostas por nível:', rpcLevelResponsesException);
+                }
+
+                if (Object.keys(levelAnswersPayload).length === 0 && answerQuestionIds.length > 0) {
+                  const { data: answeredLevelQuestions } = await supabase
+                    .from('questions')
+                    .select(`
+                      id,
+                      text,
+                      display_order,
+                      level_id,
+                      alternatives (
+                        id,
+                        text,
+                        score_value
+                      )
+                    `)
+                    .in('id', answerQuestionIds);
+
+                  if (answeredLevelQuestions && answeredLevelQuestions.length > 0) {
+                    const groupedQuestionsByLevel = {};
+                    answeredLevelQuestions.forEach((question) => {
+                      if (!question.level_id) return;
+                      groupedQuestionsByLevel[question.level_id] = groupedQuestionsByLevel[question.level_id] || [];
+                      groupedQuestionsByLevel[question.level_id].push(question);
+                    });
+
+                    levelsData.forEach((level) => {
+                      const levelQuestions = (groupedQuestionsByLevel[level.id] || [])
+                        .sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
+
+                      levelAnswersPayload[level.id] = {
+                        itemId: level.id,
+                        name: level.name,
+                        questions: levelQuestions.map((question) => {
+                          const answer = answersData[question.id];
+                          const selectedAlternative = findSelectedAlternative(question.alternatives, answer);
+
+                          return {
+                            questionId: question.id,
+                            questionText: question.text || `Pergunta ${question.display_order || ''}`.trim(),
+                            answerText: selectedAlternative?.text || null,
+                            answerValue: selectedAlternative?.score_value ?? answer ?? null,
+                            isAnswered: !!selectedAlternative
+                          };
+                        })
+                      };
+                    });
+                  }
+                }
 
                 if (levelsData.length > 0) {
                   for (const level of levelsData) {
+                    if (levelAnswersPayload[level.id]?.questions?.length > 0) {
+                      continue;
+                    }
+
                     const { data: levelQuestionsForAnswers } = await supabase
                       .from('questions')
                       .select(`
