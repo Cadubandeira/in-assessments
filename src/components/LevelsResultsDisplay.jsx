@@ -241,6 +241,15 @@ const getRadarPercentageForLevel = (levelResult = {}) => {
   return maxScore > 0 ? Math.round((score / maxScore) * 100) : 0;
 };
 
+const getPotentialLabelFromRemainingPercentage = (remainingPercentage) => {
+  if (remainingPercentage <= 0) return null;
+  if (remainingPercentage <= 20) return 'MUITO ALTO';
+  if (remainingPercentage <= 40) return 'ALTO';
+  if (remainingPercentage <= 60) return 'MÉDIO';
+  if (remainingPercentage <= 80) return 'BAIXO';
+  return 'MUITO BAIXO';
+};
+
 // Componente para card individual
 function LevelCardAnimated({ level, expandedLevelId, setExpandedLevelId }) {
   const [isTruncated, setIsTruncated] = useState(false);
@@ -735,6 +744,8 @@ export default function LevelsResultsDisplay({ levelResults, levelMode, levels, 
                         const progressPercentage = targetScore > 0
                           ? Math.min(100, Math.max(0, Math.round((totalScore / targetScore) * 100)))
                           : 0;
+                        const remainingPercentage = Math.max(0, 100 - progressPercentage);
+                        const potentialLabel = getPotentialLabelFromRemainingPercentage(remainingPercentage);
                         
                         const interpretation = getInterpretationForLevel(level.id, totalScore);
                         const levelColors = generateColorFromName(level.name);
@@ -775,6 +786,12 @@ export default function LevelsResultsDisplay({ levelResults, levelMode, levels, 
                                   />
                                 </div>
                               </div>
+
+                              {potentialLabel && (
+                                <p className="text-xs font-medium text-gray-600">
+                                  Potencial de completar este nível é {potentialLabel}
+                                </p>
+                              )}
                             </div>
 
                             {/* Layout Desktop */}
@@ -809,6 +826,12 @@ export default function LevelsResultsDisplay({ levelResults, levelMode, levels, 
                                   />
                                 </div>
                               </div>
+
+                              {potentialLabel && (
+                                <p className="text-sm font-medium text-gray-600 mb-4">
+                                  Potencial de completar este nível é {potentialLabel}
+                                </p>
+                              )}
                             </div>
 
                             {/* Interpretação com truncamento */}
@@ -1039,6 +1062,8 @@ export default function LevelsResultsDisplay({ levelResults, levelMode, levels, 
                           const progressPercentage = targetScore > 0
                             ? Math.min(100, Math.max(0, Math.round((totalScore / targetScore) * 100)))
                             : 0;
+                          const remainingPercentage = Math.max(0, 100 - progressPercentage);
+                          const potentialLabel = getPotentialLabelFromRemainingPercentage(remainingPercentage);
                           
                           const interpretation = getInterpretationForLevel(level.id, totalScore);
                           const colors = generateColorFromName(level.name);
@@ -1079,6 +1104,12 @@ export default function LevelsResultsDisplay({ levelResults, levelMode, levels, 
                                     />
                                   </div>
                                 </div>
+
+                                {potentialLabel && (
+                                  <p className="text-xs font-medium text-gray-600">
+                                    Potencial de completar este nível é {potentialLabel}
+                                  </p>
+                                )}
                               </div>
 
                               {/* Layout Desktop */}
@@ -1113,6 +1144,12 @@ export default function LevelsResultsDisplay({ levelResults, levelMode, levels, 
                                     />
                                   </div>
                                 </div>
+
+                                {potentialLabel && (
+                                  <p className="text-sm font-medium text-gray-600 mb-4">
+                                    Potencial de completar este nível é {potentialLabel}
+                                  </p>
+                                )}
                               </div>
 
                               {/* Interpretação com truncamento */}
