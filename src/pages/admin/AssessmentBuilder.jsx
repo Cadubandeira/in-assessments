@@ -442,7 +442,7 @@ export default function AssessmentBuilder() {
       // Buscar introduction_html, reflexao final, pre_assessment_fields, campos de não conquista e XP config da versão
       const { data: versionData, error: versionError } = await supabase
         .from('assessment_versions')
-        .select('introduction_html, final_reflection, result_introduction, pre_assessment_fields, no_level_achieved_title, no_level_achieved_description, level_mode, gamify_xp, xp_completion, xp_score_80_89, xp_score_90_99, xp_score_100, show_indicator_intro')
+        .select('introduction_html, final_reflection, result_introduction, pre_assessment_fields, no_level_achieved_title, no_level_achieved_description, level_mode, gamify_xp, xp_completion, xp_score_80_89, xp_score_90_99, xp_score_100, show_indicator_intro, show_level_badges')
         .eq('id', versionId)
         .single();
 

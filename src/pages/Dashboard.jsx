@@ -31,6 +31,16 @@ import DevelopmentChart from '../components/DevelopmentChart';
 import DashboardSkeleton from '../components/skeletons/DashboardSkeleton';
 import CallToActionCard from '../components/CallToActionCard';
 
+const slugify = (value) => value
+  .toLowerCase()
+  .normalize('NFD')
+  .replace(/[\u0300-\u036f]/g, '')
+  .replace(/[^a-z0-9]+/g, '-')
+  .replace(/(^-|-$)+/g, '');
+
+const VIOLENCIA_ZERO_ORGANIZACIONAL_ID = import.meta.env.VITE_ASSESSMENT_VIOLENCIA_ZERO_ORGANIZACIONAL_ID || null;
+const VIOLENCIA_ZERO_INDIVIDUAL_ID = import.meta.env.VITE_ASSESSMENT_VIOLENCIA_ZERO_INDIVIDUAL_ID || null;
+
 const Dashboard = ({ user }) => {
   const navigate = useNavigate();
 
@@ -75,6 +85,11 @@ const Dashboard = ({ user }) => {
     level: 1,
     totalXP: 0,
     levelProgress: null
+  });
+  const [violenceZeroCard, setViolenceZeroCard] = useState({
+    title: 'Violência Zero - Organizacional',
+    description: 'Identifique sinais críticos, avalie decisões e fortaleça uma cultura de segurança no ambiente de trabalho.',
+    path: '/assessment/violencia-zero-organizacional'
   });
   const [displayName, setDisplayName] = useState(
     user?.user_metadata?.display_name || 
@@ -180,6 +195,83 @@ const Dashboard = ({ user }) => {
     setDisplayName(name);
 
     try {
+      const buildViolenceZeroCard = (assessment, fallbackTitle, fallbackPath, fallbackDescription) => ({
+        title: assessment?.name || fallbackTitle,
+        description: fallbackDescription,
+        path: assessment?.id ? `/assessment/${assessment.id}` : fallbackPath
+      });
+
+      const violenceZeroIds = [VIOLENCIA_ZERO_ORGANIZACIONAL_ID, VIOLENCIA_ZERO_INDIVIDUAL_ID].filter(Boolean);
+      let violenceZeroAssessments = [];
+      let violenceZeroAssessmentsError = null;
+
+      if (violenceZeroIds.length > 0) {
+        const { data, error } = await supabase
+          .from('assessments')
+          .select('id, name')
+          .eq('is_active', true)
+          .in('id', violenceZeroIds);
+        violenceZeroAssessments = data || [];
+        violenceZeroAssessmentsError = error;
+      } else {
+        const { data, error } = await supabase
+          .from('assessments')
+          .select('id, name')
+          .eq('is_active', true)
+          .ilike('name', '%viol%zero%');
+        violenceZeroAssessments = data || [];
+        violenceZeroAssessmentsError = error;
+      }
+
+      if (violenceZeroAssessmentsError) {
+        console.warn('Erro ao carregar assessments Violência Zero:', violenceZeroAssessmentsError);
+      } else {
+        const assessments = violenceZeroAssessments || [];
+        const organizationalAssessment = VIOLENCIA_ZERO_ORGANIZACIONAL_ID
+          ? assessments.find((item) => item.id === VIOLENCIA_ZERO_ORGANIZACIONAL_ID)
+          : assessments.find((item) => slugify(item.name || '').includes('violencia-zero-organizacional'));
+        const individualAssessment = VIOLENCIA_ZERO_INDIVIDUAL_ID
+          ? assessments.find((item) => item.id === VIOLENCIA_ZERO_INDIVIDUAL_ID)
+          : assessments.find((item) => slugify(item.name || '').includes('violencia-zero-individual'));
+
+        let hasCompletedOrganizational = false;
+
+        if (organizationalAssessment?.id) {
+          const { data: completedOrganizationalEvents, error: completedOrganizationalError } = await supabase
+            .from('assessment_events')
+            .select('id')
+            .eq('user_id', user.id)
+            .eq('assessment_id', organizationalAssessment.id)
+            .limit(1);
+
+          if (completedOrganizationalError) {
+            console.warn('Erro ao validar conclusão do Violência Zero - Organizacional:', completedOrganizationalError);
+          } else {
+            hasCompletedOrganizational = (completedOrganizationalEvents || []).length > 0;
+          }
+        }
+
+        if (hasCompletedOrganizational) {
+          setViolenceZeroCard(
+            buildViolenceZeroCard(
+              individualAssessment,
+              'Violência Zero - Individual',
+              '/assessment/violencia-zero-individual',
+              'Aprofunde o autoconhecimento para prevenir riscos e fortalecer atitudes seguras no dia a dia.'
+            )
+          );
+        } else {
+          setViolenceZeroCard(
+            buildViolenceZeroCard(
+              organizationalAssessment,
+              'Violência Zero - Organizacional',
+              '/assessment/violencia-zero-organizacional',
+              'Identifique sinais críticos, avalie decisões e fortaleça uma cultura de segurança no ambiente de trabalho.'
+            )
+          );
+        }
+      }
+
       // Buscar dados de progressão do usuário
       const { data: progressionData, error: progressionError } = await supabase
         .from('user_progression')
@@ -245,8 +337,6 @@ const Dashboard = ({ user }) => {
     navigate('/assessment/active');
   };
 
-  const violenceZeroAssessmentPath = '/assessment/violencia-zero';
-
   if (loading) {
     return <DashboardSkeleton />;
   }
@@ -280,7 +370,7 @@ const Dashboard = ({ user }) => {
 
             <button
               type="button"
-              onClick={() => navigate(violenceZeroAssessmentPath)}
+              onClick={() => navigate(violenceZeroCard.path)}
               className="group relative overflow-hidden rounded-xl sm:rounded-2xl bg-gradient-to-r from-[#7C2D12] via-[#DC2626] to-[#FB7185] p-[1px] text-left shadow-2xl transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_24px_60px_rgba(220,38,38,0.35)]"
               aria-label="Ir para o assessment Violência Zero"
             >
@@ -297,11 +387,11 @@ const Dashboard = ({ user }) => {
                     </div>
 
                     <h2 className={`${TOKENS.fonts.serif} text-2xl sm:text-3xl lg:text-4xl font-extrabold leading-tight mb-2`}>
-                      Violência Zero
+                      {violenceZeroCard.title}
                     </h2>
 
                     <p className="text-sm sm:text-base lg:text-lg text-white/85 leading-relaxed max-w-2xl">
-                      Identifique sinais críticos, avalie decisões e fortaleça uma cultura de segurança com uma experiência rápida e direta.
+                      {violenceZeroCard.description}
                     </p>
 
                     <div className="mt-5 inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-black uppercase tracking-[0.18em] text-[#B91C1C] transition-transform duration-300 group-hover:translate-x-1">
@@ -428,7 +518,7 @@ const Dashboard = ({ user }) => {
               buttonText="Vamos lá!"
               onButtonClick={() => navigate('/activities')}
             />
-            
+
           </div>
 
           {/* COLUNA DIREITA */}
