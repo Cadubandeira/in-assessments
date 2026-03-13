@@ -15,7 +15,7 @@ const LoginScreen = () => {
   const [captchaToken, setCaptchaToken] = useState(null);
   const captchaRef = useRef(null);
 
-  const handleGoogleLogin = async () => {
+  const handleOAuthLogin = async (provider) => {
     setLoading(true);
     // Constrói a URL de redirect.
     // Durante o desenvolvimento local forçamos usar `window.location.origin` para
@@ -24,14 +24,36 @@ const LoginScreen = () => {
     const redirectBase = (typeof window !== 'undefined') ? window.location.origin : '';
     const redirectUrl = import.meta.env.DEV ? redirectBase : (redirectBase + import.meta.env.BASE_URL);
 
+    const isMicrosoftProvider = provider === 'azure';
+
     const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
+      provider,
       options: {
-        redirectTo: redirectUrl
+        redirectTo: redirectUrl,
+        ...(isMicrosoftProvider ? {
+          scopes: 'openid profile email User.Read',
+          queryParams: {
+            prompt: 'select_account'
+          }
+        } : {})
       }
     });
-    if (error) alert(error.message);
+    if (error) {
+      if (isMicrosoftProvider && /user email/i.test(error.message || '')) {
+        alert('Não foi possível obter seu e-mail pela conta Microsoft. Verifique a configuração do provider Azure no Supabase (scopes e claims de e-mail).');
+      } else {
+        alert(error.message);
+      }
+    }
     setLoading(false);
+  };
+
+  const handleGoogleLogin = async () => {
+    await handleOAuthLogin('google');
+  };
+
+  const handleMicrosoftLogin = async () => {
+    await handleOAuthLogin('azure');
   };
 
   const handleAuth = async (e) => {
@@ -116,19 +138,37 @@ const LoginScreen = () => {
                 <p className={TOKENS.colors.muted}>Faça login para acessar sua conta.</p>
               </div>
               
-              <Button 
-                type="button" 
-                className="w-full py-3.5 text-base font-medium shadow-md hover:shadow-lg hover:bg-[var(--hover-bg)] transition-all duration-300 bg-white text-[#374151] border border-gray-200 flex items-center justify-center gap-3" 
-                onClick={handleGoogleLogin}
-              >
-                <svg className="w-5 h-5" viewBox="0 0 24 24">
-                  <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
-                  <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
-                  <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05" />
-                  <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
-                </svg>
-                <span className="font-sans text-[#1E1B4B]">Continuar com Google</span>
-              </Button>
+              <div className="space-y-4">
+                <Button 
+                  type="button" 
+                  className="w-full py-3.5 text-base font-medium shadow-md hover:shadow-lg hover:bg-[var(--hover-bg)] transition-all duration-300 bg-white text-[#374151] border border-gray-200 flex items-center justify-center gap-3" 
+                  onClick={handleGoogleLogin}
+                  disabled={loading}
+                >
+                  <svg className="w-5 h-5" viewBox="0 0 24 24">
+                    <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
+                    <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
+                    <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05" />
+                    <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
+                  </svg>
+                  <span className="font-sans text-[#1E1B4B]">Continuar com Google</span>
+                </Button>
+
+                <Button 
+                  type="button" 
+                  className="w-full py-3.5 text-base font-medium shadow-md hover:shadow-lg hover:bg-[var(--hover-bg)] transition-all duration-300 bg-white text-[#374151] border border-gray-200 flex items-center justify-center gap-3" 
+                  onClick={handleMicrosoftLogin}
+                  disabled={loading}
+                >
+                  <svg className="w-5 h-5" viewBox="0 0 24 24" aria-hidden="true">
+                    <rect x="2" y="2" width="9" height="9" fill="#F25022" />
+                    <rect x="13" y="2" width="9" height="9" fill="#7FBA00" />
+                    <rect x="2" y="13" width="9" height="9" fill="#00A4EF" />
+                    <rect x="13" y="13" width="9" height="9" fill="#FFB900" />
+                  </svg>
+                  <span className="font-sans text-[#1E1B4B]">Continuar com Microsoft</span>
+                </Button>
+              </div>
 
               <div className="pt-4 text-center">
                 <button 
@@ -168,7 +208,7 @@ const LoginScreen = () => {
                 )}
 
                 <Button type="submit" className="w-full py-4 text-lg shadow-lg" icon={ArrowRight}>
-                  {isSignUp ? 'Cadastrar' : 'Acessar'}
+                  {loading ? 'Carregando...' : (isSignUp ? 'Cadastrar' : 'Acessar')}
                 </Button>
               </form>
               

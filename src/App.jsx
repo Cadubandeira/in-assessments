@@ -214,6 +214,7 @@ export default function App() {
           <Route path="/admin/management" element={<ProtectedLayout user={user}><Management user={user} /></ProtectedLayout>} />
           <Route path="/admin/indicators" element={<ProtectedLayout user={user}><IndicatorsAdmin /></ProtectedLayout>} />
           <Route path="/admin/assessments/builder" element={<ProtectedLayout user={user}><AssessmentBuilder /></ProtectedLayout>} />
+          <Route path="*" element={<Navigate to={user ? "/dashboard" : "/login"} replace />} />
         </Routes>
       </div>
       </ErrorBoundary>
