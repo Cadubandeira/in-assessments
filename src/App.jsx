@@ -24,6 +24,8 @@ import PublicResults from './pages/PublicResults';
 import History from './pages/History';
 import Activities from './pages/Activities';
 import RealScenarios from './pages/RealScenarios';
+import PrivacyPolicy from './pages/PrivacyPolicy';
+import TermsOfService from './pages/TermsOfService';
 import IndicatorsAdmin from './pages/admin/IndicatorsAdmin';
 import AssessmentBuilder from './pages/admin/AssessmentBuilder';
 import Management from './pages/admin/Management';
@@ -198,6 +200,8 @@ export default function App() {
         <Routes>
           {/* Public results page, no authentication required */}
           <Route path="/public-results/:id" element={<PublicResults />} />
+          <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+          <Route path="/terms-of-service" element={<TermsOfService />} />
           <Route path="/login" element={!user ? <LoginScreen /> : <Navigate to="/dashboard" />} />
           <Route path="/" element={<Navigate to={user ? "/dashboard" : "/login"} />} />
           

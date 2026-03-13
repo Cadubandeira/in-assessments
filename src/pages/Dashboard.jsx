@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { 
   ArrowRight, 
   Zap, 
@@ -822,6 +822,22 @@ const Dashboard = ({ user }) => {
           </div>
         </>
       )}
+
+      {/* FOOTER */}
+      <footer className="mt-16 border-t border-[#E2E8F0] py-6 px-4">
+        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-[#94A3B8]">
+          <span>© {new Date().getFullYear()} In Assessments · BNDR Design LTDA</span>
+          <div className="flex items-center gap-4">
+            <Link to="/privacy-policy" className="hover:text-[#4F46E5] transition-colors">
+              Política de Privacidade
+            </Link>
+            <span>·</span>
+            <Link to="/terms-of-service" className="hover:text-[#4F46E5] transition-colors">
+              Termos de Serviço
+            </Link>
+          </div>
+        </div>
+      </footer>
 
       {/* MODAL DE INDICADOR */}
       {selectedIndicator && (

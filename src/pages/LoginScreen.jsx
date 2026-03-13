@@ -1,4 +1,5 @@
 import React, { useState, useRef } from 'react';
+import { Link } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
 import { TOKENS } from '../config/tokens';
 import Button from '../components/ui/Button';
@@ -220,6 +221,18 @@ const LoginScreen = () => {
               </div>
             </div>
           )}
+
+          <div className="mt-8 pt-6 border-t border-[#C7D2FE] text-center text-xs text-[#64748B] leading-relaxed">
+            Ao continuar, você concorda com nossos{' '}
+            <Link to="/terms-of-service" className="text-[#4F46E5] hover:underline font-medium">
+              Termos de Serviço
+            </Link>{' '}
+            e reconhece nossa{' '}
+            <Link to="/privacy-policy" className="text-[#4F46E5] hover:underline font-medium">
+              Política de Privacidade
+            </Link>
+            .
+          </div>
         </div>
       </div>
     </div>
