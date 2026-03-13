@@ -114,7 +114,7 @@ const LoginScreen = () => {
         </div>
         
         <div className="mt-12 md:mt-0 animate-in fade-in slide-in-from-left-4 duration-1000 delay-100">
-          <h1 className={`${TOKENS.fonts.serif} text-4xl sm:text-6xl md:text-7xl lg:text-8xl leading-[1.1] tracking-tight text-[#1E1B4B] break-words`}>
+          <h1 className={`${TOKENS.fonts.serif} text-3xl sm:text-6xl md:text-7xl lg:text-8xl leading-[1.1] tracking-tight text-[#1E1B4B] break-words`}>
             Autoconhecimento,<br/>
             <span className="text-[#4F46E5] italic">potencial</span><br/>
             & transformação.

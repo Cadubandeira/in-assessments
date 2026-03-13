@@ -3346,8 +3346,8 @@ Deseja continuar?`;
                                     </h5>
                                     <div className="space-y-3 bg-gradient-to-br from-gray-50 to-blue-50/20 p-4 rounded-lg">
                                       {question.alternatives.map((alt, aIdx) => (
-                                        <div key={alt.id} className="p-4 bg-white rounded-lg border-2 border-gray-200 flex gap-4 items-end shadow-sm">
-                                          <div className="flex-1">
+                                        <div key={alt.id} className="p-4 bg-white rounded-lg border-2 border-gray-200 shadow-sm space-y-3">
+                                          <div>
                                             <label className="text-xs font-bold text-gray-500 uppercase tracking-wide block mb-2">
                                               Alternativa #{alt.display_order}
                                             </label>
@@ -3362,44 +3362,46 @@ Deseja continuar?`;
                                               className="w-full p-3 border-2 border-gray-200 rounded-lg bg-white text-gray-900 text-sm focus:border-[#4F46E5] focus:outline-none transition-colors"
                                             />
                                           </div>
-                                          <div className="w-28">
-                                            <label className="text-xs font-bold text-gray-500 uppercase tracking-wide block mb-2">
-                                              Score
-                                            </label>
-                                            <input
-                                              type="number"
-                                              value={questionsEdited[indIdx]?.questions[qIdx]?.alternatives[aIdx]?.score_value ?? ''}
-                                              onChange={(e) => {
-                                                const updated = [...questionsEdited];
-                                                const value = e.target.value === '' ? 0 : parseFloat(e.target.value);
-                                                updated[indIdx].questions[qIdx].alternatives[aIdx].score_value = isNaN(value) ? 0 : value;
-                                                setQuestionsEdited(updated);
-                                              }}
-                                              className="w-full p-3 border-2 border-gray-200 rounded-lg bg-white text-[#4F46E5] font-bold text-center focus:border-[#4F46E5] focus:outline-none transition-colors"
-                                            />
+                                          <div className="flex flex-wrap gap-4 items-end">
+                                            <div className="w-28">
+                                              <label className="text-xs font-bold text-gray-500 uppercase tracking-wide block mb-2">
+                                                Score
+                                              </label>
+                                              <input
+                                                type="number"
+                                                value={questionsEdited[indIdx]?.questions[qIdx]?.alternatives[aIdx]?.score_value ?? ''}
+                                                onChange={(e) => {
+                                                  const updated = [...questionsEdited];
+                                                  const value = e.target.value === '' ? 0 : parseFloat(e.target.value);
+                                                  updated[indIdx].questions[qIdx].alternatives[aIdx].score_value = isNaN(value) ? 0 : value;
+                                                  setQuestionsEdited(updated);
+                                                }}
+                                                className="w-full p-3 border-2 border-gray-200 rounded-lg bg-white text-[#4F46E5] font-bold text-center focus:border-[#4F46E5] focus:outline-none transition-colors"
+                                              />
+                                            </div>
+                                            <div className="w-24">
+                                              <label className="text-xs font-bold text-gray-500 uppercase tracking-wide block mb-2">
+                                                Ordem
+                                              </label>
+                                              <input
+                                                type="number"
+                                                value={questionsEdited[indIdx]?.questions[qIdx]?.alternatives[aIdx]?.display_order || ''}
+                                                onChange={(e) => {
+                                                  const updated = [...questionsEdited];
+                                                  updated[indIdx].questions[qIdx].alternatives[aIdx].display_order = parseInt(e.target.value, 10) || 0;
+                                                  setQuestionsEdited(updated);
+                                                }}
+                                                className="w-full p-3 border-2 border-gray-200 rounded-lg bg-white text-gray-900 font-semibold text-center focus:border-[#4F46E5] focus:outline-none transition-colors"
+                                              />
+                                            </div>
+                                            <button
+                                              type="button"
+                                              onClick={() => handleRemoveAlternative(indIdx, qIdx, aIdx)}
+                                              className="p-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
+                                            >
+                                              <Trash2 className="w-4 h-4" />
+                                            </button>
                                           </div>
-                                          <div className="w-24">
-                                            <label className="text-xs font-bold text-gray-500 uppercase tracking-wide block mb-2">
-                                              Ordem
-                                            </label>
-                                            <input
-                                              type="number"
-                                              value={questionsEdited[indIdx]?.questions[qIdx]?.alternatives[aIdx]?.display_order || ''}
-                                              onChange={(e) => {
-                                                const updated = [...questionsEdited];
-                                                updated[indIdx].questions[qIdx].alternatives[aIdx].display_order = parseInt(e.target.value, 10) || 0;
-                                                setQuestionsEdited(updated);
-                                              }}
-                                              className="w-full p-3 border-2 border-gray-200 rounded-lg bg-white text-gray-900 font-semibold text-center focus:border-[#4F46E5] focus:outline-none transition-colors"
-                                            />
-                                          </div>
-                                          <button
-                                            type="button"
-                                            onClick={() => handleRemoveAlternative(indIdx, qIdx, aIdx)}
-                                            className="p-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
-                                          >
-                                            <Trash2 className="w-4 h-4" />
-                                          </button>
                                         </div>
                                       ))}
                                       <button
@@ -3529,8 +3531,8 @@ Deseja continuar?`;
 
                                 <div className="space-y-3 bg-gradient-to-br from-gray-50 to-blue-50/20 p-4 rounded-lg">
                                   {(question.alternatives || []).map((alt, aIdx) => (
-                                    <div key={alt.id || aIdx} className="p-4 bg-white rounded-lg border-2 border-gray-200 flex gap-4 items-end">
-                                      <div className="flex-1">
+                                    <div key={alt.id || aIdx} className="p-4 bg-white rounded-lg border-2 border-gray-200 space-y-3">
+                                      <div>
                                         <label className="text-xs font-bold text-gray-500 uppercase tracking-wide block mb-2">
                                           Alternativa #{alt.display_order}
                                         </label>
@@ -3545,55 +3547,57 @@ Deseja continuar?`;
                                           className="w-full p-3 border-2 border-gray-200 rounded-lg bg-white text-gray-900 text-sm focus:border-[#4F46E5] focus:outline-none transition-colors"
                                         />
                                       </div>
-                                      <div className="w-40">
-                                        <label className="text-xs font-bold text-gray-500 uppercase tracking-wide block mb-2">Pontua para</label>
-                                        <select
-                                          value={levels[levelIdx]?.questions?.[qIdx]?.alternatives?.[aIdx]?.score_target || 'level'}
-                                          onChange={(e) => {
-                                            const updated = [...levels];
-                                            updated[levelIdx].questions[qIdx].alternatives[aIdx].score_target = e.target.value;
-                                            setLevels(updated);
-                                          }}
-                                          className="w-full p-3 border-2 border-gray-200 rounded-lg bg-white text-gray-900 text-sm focus:border-[#4F46E5] focus:outline-none transition-colors"
+                                      <div className="flex flex-wrap gap-4 items-end">
+                                        <div className="w-40">
+                                          <label className="text-xs font-bold text-gray-500 uppercase tracking-wide block mb-2">Pontua para</label>
+                                          <select
+                                            value={levels[levelIdx]?.questions?.[qIdx]?.alternatives?.[aIdx]?.score_target || 'level'}
+                                            onChange={(e) => {
+                                              const updated = [...levels];
+                                              updated[levelIdx].questions[qIdx].alternatives[aIdx].score_target = e.target.value;
+                                              setLevels(updated);
+                                            }}
+                                            className="w-full p-3 border-2 border-gray-200 rounded-lg bg-white text-gray-900 text-sm focus:border-[#4F46E5] focus:outline-none transition-colors"
+                                          >
+                                            <option value="level">Conquista do nível</option>
+                                            <option value="potential">Potencial do nível</option>
+                                          </select>
+                                        </div>
+                                        <div className="w-28">
+                                          <label className="text-xs font-bold text-gray-500 uppercase tracking-wide block mb-2">Pontos</label>
+                                          <input
+                                            type="number"
+                                            value={levels[levelIdx]?.questions?.[qIdx]?.alternatives?.[aIdx]?.score_value ?? ''}
+                                            onChange={(e) => {
+                                              const updated = [...levels];
+                                              const value = e.target.value === '' ? 0 : parseFloat(e.target.value);
+                                              updated[levelIdx].questions[qIdx].alternatives[aIdx].score_value = isNaN(value) ? 0 : value;
+                                              setLevels(updated);
+                                            }}
+                                            className="w-full p-3 border-2 border-gray-200 rounded-lg bg-white text-[#4F46E5] font-bold text-center focus:border-[#4F46E5] focus:outline-none transition-colors"
+                                          />
+                                        </div>
+                                        <div className="w-24">
+                                          <label className="text-xs font-bold text-gray-500 uppercase tracking-wide block mb-2">Ordem</label>
+                                          <input
+                                            type="number"
+                                            value={levels[levelIdx]?.questions?.[qIdx]?.alternatives?.[aIdx]?.display_order || aIdx + 1}
+                                            onChange={(e) => {
+                                              const updated = [...levels];
+                                              updated[levelIdx].questions[qIdx].alternatives[aIdx].display_order = parseInt(e.target.value, 10) || (aIdx + 1);
+                                              setLevels(updated);
+                                            }}
+                                            className="w-full p-3 border-2 border-gray-200 rounded-lg bg-white text-gray-900 font-semibold text-center focus:border-[#4F46E5] focus:outline-none transition-colors"
+                                          />
+                                        </div>
+                                        <button
+                                          type="button"
+                                          onClick={() => handleRemoveAlternativeFromLevelQuestion(levelIdx, qIdx, aIdx)}
+                                          className="p-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
                                         >
-                                          <option value="level">Conquista do nível</option>
-                                          <option value="potential">Potencial do nível</option>
-                                        </select>
+                                          <Trash2 className="w-4 h-4" />
+                                        </button>
                                       </div>
-                                      <div className="w-28">
-                                        <label className="text-xs font-bold text-gray-500 uppercase tracking-wide block mb-2">Pontos</label>
-                                        <input
-                                          type="number"
-                                          value={levels[levelIdx]?.questions?.[qIdx]?.alternatives?.[aIdx]?.score_value ?? ''}
-                                          onChange={(e) => {
-                                            const updated = [...levels];
-                                            const value = e.target.value === '' ? 0 : parseFloat(e.target.value);
-                                            updated[levelIdx].questions[qIdx].alternatives[aIdx].score_value = isNaN(value) ? 0 : value;
-                                            setLevels(updated);
-                                          }}
-                                          className="w-full p-3 border-2 border-gray-200 rounded-lg bg-white text-[#4F46E5] font-bold text-center focus:border-[#4F46E5] focus:outline-none transition-colors"
-                                        />
-                                      </div>
-                                      <div className="w-24">
-                                        <label className="text-xs font-bold text-gray-500 uppercase tracking-wide block mb-2">Ordem</label>
-                                        <input
-                                          type="number"
-                                          value={levels[levelIdx]?.questions?.[qIdx]?.alternatives?.[aIdx]?.display_order || aIdx + 1}
-                                          onChange={(e) => {
-                                            const updated = [...levels];
-                                            updated[levelIdx].questions[qIdx].alternatives[aIdx].display_order = parseInt(e.target.value, 10) || (aIdx + 1);
-                                            setLevels(updated);
-                                          }}
-                                          className="w-full p-3 border-2 border-gray-200 rounded-lg bg-white text-gray-900 font-semibold text-center focus:border-[#4F46E5] focus:outline-none transition-colors"
-                                        />
-                                      </div>
-                                      <button
-                                        type="button"
-                                        onClick={() => handleRemoveAlternativeFromLevelQuestion(levelIdx, qIdx, aIdx)}
-                                        className="p-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
-                                      >
-                                        <Trash2 className="w-4 h-4" />
-                                      </button>
                                     </div>
                                   ))}
 

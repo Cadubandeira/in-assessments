@@ -613,7 +613,7 @@ const Assessment = () => {
             <div className="space-y-5">
               {/* Question Text - Lighter design on mobile */}
               <div className="bg-white/60 sm:bg-gradient-to-br sm:from-white/90 sm:to-white/70 backdrop-blur-md border border-white/60 rounded-2xl sm:rounded-3xl p-4 sm:p-8 shadow-sm">
-                <h3 className={`${TOKENS.fonts.serif} text-base sm:text-xl text-[#1E1B4B] leading-relaxed sm:leading-tight`}>
+                <h3 className={`${TOKENS.fonts.serif} text-base sm:text-xl text-[#1E1B4B] leading-relaxed sm:leading-tight whitespace-pre-wrap`}>
                   {currentQuestion.text}
                 </h3>
               </div>
