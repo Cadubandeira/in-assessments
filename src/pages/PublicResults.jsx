@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { Share2, ArrowRight, ToolCase, Zap, Check, X, Download, ChevronDown, ChevronUp } from 'lucide-react';
 import XPRewardWidget from '../components/XPRewardWidget';
 import CallToActionCardLong from '../components/CallToActionCardLong';
@@ -13,6 +13,7 @@ import { TOKENS } from '../config/tokens';
 import { getLucideIcon } from '../utils/iconUtils';
 import { XP_CONFIG, calculateXP, formatXP } from '../utils/gamificationUtils';
 import ResultsSkeleton from '../components/skeletons/ResultsSkeleton';
+import { downloadAssessmentPdf } from '../utils/pdfDownload';
 
 // Fallback functions quando não há ranges configuradas
 function classifyFallback(percentage) {
@@ -108,6 +109,9 @@ const findSelectedAlternative = (alternatives = [], answerValue) => {
 export default function PublicResults() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const isPdfMode = searchParams.get('pdf') === '1';
+  const forceExpandAll = isPdfMode || searchParams.get('expand') === 'all';
   const normalizedRouteId = typeof id === 'string' ? id.trim() : '';
   const hasRouteId = normalizedRouteId.length > 0 && normalizedRouteId !== 'undefined' && normalizedRouteId !== 'null';
   const isValidUuid = (value) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value || ''));
@@ -140,6 +144,7 @@ export default function PublicResults() {
   const [showIndicatorAnswersModal, setShowIndicatorAnswersModal] = useState(false);
   const [selectedIndicatorAnswersKey, setSelectedIndicatorAnswersKey] = useState('');
   const [isPreAssessmentAccordionOpen, setIsPreAssessmentAccordionOpen] = useState(false);
+  const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
 
   useEffect(() => {
     // Removido: let mounted = true; (não necessário para página pública)
@@ -818,8 +823,8 @@ export default function PublicResults() {
 
   useEffect(() => {
     const isDesktop = window.innerWidth >= 1024;
-    setIsPreAssessmentAccordionOpen(isDesktop);
-  }, [result?.id]);
+    setIsPreAssessmentAccordionOpen(forceExpandAll ? true : isDesktop);
+  }, [result?.id, forceExpandAll]);
 
   if (loading) return <ResultsSkeleton />;
   if (error) return <div className="p-12 text-center text-red-600">{error}</div>;
@@ -1017,15 +1022,17 @@ export default function PublicResults() {
       <div>
         <button
           type="button"
-          onClick={() => setIsPreAssessmentAccordionOpen((prev) => !prev)}
+          onClick={() => !forceExpandAll && setIsPreAssessmentAccordionOpen((prev) => !prev)}
           className="w-full flex items-center justify-between text-left py-1 mb-2 min-h-6"
         >
           <span className="text-[#4F46E5] font-bold text-xs uppercase tracking-widest leading-none">
             Respostas pré-assessment
           </span>
-          <span className="inline-flex items-center justify-center h-[18px] w-[18px] flex-shrink-0">
-            {isPreAssessmentAccordionOpen ? <ChevronUp size={18} className="text-[#4F46E5]" /> : <ChevronDown size={18} className="text-[#4F46E5]" />}
-          </span>
+          {!forceExpandAll && (
+            <span className="inline-flex items-center justify-center h-[18px] w-[18px] flex-shrink-0">
+              {isPreAssessmentAccordionOpen ? <ChevronUp size={18} className="text-[#4F46E5]" /> : <ChevronDown size={18} className="text-[#4F46E5]" />}
+            </span>
+          )}
         </button>
 
         {isPreAssessmentAccordionOpen && (
@@ -1098,7 +1105,7 @@ export default function PublicResults() {
             {assessmentDescription}
           </p>
 
-          {/* Botões de ação: Compartilhar */}
+          {/* Botões de ação: Compartilhar e Download */}
           <div className="flex flex-row items-center justify-center gap-3 mt-6">
             <button
               type="button"
@@ -1132,6 +1139,37 @@ export default function PublicResults() {
               <Share2 className="w-5 h-5" />
               Compartilhar
             </button>
+            <button
+              type="button"
+              aria-label="Baixar PDF do resultado"
+              disabled={isDownloadingPdf}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-white text-indigo-700 font-semibold shadow-sm hover:bg-indigo-50 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-indigo-300 disabled:opacity-60 disabled:cursor-not-allowed"
+              onClick={async () => {
+                const eventId = result?.id || (isRouteIdValidUuid ? normalizedRouteId : null);
+                if (!eventId) {
+                  alert('Não foi possível identificar o resultado para gerar o PDF.');
+                  return;
+                }
+
+                try {
+                  setIsDownloadingPdf(true);
+                  await downloadAssessmentPdf({
+                    assessmentEventId: eventId,
+                    source: 'public',
+                    assessmentName,
+                    versionToken: result?.updated_at || result?.created_at || 'v1'
+                  });
+                } catch (downloadError) {
+                  console.error('Erro ao baixar PDF público:', downloadError);
+                  alert(downloadError?.message || 'Não foi possível gerar o PDF no momento.');
+                } finally {
+                  setIsDownloadingPdf(false);
+                }
+              }}
+            >
+              <Download className="w-5 h-5" />
+              {isDownloadingPdf ? 'Gerando...' : 'Download'}
+            </button>
           </div>
         </div>
 
@@ -1146,11 +1184,11 @@ export default function PublicResults() {
                 <div>
                   <div
                     className={`prose prose-sm mt-6 sm:text-lg sm:prose-base max-w-none text-gray-700 leading-relaxed text-justify [text-align-last:left] overflow-hidden transition-all duration-300 [&_p]:mb-4 [&_p]:text-base [&_p]:leading-relaxed [&_ul]:my-4 [&_ol]:my-4 [&_li]:my-1 [&_strong]:font-semibold [&_em]:italic [&_a]:text-[#4F46E5] [&_a]:underline ${
-                      expandedIntroduction ? '' : 'line-clamp-5 text-fade-out'
+                      expandedIntroduction || forceExpandAll ? '' : 'line-clamp-5 text-fade-out'
                     }`}
                     dangerouslySetInnerHTML={{ __html: introductionText }}
                   />
-                  {!expandedIntroduction && (
+                  {!forceExpandAll && !expandedIntroduction && (
                     <button
                       type="button"
                       onClick={() => setExpandedIntroduction(true)}
@@ -1159,7 +1197,7 @@ export default function PublicResults() {
                       Ver mais <ChevronDown size={16} />
                     </button>
                   )}
-                  {expandedIntroduction && (
+                  {!forceExpandAll && expandedIntroduction && (
                     <button
                       type="button"
                       onClick={() => setExpandedIntroduction(false)}
@@ -1219,6 +1257,7 @@ export default function PublicResults() {
                 noLevelAchievedDescription={noLevelAchievedDescription}
                 showLevelBadges={showLevelBadges}
                 levelAnswerItems={levelAnswersMap}
+                forceExpandForPdf={forceExpandAll}
               />
             )}
 
@@ -1228,7 +1267,7 @@ export default function PublicResults() {
                 {/* Se ambos os gráficos estão selecionados, renderizar no mesmo card */}
                 {assessmentData.visualization_type.includes('radar') && assessmentData.visualization_type.includes('horizontal-bar') ? (
                   <div className="bg-white/80 border border-white/60 rounded-2xl p-6 shadow-sm space-y-8">
-                    <RadarChart indicatorResults={indicatorResults} indicatorMeta={indicatorsMeta} defaultLegendOpen={false} onItemClick={(key) => { document.getElementById(`indicator-card-${String(key)}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }} />
+                    <RadarChart indicatorResults={indicatorResults} indicatorMeta={indicatorsMeta} defaultLegendOpen={forceExpandAll} forceLegendOpen={forceExpandAll} onItemClick={(key) => { document.getElementById(`indicator-card-${String(key)}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }} />
                     <div className="border-t border-gray-200 pt-6">
                       <HorizontalBarChart indicatorResults={indicatorResults} indicatorMeta={indicatorsMeta} />
                     </div>
@@ -1238,7 +1277,7 @@ export default function PublicResults() {
                     {/* Renderizar gráficos individualmente */}
                     {assessmentData.visualization_type.includes('radar') && (
                       <div className="bg-white/80 border border-white/60 rounded-2xl p-6 shadow-sm">
-                        <RadarChart indicatorResults={indicatorResults} indicatorMeta={indicatorsMeta} defaultLegendOpen={false} onItemClick={(key) => { document.getElementById(`indicator-card-${String(key)}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }} />
+                        <RadarChart indicatorResults={indicatorResults} indicatorMeta={indicatorsMeta} defaultLegendOpen={forceExpandAll} forceLegendOpen={forceExpandAll} onItemClick={(key) => { document.getElementById(`indicator-card-${String(key)}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }} />
                       </div>
                     )}
                     {assessmentData.visualization_type.includes('horizontal-bar') && (
@@ -1317,7 +1356,7 @@ export default function PublicResults() {
                         <p
                           data-indicator-interpretation-key={indicatorKey}
                           className={`text-base sm:text-lg text-gray-700 leading-relaxed text-justify [text-align-last:left] ${
-                            expandedIndicatorInterpretations[indicatorKey]
+                            forceExpandAll || expandedIndicatorInterpretations[indicatorKey]
                               ? ''
                               : truncatedIndicatorInterpretations[indicatorKey]
                                 ? 'line-clamp-5 text-fade-out'
@@ -1329,7 +1368,7 @@ export default function PublicResults() {
 
                         <div className="mt-2 flex items-center justify-between gap-4">
                           <div>
-                            {truncatedIndicatorInterpretations[indicatorKey] && !expandedIndicatorInterpretations[indicatorKey] && (
+                            {!forceExpandAll && truncatedIndicatorInterpretations[indicatorKey] && !expandedIndicatorInterpretations[indicatorKey] && (
                               <button
                                 onClick={() => toggleIndicatorInterpretation(indicatorKey)}
                                 className="text-[#4F46E5] font-semibold text-base hover:opacity-90 transition-opacity"
@@ -1338,7 +1377,7 @@ export default function PublicResults() {
                               </button>
                             )}
 
-                            {expandedIndicatorInterpretations[indicatorKey] && (
+                            {!forceExpandAll && expandedIndicatorInterpretations[indicatorKey] && (
                               <button
                                 onClick={() => toggleIndicatorInterpretation(indicatorKey)}
                                 className="text-[#4F46E5] font-semibold text-base hover:opacity-90 transition-opacity"
@@ -1412,8 +1451,8 @@ export default function PublicResults() {
                     )}
                     
                     {/* Sugestão de Assessments */}
-                    {!suggestedLoading && suggestedAssessments.length > 0 && (
-                      <div className="bg-white/80 border-white/60 rounded-2xl p-6 shadow-sm">
+                    {!isPdfMode && !suggestedLoading && suggestedAssessments.length > 0 && (
+                      <div className="bg-white/80 border-white/60 rounded-2xl p-6 shadow-sm" data-pdf-hide="true">
                         <h3 className="text-lg font-bold text-gray-800 mb-4">Próximos Passos</h3>
                         <div className="space-y-3">
                           {suggestedAssessments.map(sa => (

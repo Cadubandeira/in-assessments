@@ -359,7 +359,7 @@ function LevelCardAnimated({ level, expandedLevelId, setExpandedLevelId }) {
   );
 }
 
-export default function LevelsResultsDisplay({ levelResults, levelMode, levels, levelRanges = {}, noLevelAchievedTitle, noLevelAchievedDescription, showLevelBadges = true, levelAnswerItems = {} }) {
+export default function LevelsResultsDisplay({ levelResults, levelMode, levels, levelRanges = {}, noLevelAchievedTitle, noLevelAchievedDescription, showLevelBadges = true, levelAnswerItems = {}, forceExpandForPdf = false }) {
   const [selectedLevel, setSelectedLevel] = useState(null);
   const [showLevelModal, setShowLevelModal] = useState(false);
   const [showLevelAnswersModal, setShowLevelAnswersModal] = useState(false);
@@ -370,6 +370,19 @@ export default function LevelsResultsDisplay({ levelResults, levelMode, levels, 
   const [isTruncated, setIsTruncated] = useState(false);
   const descriptionRef = useRef(null);
   const interpretationRefs = useRef({}); // Refs para as interpretações dos cards
+
+  useEffect(() => {
+    if (!forceExpandForPdf) return;
+
+    const allExpanded = {};
+    levels.forEach((level) => {
+      if (level?.id) {
+        allExpanded[level.id] = true;
+      }
+    });
+
+    setExpandedInterpretations(allExpanded);
+  }, [forceExpandForPdf, levels]);
 
   // Determinar quais níveis foram obtidos (levelScore >= acquire_threshold)
   const achievedLevels = useMemo(() => {
@@ -499,6 +512,8 @@ export default function LevelsResultsDisplay({ levelResults, levelMode, levels, 
   };
 
   const toggleInterpretation = (levelId) => {
+    if (forceExpandForPdf) return;
+
     setExpandedInterpretations(prev => ({
       ...prev,
       [levelId]: !prev[levelId]
@@ -629,7 +644,7 @@ export default function LevelsResultsDisplay({ levelResults, levelMode, levels, 
                       <div
                         ref={descriptionRef}
                         className={`level-rich-content ProseMirror text-base sm:text-lg ${
-                          expandedLevelId === singleLevelCardData.levelId 
+                          forceExpandForPdf || expandedLevelId === singleLevelCardData.levelId 
                             ? '' 
                             : isTruncated 
                               ? 'line-clamp-5 text-fade-out' 
@@ -638,7 +653,7 @@ export default function LevelsResultsDisplay({ levelResults, levelMode, levels, 
                         dangerouslySetInnerHTML={{ __html: singleLevelCardData.description || '' }}
                       />
                       
-                      {singleLevelCardData.description && isTruncated && expandedLevelId !== singleLevelCardData.levelId && (
+                      {!forceExpandForPdf && singleLevelCardData.description && isTruncated && expandedLevelId !== singleLevelCardData.levelId && (
                         <div className="mt-2 flex items-center justify-between gap-4">
                           <button
                             onClick={() => setExpandedLevelId(singleLevelCardData.levelId)}
@@ -655,7 +670,7 @@ export default function LevelsResultsDisplay({ levelResults, levelMode, levels, 
                         </div>
                       )}
                       
-                      {expandedLevelId === singleLevelCardData.levelId && (
+                      {!forceExpandForPdf && expandedLevelId === singleLevelCardData.levelId && (
                         <div className="mt-3 flex items-center justify-between gap-4">
                           <button
                             onClick={() => setExpandedLevelId(null)}
@@ -696,6 +711,7 @@ export default function LevelsResultsDisplay({ levelResults, levelMode, levels, 
                     indicatorMeta={radarMeta}
                     hideLegend={false}
                     defaultLegendOpen={false}
+                    forceLegendOpen={forceExpandForPdf}
                     onItemClick={(levelId) => { document.getElementById(`level-card-${levelId}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }}
                   />
                 </div>
@@ -996,6 +1012,7 @@ export default function LevelsResultsDisplay({ levelResults, levelMode, levels, 
                     indicatorMeta={radarMeta}
                     hideLegend={false}
                     defaultLegendOpen={false}
+                    forceLegendOpen={forceExpandForPdf}
                     onItemClick={(levelId) => { document.getElementById(`level-card-${levelId}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }}
                   />
                 </div>
@@ -1158,7 +1175,7 @@ export default function LevelsResultsDisplay({ levelResults, levelMode, levels, 
                                   <div
                                     ref={el => interpretationRefs.current[level.id] = el}
                                     className={`level-rich-content-dark ProseMirror text-base sm:text-lg leading-relaxed text-justify [text-align-last:left] ${
-                                      expandedInterpretations[level.id]
+                                      forceExpandForPdf || expandedInterpretations[level.id]
                                         ? '' 
                                         : truncatedInterpretations[level.id]
                                           ? 'line-clamp-5 text-fade-out' 
@@ -1170,7 +1187,7 @@ export default function LevelsResultsDisplay({ levelResults, levelMode, levels, 
                                   {/* "Ver mais" quando truncado e não expandido */}
                                   <div className="mt-2 flex items-center justify-between gap-4">
                                     <div>
-                                      {truncatedInterpretations[level.id] && !expandedInterpretations[level.id] && (
+                                      {!forceExpandForPdf && truncatedInterpretations[level.id] && !expandedInterpretations[level.id] && (
                                         <button
                                           onClick={() => toggleInterpretation(level.id)}
                                           className="text-[#4F46E5] font-semibold text-base hover:opacity-90 transition-opacity flex items-center gap-1"
@@ -1179,7 +1196,7 @@ export default function LevelsResultsDisplay({ levelResults, levelMode, levels, 
                                         </button>
                                       )}
 
-                                      {expandedInterpretations[level.id] && (
+                                      {!forceExpandForPdf && expandedInterpretations[level.id] && (
                                         <button
                                           onClick={() => toggleInterpretation(level.id)}
                                           className="text-[#4F46E5] font-semibold text-base hover:opacity-90 transition-opacity flex items-center gap-1"

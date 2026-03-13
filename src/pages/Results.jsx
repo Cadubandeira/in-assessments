@@ -14,6 +14,7 @@ import { TOKENS } from '../config/tokens';
 import { getLucideIcon } from '../utils/iconUtils';
 import { XP_CONFIG, calculateXP, formatXP } from '../utils/gamificationUtils';
 import ResultsSkeleton from '../components/skeletons/ResultsSkeleton';
+import { downloadAssessmentPdf } from '../utils/pdfDownload';
 
 // Fallback functions quando não há ranges configuradas
 function classifyFallback(percentage) {
@@ -140,6 +141,10 @@ export default function Results() {
   const [showIndicatorAnswersModal, setShowIndicatorAnswersModal] = useState(false);
   const [selectedIndicatorAnswersKey, setSelectedIndicatorAnswersKey] = useState('');
   const [isPreAssessmentAccordionOpen, setIsPreAssessmentAccordionOpen] = useState(false);
+  const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
+
+  const isPdfMode = searchParams.get('pdf') === '1';
+  const forceExpandAll = isPdfMode || searchParams.get('expand') === 'all';
 
   useEffect(() => {
     let mounted = true;
@@ -781,8 +786,8 @@ export default function Results() {
 
   useEffect(() => {
     const isDesktop = window.innerWidth >= 1024;
-    setIsPreAssessmentAccordionOpen(isDesktop);
-  }, [result?.id]);
+    setIsPreAssessmentAccordionOpen(forceExpandAll ? true : isDesktop);
+  }, [result?.id, forceExpandAll]);
 
   if (loading) return <ResultsSkeleton />;
   if (error) return <div className="p-12 text-center text-red-600">{error}</div>;
@@ -874,15 +879,17 @@ export default function Results() {
       <div>
         <button
           type="button"
-          onClick={() => setIsPreAssessmentAccordionOpen((prev) => !prev)}
+          onClick={() => !forceExpandAll && setIsPreAssessmentAccordionOpen((prev) => !prev)}
           className="w-full flex items-center justify-between text-left py-1 mb-2 min-h-6"
         >
           <span className="text-[#4F46E5] font-bold text-xs uppercase tracking-widest leading-none">
             Respostas pré-assessment
           </span>
-          <span className="inline-flex items-center justify-center h-[18px] w-[18px] flex-shrink-0">
-            {isPreAssessmentAccordionOpen ? <ChevronUp size={18} className="text-[#4F46E5]" /> : <ChevronDown size={18} className="text-[#4F46E5]" />}
-          </span>
+          {!forceExpandAll && (
+            <span className="inline-flex items-center justify-center h-[18px] w-[18px] flex-shrink-0">
+              {isPreAssessmentAccordionOpen ? <ChevronUp size={18} className="text-[#4F46E5]" /> : <ChevronDown size={18} className="text-[#4F46E5]" />}
+            </span>
+          )}
         </button>
 
         {isPreAssessmentAccordionOpen && (
@@ -1126,11 +1133,33 @@ export default function Results() {
             <button
               type="button"
               aria-label="Baixar PDF do resultado"
-              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-white text-indigo-700 font-semibold shadow-sm hover:bg-indigo-50 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-indigo-300"
-              onClick={() => { /* ação futura para baixar PDF */ }}
+              disabled={isDownloadingPdf}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-white text-indigo-700 font-semibold shadow-sm hover:bg-indigo-50 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-indigo-300 disabled:opacity-60 disabled:cursor-not-allowed"
+              onClick={async () => {
+                const eventId = result?.id || id;
+                if (!eventId) {
+                  alert('Não foi possível identificar o resultado para gerar o PDF.');
+                  return;
+                }
+
+                try {
+                  setIsDownloadingPdf(true);
+                  await downloadAssessmentPdf({
+                    assessmentEventId: eventId,
+                    source: 'results',
+                    assessmentName,
+                    versionToken: result?.updated_at || result?.created_at || 'v1'
+                  });
+                } catch (downloadError) {
+                  console.error('Erro ao baixar PDF:', downloadError);
+                  alert(downloadError?.message || 'Não foi possível gerar o PDF no momento.');
+                } finally {
+                  setIsDownloadingPdf(false);
+                }
+              }}
             >
               <Download className="w-5 h-5" />
-              Download
+              {isDownloadingPdf ? 'Gerando...' : 'Download'}
             </button>
           </div>
         </div>
@@ -1155,11 +1184,11 @@ export default function Results() {
                 <div>
                   <div
                     className={`prose prose-sm mt-6 sm:text-lg sm:prose-base max-w-none text-gray-700 leading-relaxed text-justify [text-align-last:left] overflow-hidden transition-all duration-300 [&_p]:mb-4 [&_p]:text-base [&_p]:leading-relaxed [&_ul]:my-4 [&_ol]:my-4 [&_li]:my-1 [&_strong]:font-semibold [&_em]:italic [&_a]:text-[#4F46E5] [&_a]:underline ${
-                      expandedIntroduction ? '' : 'line-clamp-5 text-fade-out'
+                      expandedIntroduction || forceExpandAll ? '' : 'line-clamp-5 text-fade-out'
                     }`}
                     dangerouslySetInnerHTML={{ __html: introductionText }}
                   />
-                  {!expandedIntroduction && (
+                  {!forceExpandAll && !expandedIntroduction && (
                     <button
                       type="button"
                       onClick={() => setExpandedIntroduction(true)}
@@ -1168,7 +1197,7 @@ export default function Results() {
                       Ver mais <ChevronDown size={16} />
                     </button>
                   )}
-                  {expandedIntroduction && (
+                  {!forceExpandAll && expandedIntroduction && (
                     <button
                       type="button"
                       onClick={() => setExpandedIntroduction(false)}
@@ -1228,6 +1257,7 @@ export default function Results() {
                 noLevelAchievedDescription={noLevelAchievedDescription}
                 showLevelBadges={showLevelBadges}
                 levelAnswerItems={levelAnswersMap}
+                forceExpandForPdf={forceExpandAll}
               />
             )}
 
@@ -1237,7 +1267,7 @@ export default function Results() {
                 {/* Se ambos os gráficos estão selecionados, renderizar no mesmo card */}
                 {assessmentData.visualization_type.includes('radar') && assessmentData.visualization_type.includes('horizontal-bar') ? (
                   <div className="bg-white/80 border border-white/60 rounded-2xl p-6 shadow-sm space-y-8">
-                    <RadarChart indicatorResults={indicatorResults} indicatorMeta={indicatorsMeta} defaultLegendOpen={true} />
+                    <RadarChart indicatorResults={indicatorResults} indicatorMeta={indicatorsMeta} defaultLegendOpen={true} forceLegendOpen={forceExpandAll} />
                     <div className="border-t border-gray-200 pt-6">
                       <HorizontalBarChart indicatorResults={indicatorResults} indicatorMeta={indicatorsMeta} />
                     </div>
@@ -1247,7 +1277,7 @@ export default function Results() {
                     {/* Renderizar gráficos individualmente */}
                     {assessmentData.visualization_type.includes('radar') && (
                       <div className="bg-white/80 border border-white/60 rounded-2xl p-6 shadow-sm">
-                        <RadarChart indicatorResults={indicatorResults} indicatorMeta={indicatorsMeta} defaultLegendOpen={true} />
+                        <RadarChart indicatorResults={indicatorResults} indicatorMeta={indicatorsMeta} defaultLegendOpen={true} forceLegendOpen={forceExpandAll} />
                       </div>
                     )}
                     {assessmentData.visualization_type.includes('horizontal-bar') && (
@@ -1332,7 +1362,7 @@ export default function Results() {
                         <p
                           data-indicator-interpretation-key={indicatorKey}
                           className={`text-base sm:text-lg text-gray-700 leading-relaxed text-justify [text-align-last:left] ${
-                            expandedIndicatorInterpretations[indicatorKey]
+                            forceExpandAll || expandedIndicatorInterpretations[indicatorKey]
                               ? ''
                               : truncatedIndicatorInterpretations[indicatorKey]
                                 ? 'line-clamp-5 text-fade-out'
@@ -1347,7 +1377,7 @@ export default function Results() {
                         <div>
                           {v.interpretation && (
                             <>
-                            {truncatedIndicatorInterpretations[indicatorKey] && !expandedIndicatorInterpretations[indicatorKey] && (
+                            {!forceExpandAll && truncatedIndicatorInterpretations[indicatorKey] && !expandedIndicatorInterpretations[indicatorKey] && (
                               <button
                                 onClick={() => toggleIndicatorInterpretation(indicatorKey)}
                                 className="text-[#4F46E5] font-semibold text-base hover:opacity-90 transition-opacity"
@@ -1356,7 +1386,7 @@ export default function Results() {
                               </button>
                             )}
 
-                            {expandedIndicatorInterpretations[indicatorKey] && (
+                            {!forceExpandAll && expandedIndicatorInterpretations[indicatorKey] && (
                               <button
                                 onClick={() => toggleIndicatorInterpretation(indicatorKey)}
                                 className="text-[#4F46E5] font-semibold text-base hover:opacity-90 transition-opacity"
@@ -1466,7 +1496,7 @@ export default function Results() {
           
         </div>
 
-        <div className="mt-10">
+        {!isPdfMode && <div className="mt-10" data-pdf-hide="true">
           <div className="flex items-center justify-between gap-4 mb-6">
             <h2 className={`${TOKENS.fonts.serif} text-2xl text-[#1E1B4B]`}>Atividades a seguir</h2>
             <button
@@ -1538,7 +1568,7 @@ export default function Results() {
               )}
             </>
           )}
-        </div>
+        </div>}
       </main>
     </div>
   );

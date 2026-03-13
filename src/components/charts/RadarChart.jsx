@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { getLucideIcon } from '../../utils/iconUtils';
 import { Zap, ChevronDown } from 'lucide-react';
 
@@ -6,9 +6,15 @@ import { Zap, ChevronDown } from 'lucide-react';
  * Componente de Gráfico de Radar SVG - Estilo Futurista SaaS
  * Exibe indicadores em formato de radar com design moderno e efeitos neon
  */
-export default function RadarChart({ indicatorResults = {}, indicatorMeta = {}, hideLegend = false, defaultLegendOpen = false, onItemClick }) {
+export default function RadarChart({ indicatorResults = {}, indicatorMeta = {}, hideLegend = false, defaultLegendOpen = false, onItemClick, forceLegendOpen = false }) {
   // Estado do accordion
   const [isLegendOpen, setIsLegendOpen] = useState(defaultLegendOpen);
+
+  useEffect(() => {
+    if (forceLegendOpen) {
+      setIsLegendOpen(true);
+    }
+  }, [forceLegendOpen]);
 
   // Validar dados
   const entries = Object.entries(indicatorResults || {});

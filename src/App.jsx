@@ -126,6 +126,8 @@ const ProtectedLayout = ({ user, children }) => {
   const location = useLocation();
   const navigate = useNavigate();
   const { role } = useUserRole();
+  const search = new URLSearchParams(location.search || '');
+  const isPdfMode = search.get('pdf') === '1' || search.get('hideHeader') === '1';
 
   if (!user) return <Navigate to="/login" replace />;
 
@@ -139,12 +141,12 @@ const ProtectedLayout = ({ user, children }) => {
 
   return (
     <div className={`min-h-screen ${TOKENS.colors.bg} pb-20`}>
-      <MobileHeader user={user} />
-      <DesktopHeader user={user} role={role} onStartAssessment={handleStart} />
-      <main key={location.pathname} className="pt-[72px]">
+      {!isPdfMode && <MobileHeader user={user} />}
+      {!isPdfMode && <DesktopHeader user={user} role={role} onStartAssessment={handleStart} />}
+      <main key={location.pathname} className={isPdfMode ? '' : 'pt-[72px]'}>
         {children}
       </main>
-      <MobileBottomNav onStartAssessment={handleStart} role={role} />
+      {!isPdfMode && <MobileBottomNav onStartAssessment={handleStart} role={role} />}
     </div>
   );
 };
