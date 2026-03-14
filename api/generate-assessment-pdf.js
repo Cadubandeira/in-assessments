@@ -12,6 +12,18 @@ const inFlightByKey = new Map();
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+const toPdfBuffer = (value) => {
+  if (Buffer.isBuffer(value)) return value;
+  if (value instanceof Uint8Array) return Buffer.from(value);
+  if (value?.buffer instanceof ArrayBuffer) return Buffer.from(value.buffer);
+  return Buffer.from(value || '');
+};
+
+const hasPdfSignature = (buffer) => {
+  if (!buffer || buffer.length < 5) return false;
+  return buffer.subarray(0, 5).toString('utf8') === '%PDF-';
+};
+
 const sanitize = (value = '') =>
   String(value)
     .normalize('NFD')
@@ -113,7 +125,12 @@ const renderPdf = async ({ url }) => {
       preferCSSPageSize: true,
     });
 
-    return pdf;
+    const pdfBuffer = toPdfBuffer(pdf);
+    if (!hasPdfSignature(pdfBuffer)) {
+      throw new Error('Conteúdo gerado não é um PDF válido.');
+    }
+
+    return pdfBuffer;
   } finally {
     await browser.close();
   }
@@ -153,6 +170,7 @@ export default async function handler(req, res) {
   if (!forceRefresh && cached && cached.expiresAt > Date.now()) {
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('Content-Length', String(cached.buffer.length));
     res.setHeader('X-PDF-Cache', 'HIT');
     return res.status(200).send(cached.buffer);
   }
@@ -162,6 +180,7 @@ export default async function handler(req, res) {
       const existingBuffer = await inFlightByKey.get(cacheKey);
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      res.setHeader('Content-Length', String(existingBuffer.length));
       res.setHeader('X-PDF-Cache', 'IN-FLIGHT');
       return res.status(200).send(existingBuffer);
     } catch {
@@ -188,6 +207,7 @@ export default async function handler(req, res) {
     const pdfBuffer = await taskPromise;
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('Content-Length', String(pdfBuffer.length));
     res.setHeader('X-PDF-Cache', 'MISS');
     return res.status(200).send(pdfBuffer);
   } catch (error) {
