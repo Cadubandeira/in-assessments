@@ -129,7 +129,7 @@ const ProtectedLayout = ({ user, children }) => {
   const search = new URLSearchParams(location.search || '');
   const isPdfMode = search.get('pdf') === '1' || search.get('hideHeader') === '1';
 
-  if (!user) return <Navigate to="/login" replace />;
+  if (!user) return <Navigate to="/" replace />;
 
   const handleStart = () => {
     if (!canUserTakeAssessment([], role)) {
@@ -204,8 +204,8 @@ export default function App() {
           <Route path="/public-results/:id" element={<PublicResults />} />
           <Route path="/privacy-policy" element={<PrivacyPolicy />} />
           <Route path="/terms-of-service" element={<TermsOfService />} />
-          <Route path="/login" element={!user ? <LoginScreen /> : <Navigate to="/dashboard" />} />
-          <Route path="/" element={<Navigate to={user ? "/dashboard" : "/login"} />} />
+          <Route path="/login" element={!user ? <Navigate to="/" replace /> : <Navigate to="/dashboard" replace />} />
+          <Route path="/" element={user ? <Navigate to="/dashboard" replace /> : <LoginScreen />} />
           
           <Route path="/dashboard" element={<ProtectedLayout user={user}><Dashboard user={user} /></ProtectedLayout>} />
           <Route path="/activities" element={<ProtectedLayout user={user}><Activities /></ProtectedLayout>} />
@@ -220,7 +220,7 @@ export default function App() {
           <Route path="/admin/management" element={<ProtectedLayout user={user}><Management user={user} /></ProtectedLayout>} />
           <Route path="/admin/indicators" element={<ProtectedLayout user={user}><IndicatorsAdmin /></ProtectedLayout>} />
           <Route path="/admin/assessments/builder" element={<ProtectedLayout user={user}><AssessmentBuilder /></ProtectedLayout>} />
-          <Route path="*" element={<Navigate to={user ? "/dashboard" : "/login"} replace />} />
+          <Route path="*" element={<Navigate to={user ? "/dashboard" : "/"} replace />} />
         </Routes>
       </div>
       </ErrorBoundary>

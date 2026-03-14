@@ -113,7 +113,7 @@ export default function PublicResults() {
   const [searchParams] = useSearchParams();
   const isPdfMode = searchParams.get('pdf') === '1';
   const forceExpandAll = isPdfMode || searchParams.get('expand') === 'all';
-  const productionLoginUrl = import.meta.env.VITE_PRODUCTION_LOGIN_URL || 'https://assessments.paulocruzfilho.com/#/login';
+  const productionLoginUrl = import.meta.env.VITE_PRODUCTION_LOGIN_URL || 'https://assessments.paulocruzfilho.com';
   const productionSignupUrl = import.meta.env.VITE_PRODUCTION_SIGNUP_URL || productionLoginUrl;
   const signupQrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(productionSignupUrl)}`;
   const normalizedRouteId = typeof id === 'string' ? id.trim() : '';

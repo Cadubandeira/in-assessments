@@ -11,7 +11,7 @@ const PrivacyPolicy = () => {
       <div className="max-w-4xl mx-auto px-6 py-10 md:py-16">
         <div className="flex items-center justify-between gap-4 mb-10">
           <Logo size="small" />
-          <Link to="/login" className="text-sm font-medium text-[#4F46E5] hover:underline">
+          <Link to="/" className="text-sm font-medium text-[#4F46E5] hover:underline">
             Voltar para login
           </Link>
         </div>
