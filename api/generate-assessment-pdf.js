@@ -5,9 +5,10 @@ const WINDOW_MS = 60_000;
 const RATE_LIMIT_PER_WINDOW = 12;
 const CACHE_TTL_MS = 1000 * 60 * 60 * 24;
 const MAX_CACHE_ENTRIES = 60;
-const SINGLE_PAGE_MAX_HEIGHT_PX = 18_000;
 const SINGLE_PAGE_MIN_HEIGHT_PX = 1_200;
 const SINGLE_PAGE_WIDTH_PX = 1240;
+const PADDING_V_PX = 48; // ~12mm
+const PADDING_H_PX = 40; // ~10mm
 
 const requestLogByIp = new Map();
 const pdfCache = new Map();
@@ -105,7 +106,7 @@ const renderPdf = async ({ url }) => {
   const executablePath = await chromium.executablePath();
   const browser = await puppeteer.launch({
     args: [...chromium.args, '--disable-dev-shm-usage', '--hide-scrollbars'],
-    defaultViewport: { width: 1440, height: 2200, deviceScaleFactor: 1 },
+    defaultViewport: { width: SINGLE_PAGE_WIDTH_PX, height: 2200, deviceScaleFactor: 1 },
     executablePath,
     headless: chromium.headless,
   });
@@ -131,7 +132,6 @@ const renderPdf = async ({ url }) => {
     await page.addStyleTag({
       content: `
         [data-pdf-hide="true"] { display: none !important; }
-        @page { size: A4; margin: 0; }
         * { print-color-adjust: exact !important; -webkit-print-color-adjust: exact !important; }
         html, body, #root {
           margin: 0 !important;
@@ -143,9 +143,8 @@ const renderPdf = async ({ url }) => {
         }
         #root {
           background: linear-gradient(to bottom right, #F5F3EC, #EEF2FF) !important;
-          padding: 12mm 10mm 12mm 10mm !important;
+          padding: ${PADDING_V_PX}px ${PADDING_H_PX}px !important;
           box-sizing: border-box !important;
-          min-height: 100vh !important;
         }
         main {
           max-width: 100% !important;
@@ -155,67 +154,38 @@ const renderPdf = async ({ url }) => {
       `,
     });
 
-    const contentMetrics = await page.evaluate(() => {
+    const contentHeight = await page.evaluate(() => {
       const root = document.querySelector('#root');
       const body = document.body;
       const html = document.documentElement;
-
-      const height = Math.ceil(
+      return Math.ceil(
         Math.max(
           root?.scrollHeight || 0,
           body?.scrollHeight || 0,
-          body?.offsetHeight || 0,
-          html?.clientHeight || 0,
-          html?.scrollHeight || 0,
-          html?.offsetHeight || 0
+          html?.scrollHeight || 0
         )
       );
-
-      const width = Math.ceil(
-        Math.max(
-          root?.scrollWidth || 0,
-          body?.scrollWidth || 0,
-          html?.scrollWidth || 0,
-          html?.clientWidth || 0
-        )
-      );
-
-      return { width, height };
     });
 
-    const safeContentHeight = Math.max(
-      SINGLE_PAGE_MIN_HEIGHT_PX,
-      Math.ceil((contentMetrics?.height || 0) + 32)
-    );
+    const safeHeight = Math.max(SINGLE_PAGE_MIN_HEIGHT_PX, contentHeight + 2);
+    const pdfWidth = SINGLE_PAGE_WIDTH_PX;
 
-    const canUseSingleLongPage = safeContentHeight <= SINGLE_PAGE_MAX_HEIGHT_PX;
+    // Resize viewport to exact content dimensions so vh/vw values are stable
+    await page.setViewport({ width: pdfWidth, height: safeHeight, deviceScaleFactor: 1 });
 
-    const pdf = canUseSingleLongPage
-      ? await page.pdf({
-          width: `${Math.max(SINGLE_PAGE_WIDTH_PX, contentMetrics?.width || SINGLE_PAGE_WIDTH_PX)}px`,
-          height: `${safeContentHeight}px`,
-          printBackground: true,
-          displayHeaderFooter: false,
-          preferCSSPageSize: false,
-          margin: {
-            top: '0px',
-            right: '0px',
-            bottom: '0px',
-            left: '0px'
-          }
-        })
-      : await page.pdf({
-          format: 'A4',
-          printBackground: true,
-          displayHeaderFooter: false,
-          preferCSSPageSize: false,
-          margin: {
-            top: '0px',
-            right: '0px',
-            bottom: '0px',
-            left: '0px'
-          }
-        });
+    // Set @page to match — this prevents the print engine from splitting into A4 pages
+    await page.addStyleTag({
+      content: `@page { size: ${pdfWidth}px ${safeHeight}px; margin: 0 !important; }`,
+    });
+
+    const pdf = await page.pdf({
+      width: `${pdfWidth}px`,
+      height: `${safeHeight}px`,
+      printBackground: true,
+      displayHeaderFooter: false,
+      preferCSSPageSize: true,
+      margin: { top: '0', right: '0', bottom: '0', left: '0' },
+    });
 
     const pdfBuffer = toPdfBuffer(pdf);
     if (!hasPdfSignature(pdfBuffer)) {
