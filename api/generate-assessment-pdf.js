@@ -139,59 +139,52 @@ const renderPdf = async ({ url }) => {
         }
         #root {
           background: linear-gradient(to bottom right, #F5F3EC, #EEF2FF) !important;
-          padding: 12mm 10mm 30mm 10mm !important;
+          padding: 12mm 10mm 12mm 10mm !important;
           box-sizing: border-box !important;
           min-height: 100vh !important;
         }
         main {
           max-width: 100% !important;
           margin: 0 !important;
-          padding: 0 0 14mm 0 !important;
-        }
-        [data-pdf-global-footer="true"] {
-          position: fixed;
-          left: 50%;
-          transform: translateX(-50%);
-          bottom: 6mm;
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          width: fit-content;
-          max-width: calc(100vw - 20mm);
-          white-space: nowrap;
-          padding: 8px 16px;
-          border-radius: 9999px;
-          border: 1px solid rgba(79, 70, 229, 0.2);
-          background: rgba(255, 255, 255, 0.9);
-          backdrop-filter: blur(4px);
-          font-size: 11px;
-          line-height: 1;
-          font-weight: 600;
-          color: #4B5563;
-          font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
-          z-index: 9999;
-          pointer-events: none;
+          padding: 0 !important;
         }
       `,
-    });
-
-    await page.evaluate(() => {
-      if (document.querySelector('[data-pdf-global-footer="true"]')) return;
-
-      const footer = document.createElement('div');
-      footer.setAttribute('data-pdf-global-footer', 'true');
-      footer.textContent = 'In.Assessments uma plataforma de BNDR Design';
-      document.body.appendChild(footer);
     });
 
     const pdf = await page.pdf({
       format: 'A4',
       printBackground: true,
+      displayHeaderFooter: true,
+      headerTemplate: '<div></div>',
+      footerTemplate: `
+        <div style="
+          width: 100%;
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+          font-size: 11px;
+          color: #4B5563;
+          line-height: 1;
+          padding-bottom: 6px;
+          box-sizing: border-box;
+        ">
+          <span style="
+            display: inline-block;
+            background: rgba(255, 255, 255, 0.92);
+            border: 1px solid rgba(79, 70, 229, 0.2);
+            border-radius: 9999px;
+            padding: 8px 16px;
+            font-weight: 600;
+            white-space: nowrap;
+          ">In.Assessments uma plataforma de BNDR Design</span>
+        </div>
+      `,
       preferCSSPageSize: false,
       margin: {
         top: '0px',
         right: '0px',
-        bottom: '0px',
+        bottom: '26mm',
         left: '0px'
       }
     });
