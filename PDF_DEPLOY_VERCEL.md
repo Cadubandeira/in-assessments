@@ -1,87 +1,93 @@
-# Deploy do PDF (Vercel) — guia rápido
+# Deploy do PDF (Vercel) — usando o MESMO projeto
 
-Este projeto agora gera PDF no servidor usando Puppeteer via endpoint:
+Este projeto agora gera PDF no servidor usando Puppeteer no endpoint:
 - /api/generate-assessment-pdf
 
 ## Importante antes de começar
 
-A feature de PDF **não funciona no GitHub Pages** (gh-pages), porque lá não existe backend para /api.
+Você **não precisa criar outro projeto** na Vercel.
 
-Para funcionar, o app precisa rodar na Vercel (ou outro host com funções Node).
+Use o mesmo projeto já existente e faça apenas:
+1. subir o código novo,
+2. configurar variável de ambiente,
+3. redeploy.
 
-## 1) Publicar na Vercel (primeira vez)
+> Observação: a feature de PDF não funciona em gh-pages, porque lá não existe backend para /api.
 
-1. Crie conta em https://vercel.com.
-2. Clique em Add New > Project.
-3. Importe o repositório Cadubandeira/in-assessments.
-4. Framework: Vite (detecção automática).
-5. Build Command: npm run build.
-6. Output Directory: dist.
-7. Deploy.
+## 1) Atualizar o mesmo projeto já existente
 
-## 2) Variáveis de ambiente
+1. Faça commit/push destas mudanças para a branch conectada na Vercel.
+2. Aguarde o deploy automático da Vercel (ou clique em Redeploy).
 
-No projeto da Vercel, vá em Settings > Environment Variables.
+## 2) Configurar variável no projeto atual
 
-Adicione (recomendado):
-- PDF_RENDER_BASE_URL = URL pública do app em produção (ex.: https://seu-projeto.vercel.app)
+No painel da Vercel do seu projeto atual:
+1. Settings > Environment Variables.
+2. Adicione:
+   - PDF_RENDER_BASE_URL = URL pública do próprio projeto (ex.: https://seu-projeto.vercel.app)
+3. Salve.
+4. Faça Redeploy para aplicar a variável.
 
-Opcional (somente se quiser URL custom para render):
-- APP_BASE_URL = mesma URL pública
+Opcional:
+- APP_BASE_URL = mesma URL pública (não obrigatório).
 
-Observação:
-- Se não configurar essas variáveis, o endpoint tenta inferir a URL automaticamente pelo host da requisição.
-
-## 3) Configuração já aplicada no código
+## 3) O que já está pronto no código
 
 - Endpoint serverless: api/generate-assessment-pdf.js
+- Timeout da função no vercel.json:
+  - maxDuration: 60s
 - Controle de custo:
   - rate limit por IP
   - cache em memória com TTL
   - deduplicação de requisições concorrentes
-- Timeout da função configurado no vercel.json:
-  - maxDuration: 60s
 
-## 4) Teste manual após deploy
+## 4) Teste rápido (2 minutos)
 
-1. Abra Results (logado) e clique em Download.
-2. Abra PublicResults (link público) e clique em Download.
-3. Verifique no PDF:
+1. Acesse sua URL da Vercel (não a do gh-pages).
+2. Abra um resultado em Results (logado) e clique Download.
+3. Abra um link em PublicResults e clique Download.
+4. Valide no PDF:
    - accordions e textos expandidos
    - sem header/nav do site
    - sem seção Atividades a seguir
    - sem seção Próximos Passos
 
-## 5) Como acompanhar custo
+Teste técnico extra (opcional):
+- Abra https://SEU-DOMINIO/api/generate-assessment-pdf no navegador.
+- Se aparecer 405/erro de método em vez de 404, a function existe e está publicada.
+
+## 5) Como acompanhar custo no mesmo projeto
 
 No painel da Vercel:
 - Functions > invocations/duration
 - Usage > bandwidth
 
-No endpoint, os headers ajudam no diagnóstico:
+No endpoint, headers úteis:
 - X-PDF-Cache: HIT | MISS | IN-FLIGHT
 - X-RateLimit-Remaining: contador da janela atual
 
 ## 6) Problemas comuns
 
 ### 404 no /api/generate-assessment-pdf
-Causa provável: app rodando via gh-pages.
-Solução: usar URL da Vercel.
+Causa provável: você está abrindo a URL do gh-pages, não da Vercel.
+Solução: testar e usar sempre a URL da Vercel.
+
+### Download não acontece
+1. Confirmar que o deploy da branch mais recente terminou com sucesso.
+2. Confirmar variável PDF_RENDER_BASE_URL configurada.
+3. Fazer Redeploy após salvar variável.
 
 ### Timeout ao gerar PDF
 1. Confirmar maxDuration no vercel.json.
-2. Reduzir tamanho visual da página (se necessário).
-3. Tentar novamente (cache pode ajudar na próxima chamada).
+2. Tentar novamente (cache pode ajudar nas próximas requisições).
 
 ### PDF sem conteúdo esperado
-1. Confirmar que a rota renderizada é /#/public-results/:id com query de modo PDF.
-2. Confirmar que o id do assessment_event existe e está acessível para página pública.
+1. Confirmar render em /#/public-results/:id com query de modo PDF.
+2. Confirmar que o id de assessment_event existe e está acessível.
 
-## 7) Fluxo de deploy daqui pra frente
+## 7) Fluxo daqui pra frente
 
-Sempre que subir mudanças:
-1. git push para a branch conectada na Vercel.
-2. A Vercel faz deploy automático.
+Sempre que houver mudança:
+1. git push na branch conectada.
+2. Vercel faz deploy automático.
 3. Testar os dois botões de Download.
-
-Pronto. Se quiser, na sequência eu posso te entregar um checklist de smoke test de 2 minutos para você executar a cada release.

@@ -10,6 +10,8 @@ const requestLogByIp = new Map();
 const pdfCache = new Map();
 const inFlightByKey = new Map();
 
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
 const sanitize = (value = '') =>
   String(value)
     .normalize('NFD')
@@ -96,7 +98,7 @@ const renderPdf = async ({ url }) => {
   try {
     const page = await browser.newPage();
     await page.goto(url, { waitUntil: 'networkidle2', timeout: 60_000 });
-    await page.waitForTimeout(1200);
+    await sleep(1200);
 
     await page.addStyleTag({
       content: `
