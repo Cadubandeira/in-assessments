@@ -167,13 +167,11 @@ const renderPdf = async ({ url }) => {
       );
     });
 
-    const safeHeight = Math.max(SINGLE_PAGE_MIN_HEIGHT_PX, contentHeight + 2);
+    const safeHeight = Math.max(SINGLE_PAGE_MIN_HEIGHT_PX, contentHeight + 80);
     const pdfWidth = SINGLE_PAGE_WIDTH_PX;
 
-    // Resize viewport to exact content dimensions so vh/vw values are stable
-    await page.setViewport({ width: pdfWidth, height: safeHeight, deviceScaleFactor: 1 });
-
     // Set @page to match — this prevents the print engine from splitting into A4 pages
+    // NOTE: do NOT resize the viewport here — that would cause a reflow and change the measured height
     await page.addStyleTag({
       content: `@page { size: ${pdfWidth}px ${safeHeight}px; margin: 0 !important; }`,
     });
