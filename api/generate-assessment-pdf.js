@@ -139,22 +139,34 @@ const renderPdf = async ({ url }) => {
         }
         #root {
           background: linear-gradient(to bottom right, #F5F3EC, #EEF2FF) !important;
-          padding: 12mm 10mm 18mm 10mm !important;
+          padding: 12mm 10mm 30mm 10mm !important;
           box-sizing: border-box !important;
           min-height: 100vh !important;
         }
         main {
           max-width: 100% !important;
           margin: 0 !important;
-          padding: 0 !important;
+          padding: 0 0 14mm 0 !important;
         }
         [data-pdf-global-footer="true"] {
           position: fixed;
-          left: 0;
-          right: 0;
-          bottom: 4mm;
-          text-align: center;
+          left: 50%;
+          transform: translateX(-50%);
+          bottom: 6mm;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          width: fit-content;
+          max-width: calc(100vw - 20mm);
+          white-space: nowrap;
+          padding: 8px 16px;
+          border-radius: 9999px;
+          border: 1px solid rgba(79, 70, 229, 0.2);
+          background: rgba(255, 255, 255, 0.9);
+          backdrop-filter: blur(4px);
           font-size: 11px;
+          line-height: 1;
+          font-weight: 600;
           color: #4B5563;
           font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
           z-index: 9999;
