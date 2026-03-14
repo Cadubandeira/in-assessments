@@ -1435,6 +1435,9 @@ export default function PublicResults() {
                           className="w-40 h-40 rounded-lg border border-white/40 bg-white p-1"
                           loading="lazy"
                         />
+                        <p className="mt-3 text-center text-white text-sm font-medium leading-relaxed">
+                          In.Assessment é uma plataforma desenvolvida por BNDR Design
+                        </p>
                       </div>
                     ) : null}
                   />

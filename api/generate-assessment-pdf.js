@@ -154,37 +154,12 @@ const renderPdf = async ({ url }) => {
     const pdf = await page.pdf({
       format: 'A4',
       printBackground: true,
-      displayHeaderFooter: true,
-      headerTemplate: '<div></div>',
-      footerTemplate: `
-        <div style="
-          width: 100%;
-          display: flex;
-          justify-content: center;
-          align-items: center;
-          font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
-          font-size: 11px;
-          color: #4B5563;
-          line-height: 1;
-          padding-bottom: 6px;
-          box-sizing: border-box;
-        ">
-          <span style="
-            display: inline-block;
-            background: rgba(255, 255, 255, 0.92);
-            border: 1px solid rgba(79, 70, 229, 0.2);
-            border-radius: 9999px;
-            padding: 8px 16px;
-            font-weight: 600;
-            white-space: nowrap;
-          ">In.Assessments uma plataforma de BNDR Design</span>
-        </div>
-      `,
+      displayHeaderFooter: false,
       preferCSSPageSize: false,
       margin: {
         top: '0px',
         right: '0px',
-        bottom: '26mm',
+        bottom: '0px',
         left: '0px'
       }
     });
