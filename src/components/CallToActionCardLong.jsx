@@ -17,6 +17,8 @@ const CallToActionCardLong = ({
   description,
   buttonText,
   onButtonClick,
+  buttonHref,
+  openInNewTab = false,
   className = ''
 }) => {
   return (
@@ -40,12 +42,23 @@ const CallToActionCardLong = ({
       <div className="relative z-10 w-full">
         <h3 className="text-2xl font-extrabold text-white mb-3 tracking-tight drop-shadow-sm">{title}</h3>
         <p className="text-white text-base sm:text-lg leading-relaxed mb-6">{description}</p>
-        <button
-          onClick={onButtonClick}
-          className="bg-white bg-opacity-80 text-indigo-700 px-7 py-3 rounded-xl font-bold text-sm uppercase tracking-wider shadow-md hover:scale-105 transition-transform focus:outline-none focus:ring-2 focus:ring-indigo-400"
-        >
-          {buttonText}
-        </button>
+        {buttonHref ? (
+          <a
+            href={buttonHref}
+            target={openInNewTab ? '_blank' : '_self'}
+            rel={openInNewTab ? 'noopener noreferrer' : undefined}
+            className="inline-flex bg-white bg-opacity-80 text-indigo-700 px-7 py-3 rounded-xl font-bold text-sm uppercase tracking-wider shadow-md hover:scale-105 transition-transform focus:outline-none focus:ring-2 focus:ring-indigo-400"
+          >
+            {buttonText}
+          </a>
+        ) : (
+          <button
+            onClick={onButtonClick}
+            className="bg-white bg-opacity-80 text-indigo-700 px-7 py-3 rounded-xl font-bold text-sm uppercase tracking-wider shadow-md hover:scale-105 transition-transform focus:outline-none focus:ring-2 focus:ring-indigo-400"
+          >
+            {buttonText}
+          </button>
+        )}
       </div>
     </div>
   );

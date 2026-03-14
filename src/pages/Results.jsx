@@ -1148,7 +1148,7 @@ export default function Results() {
                     assessmentEventId: eventId,
                     source: 'results',
                     assessmentName,
-                    versionToken: `${result?.updated_at || result?.created_at || 'v1'}-pdf-v2`
+                    versionToken: `${result?.updated_at || result?.created_at || 'v1'}-pdf-v3`
                   });
                 } catch (downloadError) {
                   console.error('Erro ao baixar PDF:', downloadError);

@@ -113,6 +113,8 @@ export default function PublicResults() {
   const isPdfMode = searchParams.get('pdf') === '1';
   const forceExpandAll = isPdfMode || searchParams.get('expand') === 'all';
   const productionLoginUrl = import.meta.env.VITE_PRODUCTION_LOGIN_URL || 'https://assessments.paulocruzfilho.com/#/login';
+  const productionSignupUrl = import.meta.env.VITE_PRODUCTION_SIGNUP_URL || productionLoginUrl;
+  const signupQrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(productionSignupUrl)}`;
   const normalizedRouteId = typeof id === 'string' ? id.trim() : '';
   const hasRouteId = normalizedRouteId.length > 0 && normalizedRouteId !== 'undefined' && normalizedRouteId !== 'null';
   const isValidUuid = (value) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value || ''));
@@ -1158,7 +1160,7 @@ export default function PublicResults() {
                     assessmentEventId: eventId,
                     source: 'public',
                     assessmentName,
-                    versionToken: `${result?.updated_at || result?.created_at || 'v1'}-pdf-v2`
+                    versionToken: `${result?.updated_at || result?.created_at || 'v1'}-pdf-v3`
                   });
                 } catch (downloadError) {
                   console.error('Erro ao baixar PDF público:', downloadError);
@@ -1421,10 +1423,29 @@ export default function PublicResults() {
                     title="Pronto para o próximo nível?"
                     description="Crie sua conta e comece a acompanhar seu progresso em diversos assessments."
                     buttonText="Criar minha conta"
-                    onButtonClick={() => {
-                      window.location.href = productionLoginUrl;
-                    }}
+                    buttonHref={productionSignupUrl}
+                    openInNewTab
                   />
+
+                  <div className="bg-white/90 border border-white/60 rounded-2xl p-4 shadow-sm">
+                    <p className="text-sm font-semibold text-[#1E1B4B] mb-2">Acesso direto</p>
+                    <a
+                      href={productionSignupUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-sm text-[#4F46E5] break-all underline"
+                    >
+                      {productionSignupUrl}
+                    </a>
+                    <div className="mt-4 flex justify-center">
+                      <img
+                        src={signupQrCodeUrl}
+                        alt="QR Code para criar conta"
+                        className="w-36 h-36 rounded-lg border border-gray-200"
+                        loading="lazy"
+                      />
+                    </div>
+                  </div>
 
                   {shouldShowPreAssessmentAnswers && (
                     <div className="hidden lg:block">

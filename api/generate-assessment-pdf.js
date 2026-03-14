@@ -134,10 +134,19 @@ const renderPdf = async ({ url }) => {
           padding: 0 !important;
           width: 100% !important;
         }
+        html, body {
+          background: linear-gradient(to bottom right, #F5F3EC, #EEF2FF) !important;
+        }
+        #root {
+          background: linear-gradient(to bottom right, #F5F3EC, #EEF2FF) !important;
+          padding: 12mm 10mm 12mm 10mm !important;
+          box-sizing: border-box !important;
+          min-height: 100vh !important;
+        }
         main {
           max-width: 100% !important;
           margin: 0 !important;
-          padding: 0 0 24px 0 !important;
+          padding: 0 !important;
         }
       `,
     });
