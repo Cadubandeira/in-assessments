@@ -71,7 +71,7 @@ export async function createNewAssessmentVersion(assessmentId, previousVersionId
   if (previousVersionId) {
     const { data: prevVersion } = await supabase
       .from('assessment_versions')
-      .select('version_number, visualization_type, introduction_html')
+      .select('version_number, visualization_type, introduction_html, show_deepening_card, deepening_card_url')
       .eq('id', previousVersionId)
       .single();
     previousVersionData = prevVersion;
@@ -97,6 +97,8 @@ export async function createNewAssessmentVersion(assessmentId, previousVersionId
 
   // Copiar introduction_html da versão anterior, se existir
   const introductionHtml = previousVersionData?.introduction_html || '';
+  const showDeepeningCard = previousVersionData?.show_deepening_card !== false;
+  const deepeningCardUrl = previousVersionData?.deepening_card_url || 'https://www.innernetworking.com.br/';
 
   // 4. Criar nova versão (inativa por padrão)
   const { data: newVersion, error: versionError } = await supabase
@@ -106,7 +108,9 @@ export async function createNewAssessmentVersion(assessmentId, previousVersionId
       version_number: nextVersionNumber,
       is_active: false,
       visualization_type: visualizationType,
-      introduction_html: introductionHtml
+      introduction_html: introductionHtml,
+      show_deepening_card: showDeepeningCard,
+      deepening_card_url: deepeningCardUrl
     }])
     .select()
     .single();

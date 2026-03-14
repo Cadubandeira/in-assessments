@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, Plus, Trash2, FileText, MessageSquare, Lightbulb } from 'lucide-react';
+import { X, Plus, Trash2, FileText, MessageSquare, Lightbulb, Link2 } from 'lucide-react';
 
 /**
  * AssessmentElementsModal
@@ -45,6 +45,13 @@ export default function AssessmentElementsModal({
       title: 'Reflexão Final',
       description: 'Texto exibido ao final do resultado com recomendações e próximos passos.',
       enabled: elements.finalReflection
+    },
+    {
+      id: 'deepeningCard',
+      icon: Link2,
+      title: 'Card de Aprofundamento',
+      description: 'Card exibido no resultado com um link customizado para materiais de aprofundamento.',
+      enabled: elements.deepeningCard
     }
   ];
 

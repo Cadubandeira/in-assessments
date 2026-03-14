@@ -183,7 +183,9 @@ export default function Results() {
               xp_score_80_89,
               xp_score_90_99,
               xp_score_100,
-              show_level_badges
+              show_level_badges,
+              show_deepening_card,
+              deepening_card_url
             )
           `);
 
@@ -350,7 +352,9 @@ export default function Results() {
                 visualization_type: visualizationType,
                 pre_assessment_fields: data.assessment_versions?.pre_assessment_fields || [],
                 final_reflection: data.assessment_versions?.final_reflection || '',
-                result_introduction: data.assessment_versions?.result_introduction || ''
+                result_introduction: data.assessment_versions?.result_introduction || '',
+                show_deepening_card: data.assessment_versions?.show_deepening_card,
+                deepening_card_url: data.assessment_versions?.deepening_card_url || ''
               });
               setAssessmentSchema(data.assessment_versions?.schema || 'indicadores');
               setLevelMode(data.assessment_versions?.level_mode || 'single');
@@ -760,18 +764,20 @@ export default function Results() {
 
   useEffect(() => {
     const fetchSuggested = async () => {
-      const currentAssessmentId = assessmentData?.id || result?.assessment_versions?.assessment_id;
+      const currentAssessmentId = assessmentData?.assessment_id || result?.assessment_versions?.assessment_id;
       if (!currentAssessmentId) return;
+      const normalizedCurrentAssessmentId = String(currentAssessmentId);
 
       setSuggestedLoading(true);
       try {
         const { data } = await supabase
           .from('assessments')
           .select('id, name, description, is_active, published_at, created_at')
-          .eq('is_active', true);
+          .eq('is_active', true)
+          .neq('id', currentAssessmentId);
 
         const sorted = (data || [])
-          .filter(item => item?.id !== currentAssessmentId)
+          .filter((item) => String(item?.id) !== normalizedCurrentAssessmentId)
           .sort((a, b) => {
             const dateA = new Date(a.published_at || a.created_at || 0).getTime();
             const dateB = new Date(b.published_at || b.created_at || 0).getTime();
@@ -785,7 +791,7 @@ export default function Results() {
     };
 
     fetchSuggested();
-  }, [assessmentData?.id, result?.assessment_versions?.assessment_id]);
+  }, [assessmentData?.assessment_id, result?.assessment_versions?.assessment_id]);
 
   useEffect(() => {
     const isDesktop = window.innerWidth >= 1024;
@@ -825,6 +831,8 @@ export default function Results() {
   const assessmentDescription = assessmentData?.description || '';
   const introductionText = assessmentData?.result_introduction || result?.assessment_versions?.result_introduction || '';
   const finalReflectionText = assessmentData?.final_reflection || result?.assessment_versions?.final_reflection || '';
+  const shouldShowDeepeningCard = (assessmentData?.show_deepening_card ?? result?.assessment_versions?.show_deepening_card) !== false;
+  const deepeningCardUrl = (assessmentData?.deepening_card_url || result?.assessment_versions?.deepening_card_url || 'https://www.innernetworking.com.br/').trim();
 
   const activityType = result.activity_type || 'assessment';
   let xpConfig = XP_CONFIG[activityType] || XP_CONFIG.assessment;
@@ -1460,13 +1468,16 @@ export default function Results() {
 
             {shouldShowPreAssessmentAnswers && hasAssessmentXP && renderPreAssessmentAnswersCard()}
 
-            <CallToActionCardLong
-              icon={<ToolCase size={32} />}
-              title="Aprofundamento"
-              description={`Para saber mais sobre o seu ${assessmentName}, você pode acessar os materiais de aprofundamento gratuitos.`}
-              buttonText="Acessar materiais"
-              onButtonClick={() => window.open('https://www.innernetworking.com.br/', '_blank')}
-            />
+            {shouldShowDeepeningCard && (
+              <CallToActionCardLong
+                icon={<ToolCase size={32} />}
+                title="Aprofundamento"
+                description={`Para saber mais sobre o seu ${assessmentName}, você pode acessar os materiais de aprofundamento gratuitos.`}
+                buttonText="Acessar materiais"
+                buttonHref={deepeningCardUrl}
+                openInNewTab
+              />
+            )}
 
             {shouldShowPreAssessmentAnswers && !hasAssessmentXP && renderPreAssessmentAnswersCard()}
           </div>
@@ -1491,15 +1502,18 @@ export default function Results() {
           
 
  {/* Card de chamada para ação para textos longos */}
-              <div className="lg:hidden">
-                <CallToActionCardLong
-                  icon={<ToolCase size={32} />}
-                  title="Aprofundamento"
-                  description={`Para saber mais sobre o seu ${assessmentName}, você pode acessar os materiais de aprofundamento gratuitos.`}
-                  buttonText="Acessar materiais"
-                  onButtonClick={() => window.open('https://www.innernetworking.com.br/', '_blank')}
-                />
-              </div>
+              {shouldShowDeepeningCard && (
+                <div className="lg:hidden">
+                  <CallToActionCardLong
+                    icon={<ToolCase size={32} />}
+                    title="Aprofundamento"
+                    description={`Para saber mais sobre o seu ${assessmentName}, você pode acessar os materiais de aprofundamento gratuitos.`}
+                    buttonText="Acessar materiais"
+                    buttonHref={deepeningCardUrl}
+                    openInNewTab
+                  />
+                </div>
+              )}
 
           
 

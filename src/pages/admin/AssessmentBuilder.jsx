@@ -19,6 +19,7 @@ import {
 
 const isUuid = (value) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 const makeTempId = () => `tmp-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+const DEFAULT_DEEPENING_CARD_URL = 'https://www.innernetworking.com.br/';
 
 export default function AssessmentBuilder() {
   const navigate = useNavigate();
@@ -55,8 +56,10 @@ export default function AssessmentBuilder() {
     introduction: false,
     preAssessment: false,
     resultIntroduction: false,
-    finalReflection: false
+    finalReflection: false,
+    deepeningCard: false
   });
+  const [deepeningCardUrl, setDeepeningCardUrl] = useState(DEFAULT_DEEPENING_CARD_URL);
   const [preAssessmentFields, setPreAssessmentFields] = useState([]);
   const [levels, setLevels] = useState([]); // Para schema 'niveis'
   const [levelMode, setLevelMode] = useState('single'); // 'single' | 'multi'
@@ -104,7 +107,8 @@ export default function AssessmentBuilder() {
       introduction: hasContent(versionData?.introduction_html),
       preAssessment: Array.isArray(versionData?.pre_assessment_fields) && versionData.pre_assessment_fields.length > 0,
       resultIntroduction: hasContent(versionData?.result_introduction),
-      finalReflection: hasContent(versionData?.final_reflection)
+      finalReflection: hasContent(versionData?.final_reflection),
+      deepeningCard: versionData?.show_deepening_card !== false
     };
   };
 
@@ -158,13 +162,15 @@ export default function AssessmentBuilder() {
     setFinalReflection('');
     setResultIntroduction('');
     setPreAssessmentFields([]);
+    setDeepeningCardUrl(DEFAULT_DEEPENING_CARD_URL);
     setNoLevelAchievedTitle('');
     setNoLevelAchievedDescription('');
     setAssessmentElements({
       introduction: false,
       preAssessment: false,
       resultIntroduction: false,
-      finalReflection: false
+      finalReflection: false,
+      deepeningCard: false
     });
     setLevels([]);
     setOverallRanges([]);
@@ -270,13 +276,15 @@ export default function AssessmentBuilder() {
     setFinalReflection('');
     setResultIntroduction('');
     setPreAssessmentFields([]);
+    setDeepeningCardUrl(DEFAULT_DEEPENING_CARD_URL);
     setNoLevelAchievedTitle('');
     setNoLevelAchievedDescription('');
     setAssessmentElements({
       introduction: false,
       preAssessment: false,
       resultIntroduction: false,
-      finalReflection: false
+      finalReflection: false,
+      deepeningCard: false
     });
     setLevels([]);
     setAssessmentIndicatorsData([]);
@@ -313,7 +321,7 @@ export default function AssessmentBuilder() {
     // Buscar introduction_html, reflexao final, pre_assessment_fields, overall_ranges e XP config da versão
     const { data: versionData, error: versionError } = await supabase
       .from('assessment_versions')
-      .select('introduction_html, final_reflection, result_introduction, pre_assessment_fields, gamify_xp, xp_completion, xp_score_80_89, xp_score_90_99, xp_score_100, show_indicator_intro')
+      .select('introduction_html, final_reflection, result_introduction, pre_assessment_fields, gamify_xp, xp_completion, xp_score_80_89, xp_score_90_99, xp_score_100, show_indicator_intro, show_deepening_card, deepening_card_url')
       .eq('id', versionId)
       .single();
 
@@ -322,6 +330,7 @@ export default function AssessmentBuilder() {
       setFinalReflection(versionData.final_reflection || '');
       setResultIntroduction(versionData.result_introduction || '');
       setPreAssessmentFields(versionData.pre_assessment_fields || []);
+      setDeepeningCardUrl(versionData.deepening_card_url || DEFAULT_DEEPENING_CARD_URL);
       
       // Carregar configurações de XP
       setGamifyXp(versionData.gamify_xp || false);
@@ -442,7 +451,7 @@ export default function AssessmentBuilder() {
       // Buscar introduction_html, reflexao final, pre_assessment_fields, campos de não conquista e XP config da versão
       const { data: versionData, error: versionError } = await supabase
         .from('assessment_versions')
-        .select('introduction_html, final_reflection, result_introduction, pre_assessment_fields, no_level_achieved_title, no_level_achieved_description, level_mode, gamify_xp, xp_completion, xp_score_80_89, xp_score_90_99, xp_score_100, show_indicator_intro, show_level_badges')
+        .select('introduction_html, final_reflection, result_introduction, pre_assessment_fields, no_level_achieved_title, no_level_achieved_description, level_mode, gamify_xp, xp_completion, xp_score_80_89, xp_score_90_99, xp_score_100, show_indicator_intro, show_level_badges, show_deepening_card, deepening_card_url')
         .eq('id', versionId)
         .single();
 
@@ -451,6 +460,7 @@ export default function AssessmentBuilder() {
         setFinalReflection(versionData.final_reflection || '');
         setResultIntroduction(versionData.result_introduction || '');
         setPreAssessmentFields(versionData.pre_assessment_fields || []);
+        setDeepeningCardUrl(versionData.deepening_card_url || DEFAULT_DEEPENING_CARD_URL);
         setNoLevelAchievedTitle(versionData.no_level_achieved_title || '');
         setNoLevelAchievedDescription(versionData.no_level_achieved_description || '');
         if (versionData.level_mode) {
@@ -776,6 +786,13 @@ export default function AssessmentBuilder() {
   const validateBeforeSave = () => {
     const issues = [];
 
+    if (assessmentElements.deepeningCard) {
+      const trimmedDeepeningUrl = String(deepeningCardUrl || '').trim();
+      if (!trimmedDeepeningUrl) {
+        issues.push('Defina o link do Card de Aprofundamento ou remova este elemento opcional.');
+      }
+    }
+
     if (assessmentSchema === 'niveis') {
       if (!levels.length) {
         issues.push('Adicione pelo menos um nível.');
@@ -975,7 +992,11 @@ export default function AssessmentBuilder() {
             xp_score_90_99: gamifyXp ? xpScore90 : 0,
             xp_score_100: gamifyXp ? xpScore100 : 0,
             show_indicator_intro: showIndicatorIntro !== false,
-            show_level_badges: showLevelBadges !== false
+            show_level_badges: showLevelBadges !== false,
+            show_deepening_card: assessmentElements.deepeningCard === true,
+            deepening_card_url: assessmentElements.deepeningCard
+              ? (String(deepeningCardUrl || '').trim() || DEFAULT_DEEPENING_CARD_URL)
+              : null
           }])
           .select()
           .single();
@@ -1019,7 +1040,11 @@ export default function AssessmentBuilder() {
             xp_score_90_99: gamifyXp ? xpScore90 : 0,
             xp_score_100: gamifyXp ? xpScore100 : 0,
             show_indicator_intro: showIndicatorIntro !== false,
-            show_level_badges: showLevelBadges !== false
+            show_level_badges: showLevelBadges !== false,
+            show_deepening_card: assessmentElements.deepeningCard === true,
+            deepening_card_url: assessmentElements.deepeningCard
+              ? (String(deepeningCardUrl || '').trim() || DEFAULT_DEEPENING_CARD_URL)
+              : null
           }])
           .select()
           .single();
@@ -1297,7 +1322,11 @@ export default function AssessmentBuilder() {
             xp_score_80_89: gamifyXp ? xpScore80 : 0,
             xp_score_90_99: gamifyXp ? xpScore90 : 0,
             xp_score_100: gamifyXp ? xpScore100 : 0,
-            show_indicator_intro: showIndicatorIntro !== false
+            show_indicator_intro: showIndicatorIntro !== false,
+            show_deepening_card: assessmentElements.deepeningCard === true,
+            deepening_card_url: assessmentElements.deepeningCard
+              ? (String(deepeningCardUrl || '').trim() || DEFAULT_DEEPENING_CARD_URL)
+              : null
           }])
           .select()
           .single();
@@ -1353,6 +1382,10 @@ export default function AssessmentBuilder() {
         versionUpdateFields.xp_score_100 = gamifyXp ? xpScore100 : 0;
         versionUpdateFields.show_indicator_intro = showIndicatorIntro !== false;
         versionUpdateFields.show_level_badges = showLevelBadges !== false;
+        versionUpdateFields.show_deepening_card = assessmentElements.deepeningCard === true;
+        versionUpdateFields.deepening_card_url = assessmentElements.deepeningCard
+          ? (String(deepeningCardUrl || '').trim() || DEFAULT_DEEPENING_CARD_URL)
+          : null;
         
         if (Object.keys(versionUpdateFields).length > 0) {
           const { error: updateVersionError } = await supabase
@@ -1497,6 +1530,10 @@ export default function AssessmentBuilder() {
         versionTextUpdate.xp_score_100 = gamifyXp ? xpScore100 : 0;
         versionTextUpdate.show_indicator_intro = showIndicatorIntro !== false;
         versionTextUpdate.show_level_badges = showLevelBadges !== false;
+        versionTextUpdate.show_deepening_card = assessmentElements.deepeningCard === true;
+        versionTextUpdate.deepening_card_url = assessmentElements.deepeningCard
+          ? (String(deepeningCardUrl || '').trim() || DEFAULT_DEEPENING_CARD_URL)
+          : null;
         
         if (Object.keys(versionTextUpdate).length > 0) {
           const { error: updateVersionError } = await supabase
@@ -1873,6 +1910,9 @@ Deseja continuar?`;
 
   // Handler para toggle de elementos
   const handleToggleElement = (elementId) => {
+    if (elementId === 'deepeningCard' && !String(deepeningCardUrl || '').trim()) {
+      setDeepeningCardUrl(DEFAULT_DEEPENING_CARD_URL);
+    }
     setAssessmentElements(prev => ({
       ...prev,
       [elementId]: !prev[elementId]
@@ -1904,6 +1944,8 @@ Deseja continuar?`;
       setFinalReflection('');
     } else if (elementToRemove === 'preAssessment') {
       setPreAssessmentFields([]);
+    } else if (elementToRemove === 'deepeningCard') {
+      setDeepeningCardUrl(DEFAULT_DEEPENING_CARD_URL);
     }
     
     setShowRemoveElementModal(false);
@@ -1916,7 +1958,8 @@ Deseja continuar?`;
     introduction: 'Introdução',
     preAssessment: 'Pré-Assessment',
     resultIntroduction: 'Introdução ao Resultado',
-    finalReflection: 'Reflexão Final'
+    finalReflection: 'Reflexão Final',
+    deepeningCard: 'Card de Aprofundamento'
   };
 
   const hasNiveisContent = levels.length > 0 && levels.some(level => (level.questions || []).length > 0);
@@ -1990,7 +2033,10 @@ Deseja continuar?`;
           xp_score_80_89: srcVer.xp_score_80_89,
           xp_score_90_99: srcVer.xp_score_90_99,
           xp_score_100: srcVer.xp_score_100,
-          show_indicator_intro: srcVer.show_indicator_intro
+          show_indicator_intro: srcVer.show_indicator_intro,
+          show_level_badges: srcVer.show_level_badges,
+          show_deepening_card: srcVer.show_deepening_card,
+          deepening_card_url: srcVer.deepening_card_url
         }])
         .select()
         .single();
@@ -2661,6 +2707,36 @@ Deseja continuar?`;
                     value={finalReflection}
                     onChange={setFinalReflection}
                     placeholder="Escreva uma reflexão final para o usuário..."
+                  />
+                </div>
+              )}
+
+              {assessmentElements.deepeningCard && (
+                <div className="bg-white/80 backdrop-blur-sm border border-white/60 rounded-2xl p-6 sm:p-8 shadow-lg">
+                  <div className="flex items-center justify-between mb-6">
+                    <h2 className={`text-2xl font-bold bg-gradient-to-r from-[#4F46E5] via-[#6366F1] to-[#818CF8] bg-clip-text text-transparent ${TOKENS.fonts.serif}`}>
+                      Card de Aprofundamento
+                    </h2>
+                    <button
+                      onClick={() => handleRequestRemoveElement('deepeningCard')}
+                      className="p-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
+                      title="Remover Card de Aprofundamento"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
+                  <p className="text-sm text-gray-600 mb-4">
+                    Este card é exibido na página de resultados. Defina a URL para onde o usuário será direcionado ao clicar em “Acessar materiais”.
+                  </p>
+                  <label className="text-xs font-bold text-gray-500 uppercase tracking-wide block mb-2">
+                    URL do card de aprofundamento
+                  </label>
+                  <input
+                    type="url"
+                    value={deepeningCardUrl}
+                    onChange={(e) => setDeepeningCardUrl(e.target.value)}
+                    placeholder="https://seu-dominio.com/materiais"
+                    className="w-full p-3 border-2 border-gray-200 rounded-lg bg-white text-gray-900 font-semibold focus:border-[#4F46E5] focus:outline-none transition-colors"
                   />
                 </div>
               )}
