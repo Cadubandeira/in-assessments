@@ -19,6 +19,7 @@ const CallToActionCardLong = ({
   onButtonClick,
   buttonHref,
   openInNewTab = false,
+  extraContent = null,
   className = ''
 }) => {
   return (
@@ -42,7 +43,8 @@ const CallToActionCardLong = ({
       <div className="relative z-10 w-full">
         <h3 className="text-2xl font-extrabold text-white mb-3 tracking-tight drop-shadow-sm">{title}</h3>
         <p className="text-white text-base sm:text-lg leading-relaxed mb-6">{description}</p>
-        {buttonHref ? (
+        {extraContent}
+        {buttonText ? (buttonHref ? (
           <a
             href={buttonHref}
             target={openInNewTab ? '_blank' : '_self'}
@@ -58,7 +60,7 @@ const CallToActionCardLong = ({
           >
             {buttonText}
           </button>
-        )}
+        )) : null}
       </div>
     </div>
   );

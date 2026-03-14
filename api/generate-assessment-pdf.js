@@ -139,7 +139,7 @@ const renderPdf = async ({ url }) => {
         }
         #root {
           background: linear-gradient(to bottom right, #F5F3EC, #EEF2FF) !important;
-          padding: 12mm 10mm 12mm 10mm !important;
+          padding: 12mm 10mm 18mm 10mm !important;
           box-sizing: border-box !important;
           min-height: 100vh !important;
         }
@@ -148,7 +148,28 @@ const renderPdf = async ({ url }) => {
           margin: 0 !important;
           padding: 0 !important;
         }
+        [data-pdf-global-footer="true"] {
+          position: fixed;
+          left: 0;
+          right: 0;
+          bottom: 4mm;
+          text-align: center;
+          font-size: 11px;
+          color: #4B5563;
+          font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+          z-index: 9999;
+          pointer-events: none;
+        }
       `,
+    });
+
+    await page.evaluate(() => {
+      if (document.querySelector('[data-pdf-global-footer="true"]')) return;
+
+      const footer = document.createElement('div');
+      footer.setAttribute('data-pdf-global-footer', 'true');
+      footer.textContent = 'In.Assessments uma plataforma de BNDR Design';
+      document.body.appendChild(footer);
     });
 
     const pdf = await page.pdf({

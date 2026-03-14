@@ -15,6 +15,7 @@ import { getLucideIcon } from '../utils/iconUtils';
 import { XP_CONFIG, calculateXP, formatXP } from '../utils/gamificationUtils';
 import ResultsSkeleton from '../components/skeletons/ResultsSkeleton';
 import { downloadAssessmentPdf } from '../utils/pdfDownload';
+import PDFGenerationOverlay from '../components/PDFGenerationOverlay';
 
 // Fallback functions quando não há ranges configuradas
 function classifyFallback(percentage) {
@@ -1084,6 +1085,8 @@ export default function Results() {
         onSelect={setSelectedIndicatorAnswersKey}
       />
 
+      <PDFGenerationOverlay isVisible={isDownloadingPdf} />
+
       <main className="max-w-7xl mx-auto px-4 sm:px-6 pb-16 pt-8">
         <div className="text-center mb-12">
           <span className="inline-block text-xs font-bold uppercase tracking-[0.2em] text-white bg-gradient-to-r from-[#4F46E5] to-[#6366F1] px-4 py-2 rounded-full mb-6 shadow-md">
@@ -1133,8 +1136,7 @@ export default function Results() {
             <button
               type="button"
               aria-label="Baixar PDF do resultado"
-              disabled={isDownloadingPdf}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-white text-indigo-700 font-semibold shadow-sm hover:bg-indigo-50 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-indigo-300 disabled:opacity-60 disabled:cursor-not-allowed"
+              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-white text-indigo-700 font-semibold shadow-sm hover:bg-indigo-50 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-indigo-300"
               onClick={async () => {
                 const eventId = result?.id || id;
                 if (!eventId) {
@@ -1148,7 +1150,7 @@ export default function Results() {
                     assessmentEventId: eventId,
                     source: 'results',
                     assessmentName,
-                    versionToken: `${result?.updated_at || result?.created_at || 'v1'}-pdf-v3`
+                    versionToken: `${result?.updated_at || result?.created_at || 'v1'}-pdf-v4`
                   });
                 } catch (downloadError) {
                   console.error('Erro ao baixar PDF:', downloadError);
@@ -1159,7 +1161,7 @@ export default function Results() {
               }}
             >
               <Download className="w-5 h-5" />
-              {isDownloadingPdf ? 'Gerando...' : 'Download'}
+              Download
             </button>
           </div>}
         </div>

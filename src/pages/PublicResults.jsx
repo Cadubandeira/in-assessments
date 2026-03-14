@@ -14,6 +14,7 @@ import { getLucideIcon } from '../utils/iconUtils';
 import { XP_CONFIG, calculateXP, formatXP } from '../utils/gamificationUtils';
 import ResultsSkeleton from '../components/skeletons/ResultsSkeleton';
 import { downloadAssessmentPdf } from '../utils/pdfDownload';
+import PDFGenerationOverlay from '../components/PDFGenerationOverlay';
 
 // Fallback functions quando não há ranges configuradas
 function classifyFallback(percentage) {
@@ -1096,6 +1097,8 @@ export default function PublicResults() {
         onSelect={setSelectedIndicatorAnswersKey}
       />
 
+      <PDFGenerationOverlay isVisible={isDownloadingPdf} />
+
       <main className="max-w-7xl mx-auto px-4 sm:px-6 pb-16 pt-8">
         <div className="text-center mb-12">
           <span className="inline-block text-xs font-bold uppercase tracking-[0.2em] text-white bg-gradient-to-r from-[#4F46E5] to-[#6366F1] px-4 py-2 rounded-full mb-6 shadow-md">
@@ -1145,8 +1148,7 @@ export default function PublicResults() {
             <button
               type="button"
               aria-label="Baixar PDF do resultado"
-              disabled={isDownloadingPdf}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-white text-indigo-700 font-semibold shadow-sm hover:bg-indigo-50 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-indigo-300 disabled:opacity-60 disabled:cursor-not-allowed"
+              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-white text-indigo-700 font-semibold shadow-sm hover:bg-indigo-50 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-indigo-300"
               onClick={async () => {
                 const eventId = result?.id || (isRouteIdValidUuid ? normalizedRouteId : null);
                 if (!eventId) {
@@ -1160,7 +1162,7 @@ export default function PublicResults() {
                     assessmentEventId: eventId,
                     source: 'public',
                     assessmentName,
-                    versionToken: `${result?.updated_at || result?.created_at || 'v1'}-pdf-v3`
+                    versionToken: `${result?.updated_at || result?.created_at || 'v1'}-pdf-v4`
                   });
                 } catch (downloadError) {
                   console.error('Erro ao baixar PDF público:', downloadError);
@@ -1171,7 +1173,7 @@ export default function PublicResults() {
               }}
             >
               <Download className="w-5 h-5" />
-              {isDownloadingPdf ? 'Gerando...' : 'Download'}
+              Download
             </button>
           </div>}
         </div>
@@ -1422,30 +1424,20 @@ export default function PublicResults() {
                   <CallToActionCardLong
                     title="Pronto para o próximo nível?"
                     description="Crie sua conta e comece a acompanhar seu progresso em diversos assessments."
-                    buttonText="Criar minha conta"
-                    buttonHref={productionSignupUrl}
+                    buttonText={isPdfMode ? '' : 'Criar minha conta'}
+                    buttonHref={isPdfMode ? '' : productionSignupUrl}
                     openInNewTab
+                    extraContent={isPdfMode ? (
+                      <div className="w-full flex flex-col items-center mb-6">
+                        <img
+                          src={signupQrCodeUrl}
+                          alt="QR Code para criar conta"
+                          className="w-40 h-40 rounded-lg border border-white/40 bg-white p-1"
+                          loading="lazy"
+                        />
+                      </div>
+                    ) : null}
                   />
-
-                  <div className="bg-white/90 border border-white/60 rounded-2xl p-4 shadow-sm">
-                    <p className="text-sm font-semibold text-[#1E1B4B] mb-2">Acesso direto</p>
-                    <a
-                      href={productionSignupUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-sm text-[#4F46E5] break-all underline"
-                    >
-                      {productionSignupUrl}
-                    </a>
-                    <div className="mt-4 flex justify-center">
-                      <img
-                        src={signupQrCodeUrl}
-                        alt="QR Code para criar conta"
-                        className="w-36 h-36 rounded-lg border border-gray-200"
-                        loading="lazy"
-                      />
-                    </div>
-                  </div>
 
                   {shouldShowPreAssessmentAnswers && (
                     <div className="hidden lg:block">
