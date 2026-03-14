@@ -128,14 +128,30 @@ const renderPdf = async ({ url }) => {
     await page.addStyleTag({
       content: `
         [data-pdf-hide="true"] { display: none !important; }
-        @page { margin: 14mm 10mm 14mm 10mm; }
+        @page { size: A4; margin: 0; }
+        html, body, #root {
+          margin: 0 !important;
+          padding: 0 !important;
+          width: 100% !important;
+        }
+        main {
+          max-width: 100% !important;
+          margin: 0 !important;
+          padding: 0 0 24px 0 !important;
+        }
       `,
     });
 
     const pdf = await page.pdf({
       format: 'A4',
       printBackground: true,
-      preferCSSPageSize: true,
+      preferCSSPageSize: false,
+      margin: {
+        top: '0px',
+        right: '0px',
+        bottom: '0px',
+        left: '0px'
+      }
     });
 
     const pdfBuffer = toPdfBuffer(pdf);

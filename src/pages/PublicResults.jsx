@@ -112,6 +112,7 @@ export default function PublicResults() {
   const [searchParams] = useSearchParams();
   const isPdfMode = searchParams.get('pdf') === '1';
   const forceExpandAll = isPdfMode || searchParams.get('expand') === 'all';
+  const productionLoginUrl = import.meta.env.VITE_PRODUCTION_LOGIN_URL || 'https://assessments.paulocruzfilho.com/#/login';
   const normalizedRouteId = typeof id === 'string' ? id.trim() : '';
   const hasRouteId = normalizedRouteId.length > 0 && normalizedRouteId !== 'undefined' && normalizedRouteId !== 'null';
   const isValidUuid = (value) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value || ''));
@@ -1106,7 +1107,7 @@ export default function PublicResults() {
           </p>
 
           {/* Botões de ação: Compartilhar e Download */}
-          <div className="flex flex-row items-center justify-center gap-3 mt-6">
+          {!isPdfMode && <div className="flex flex-row items-center justify-center gap-3 mt-6" data-pdf-hide="true">
             <button
               type="button"
               aria-label="Compartilhar resultado"
@@ -1157,7 +1158,7 @@ export default function PublicResults() {
                     assessmentEventId: eventId,
                     source: 'public',
                     assessmentName,
-                    versionToken: result?.updated_at || result?.created_at || 'v1'
+                    versionToken: `${result?.updated_at || result?.created_at || 'v1'}-pdf-v2`
                   });
                 } catch (downloadError) {
                   console.error('Erro ao baixar PDF público:', downloadError);
@@ -1170,7 +1171,7 @@ export default function PublicResults() {
               <Download className="w-5 h-5" />
               {isDownloadingPdf ? 'Gerando...' : 'Download'}
             </button>
-          </div>
+          </div>}
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_400px] gap-6 items-start">
@@ -1387,12 +1388,14 @@ export default function PublicResults() {
                             )}
                           </div>
 
-                          <button
-                            onClick={() => openIndicatorAnswers(indicatorKey, value)}
-                            className="text-[#4F46E5] font-semibold text-base hover:opacity-90 transition-opacity"
-                          >
-                            Ver respostas
-                          </button>
+                          {!isPdfMode && (
+                            <button
+                              onClick={() => openIndicatorAnswers(indicatorKey, value)}
+                              className="text-[#4F46E5] font-semibold text-base hover:opacity-90 transition-opacity"
+                            >
+                              Ver respostas
+                            </button>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -1418,7 +1421,9 @@ export default function PublicResults() {
                     title="Pronto para o próximo nível?"
                     description="Crie sua conta e comece a acompanhar seu progresso em diversos assessments."
                     buttonText="Criar minha conta"
-                    onButtonClick={() => navigate('/login')}
+                    onButtonClick={() => {
+                      window.location.href = productionLoginUrl;
+                    }}
                   />
 
                   {shouldShowPreAssessmentAnswers && (

@@ -1097,7 +1097,7 @@ export default function Results() {
           </p>
 
           {/* Botões de ação: Compartilhar e Download */}
-          <div className="flex flex-row items-center justify-center gap-3 mt-6">
+          {!isPdfMode && <div className="flex flex-row items-center justify-center gap-3 mt-6" data-pdf-hide="true">
             <button
               type="button"
               aria-label="Compartilhar resultado"
@@ -1148,7 +1148,7 @@ export default function Results() {
                     assessmentEventId: eventId,
                     source: 'results',
                     assessmentName,
-                    versionToken: result?.updated_at || result?.created_at || 'v1'
+                    versionToken: `${result?.updated_at || result?.created_at || 'v1'}-pdf-v2`
                   });
                 } catch (downloadError) {
                   console.error('Erro ao baixar PDF:', downloadError);
@@ -1161,7 +1161,7 @@ export default function Results() {
               <Download className="w-5 h-5" />
               {isDownloadingPdf ? 'Gerando...' : 'Download'}
             </button>
-          </div>
+          </div>}
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_400px] gap-6 items-start">
@@ -1398,12 +1398,14 @@ export default function Results() {
                           )}
                         </div>
 
-                        <button
-                          onClick={() => openIndicatorAnswers(indicatorKey, v)}
-                          className="text-[#4F46E5] font-semibold text-base hover:opacity-90 transition-opacity"
-                        >
-                          Ver respostas
-                        </button>
+                        {!isPdfMode && (
+                          <button
+                            onClick={() => openIndicatorAnswers(indicatorKey, v)}
+                            className="text-[#4F46E5] font-semibold text-base hover:opacity-90 transition-opacity"
+                          >
+                            Ver respostas
+                          </button>
+                        )}
                       </div>
                     </div>
                   </div>

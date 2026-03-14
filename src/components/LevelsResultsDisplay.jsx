@@ -661,12 +661,14 @@ export default function LevelsResultsDisplay({ levelResults, levelMode, levels, 
                           >
                             Ver mais <ChevronDown size={16} />
                           </button>
-                          <button
-                            onClick={() => openLevelAnswers(singleLevelCardData.levelId)}
-                            className="text-white font-semibold text-base hover:opacity-90 transition-opacity"
-                          >
-                            Ver respostas
-                          </button>
+                          {!forceExpandForPdf && (
+                            <button
+                              onClick={() => openLevelAnswers(singleLevelCardData.levelId)}
+                              className="text-white font-semibold text-base hover:opacity-90 transition-opacity"
+                            >
+                              Ver respostas
+                            </button>
+                          )}
                         </div>
                       )}
                       
@@ -678,16 +680,18 @@ export default function LevelsResultsDisplay({ levelResults, levelMode, levels, 
                           >
                             Ver menos <ChevronUp size={16} />
                           </button>
-                          <button
-                            onClick={() => openLevelAnswers(singleLevelCardData.levelId)}
-                            className="text-white font-semibold text-base hover:opacity-90 transition-opacity"
-                          >
-                            Ver respostas
-                          </button>
+                          {!forceExpandForPdf && (
+                            <button
+                              onClick={() => openLevelAnswers(singleLevelCardData.levelId)}
+                              className="text-white font-semibold text-base hover:opacity-90 transition-opacity"
+                            >
+                              Ver respostas
+                            </button>
+                          )}
                         </div>
                       )}
 
-                      {!singleLevelCardData.description && (
+                      {!forceExpandForPdf && !singleLevelCardData.description && (
                         <div className="mt-2 flex justify-end">
                           <button
                             onClick={() => openLevelAnswers(singleLevelCardData.levelId)}
@@ -887,12 +891,14 @@ export default function LevelsResultsDisplay({ levelResults, levelMode, levels, 
                                     )}
                                   </div>
 
-                                  <button
-                                    onClick={() => openLevelAnswers(level.id)}
-                                    className="text-[#4F46E5] font-semibold text-base hover:opacity-90 transition-opacity"
-                                  >
-                                    Ver respostas
-                                  </button>
+                                  {!forceExpandForPdf && (
+                                    <button
+                                      onClick={() => openLevelAnswers(level.id)}
+                                      className="text-[#4F46E5] font-semibold text-base hover:opacity-90 transition-opacity"
+                                    >
+                                      Ver respostas
+                                    </button>
+                                  )}
                                 </div>
                               </div>
                             )}
@@ -1206,12 +1212,14 @@ export default function LevelsResultsDisplay({ levelResults, levelMode, levels, 
                                       )}
                                     </div>
 
-                                    <button
-                                      onClick={() => openLevelAnswers(level.id)}
-                                      className="text-[#4F46E5] font-semibold text-base hover:opacity-90 transition-opacity"
-                                    >
-                                      Ver respostas
-                                    </button>
+                                    {!forceExpandForPdf && (
+                                      <button
+                                        onClick={() => openLevelAnswers(level.id)}
+                                        className="text-[#4F46E5] font-semibold text-base hover:opacity-90 transition-opacity"
+                                      >
+                                        Ver respostas
+                                      </button>
+                                    )}
                                   </div>
                                 </div>
                               )}
