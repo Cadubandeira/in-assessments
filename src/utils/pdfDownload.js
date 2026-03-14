@@ -21,6 +21,7 @@ export const downloadAssessmentPdf = async ({
   assessmentName = 'resultado-assessment',
   versionToken,
   forceRefresh = false,
+  userName = '',
 }) => {
   if (!assessmentEventId) {
     throw new Error('ID de resultado inválido para gerar PDF.');
@@ -35,6 +36,7 @@ export const downloadAssessmentPdf = async ({
       assessmentEventId,
       source,
       assessmentName,
+        userName,
       versionToken,
       forceRefresh,
     }),
@@ -47,10 +49,12 @@ export const downloadAssessmentPdf = async ({
   const blob = await response.blob();
   const objectUrl = URL.createObjectURL(blob);
 
+  const safeUser = sanitizeFilename(userName);
   const safeName = sanitizeFilename(assessmentName) || 'resultado-assessment';
+  const filenameBase = safeUser ? `${safeUser} - ${safeName}` : safeName;
   const link = document.createElement('a');
   link.href = objectUrl;
-  link.download = `${safeName}-${assessmentEventId}.pdf`;
+  link.download = `${filenameBase}.pdf`;
   document.body.appendChild(link);
   link.click();
   link.remove();

@@ -143,6 +143,7 @@ export default function Results() {
   const [selectedIndicatorAnswersKey, setSelectedIndicatorAnswersKey] = useState('');
   const [isPreAssessmentAccordionOpen, setIsPreAssessmentAccordionOpen] = useState(false);
   const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
+  const [currentUser, setCurrentUser] = useState(null);
 
   const isPdfMode = searchParams.get('pdf') === '1';
   const forceExpandAll = isPdfMode || searchParams.get('expand') === 'all';
@@ -156,6 +157,7 @@ export default function Results() {
         if (!user) {
           if (mounted) setError('Usuário não autenticado.');
           return;
+          if (mounted) setCurrentUser(user);
         }
 
         let query = supabase
@@ -817,6 +819,9 @@ export default function Results() {
   const classification = overallLabel;
 
   const assessmentName = assessmentData?.name || result?.assessment_versions?.assessment_id || 'Assessment';
+    const userName = currentUser?.user_metadata?.full_name
+      || currentUser?.email?.split('@')[0]
+      || '';
   const assessmentDescription = assessmentData?.description || '';
   const introductionText = assessmentData?.result_introduction || result?.assessment_versions?.result_introduction || '';
   const finalReflectionText = assessmentData?.final_reflection || result?.assessment_versions?.final_reflection || '';
@@ -1150,6 +1155,7 @@ export default function Results() {
                     assessmentEventId: eventId,
                     source: 'results',
                     assessmentName,
+                                        userName,
                     versionToken: `${result?.updated_at || result?.created_at || 'v1'}-pdf-v4`
                   });
                 } catch (downloadError) {

@@ -149,6 +149,7 @@ export default function PublicResults() {
   const [selectedIndicatorAnswersKey, setSelectedIndicatorAnswersKey] = useState('');
   const [isPreAssessmentAccordionOpen, setIsPreAssessmentAccordionOpen] = useState(false);
   const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
+  const [currentUser, setCurrentUser] = useState(null);
 
   useEffect(() => {
     // Removido: let mounted = true; (não necessário para página pública)
@@ -197,6 +198,7 @@ export default function PublicResults() {
           const { data: { user } } = await supabase.auth.getUser();
           if (!user) {
             setError('Usuário não autenticado. Faça login para ver seu último resultado.');
+                      setCurrentUser(user);
             setLoading(false);
             return;
           }
@@ -1162,6 +1164,20 @@ export default function PublicResults() {
                     assessmentEventId: eventId,
                     source: 'public',
                     assessmentName,
+                                        userName: (() => {
+                                          // Prefer pre-assessment "nome" field (participant's real name)
+                                          const nameField = configuredPreAssessmentFields.find(f =>
+                                            /^nome|^name/i.test(String(f.label || '').trim())
+                                          );
+                                          if (nameField) {
+                                            const val = preAssessmentData?.[nameField.id];
+                                            if (val && typeof val === 'string' && val.trim()) return val.trim();
+                                          }
+                                          // Fall back to auth user
+                                          return currentUser?.user_metadata?.full_name
+                                            || currentUser?.email?.split('@')[0]
+                                            || '';
+                                        })(),
                     versionToken: `${result?.updated_at || result?.created_at || 'v1'}-pdf-v4`
                   });
                 } catch (downloadError) {

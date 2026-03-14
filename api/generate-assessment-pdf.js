@@ -218,13 +218,16 @@ export default async function handler(req, res) {
     versionToken = 'v1',
     forceRefresh = false,
   } = req.body || {};
+  const userName = typeof req.body?.userName === 'string' ? req.body.userName : '';
 
   if (!assessmentEventId) {
     return res.status(400).json({ error: 'assessmentEventId é obrigatório.' });
   }
 
   const cacheKey = `${assessmentEventId}:${source}:${versionToken}`;
-  const filename = `${sanitize(assessmentName) || 'resultado-assessment'}-${assessmentEventId}.pdf`;
+  const safeUser = sanitize(userName);
+  const safeName = sanitize(assessmentName) || 'resultado-assessment';
+  const filename = `${safeUser ? `${safeUser} - ${safeName}` : safeName}.pdf`;
 
   const cached = pdfCache.get(cacheKey);
   if (!forceRefresh && cached && cached.expiresAt > Date.now()) {
