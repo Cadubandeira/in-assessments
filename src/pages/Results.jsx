@@ -1062,7 +1062,7 @@ export default function Results() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#F5F3EC] to-[#EEF2FF]">
+    <div className="min-h-screen bg-gradient-to-br from-[#F5F3EC] to-[#EEF2FF]" data-results-ready="true">
       <style>{textFadeOutStyles}</style>
       {/* XP Overlay - Mesmo componente do Assessment */}
       {assessmentVersionData?.gamify_xp && assessmentVersionData?.xp_completion > 0 && xpOverlayData && (

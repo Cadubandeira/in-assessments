@@ -1071,7 +1071,7 @@ export default function PublicResults() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#F5F3EC] to-[#EEF2FF]">
+    <div className="min-h-screen bg-gradient-to-br from-[#F5F3EC] to-[#EEF2FF]" data-public-results-ready="true">
       <style>{textFadeOutStyles}</style>
       {/* XP Overlay - Mesmo componente do Assessment */}
       {xpOverlayData && (

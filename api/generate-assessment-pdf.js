@@ -110,7 +110,20 @@ const renderPdf = async ({ url }) => {
   try {
     const page = await browser.newPage();
     await page.goto(url, { waitUntil: 'networkidle2', timeout: 60_000 });
-    await sleep(1200);
+
+    await page.waitForFunction(() => {
+      const isReady = Boolean(
+        document.querySelector('[data-public-results-ready="true"]') ||
+        document.querySelector('[data-results-ready="true"]')
+      );
+
+      if (!isReady) return false;
+
+      const hasSkeleton = Boolean(document.querySelector('.skeleton-shimmer'));
+      return !hasSkeleton;
+    }, { timeout: 45_000 });
+
+    await sleep(1000);
 
     await page.addStyleTag({
       content: `
