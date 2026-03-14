@@ -21,10 +21,10 @@ Use o mesmo projeto já existente e faça apenas:
 
 ## 2) Configurar variável no projeto atual
 
-No painel da Vercel do seu projeto atual:
-1. Settings > Environment Variables.
-2. Adicione:
-   - PDF_RENDER_BASE_URL = URL pública do próprio projeto (ex.: https://seu-projeto.vercel.app)
+    No painel da Vercel do seu projeto atual:
+    1. Settings > Environment Variables.
+    2. Adicione:
+    - PDF_RENDER_BASE_URL = URL pública do próprio projeto (ex.: https://seu-projeto.vercel.app)
 3. Salve.
 4. Faça Redeploy para aplicar a variável.
 

@@ -5,6 +5,9 @@ const WINDOW_MS = 60_000;
 const RATE_LIMIT_PER_WINDOW = 12;
 const CACHE_TTL_MS = 1000 * 60 * 60 * 24;
 const MAX_CACHE_ENTRIES = 60;
+const SINGLE_PAGE_MAX_HEIGHT_PX = 18_000;
+const SINGLE_PAGE_MIN_HEIGHT_PX = 1_200;
+const SINGLE_PAGE_WIDTH_PX = 1240;
 
 const requestLogByIp = new Map();
 const pdfCache = new Map();
@@ -129,6 +132,7 @@ const renderPdf = async ({ url }) => {
       content: `
         [data-pdf-hide="true"] { display: none !important; }
         @page { size: A4; margin: 0; }
+        * { print-color-adjust: exact !important; -webkit-print-color-adjust: exact !important; }
         html, body, #root {
           margin: 0 !important;
           padding: 0 !important;
@@ -151,18 +155,67 @@ const renderPdf = async ({ url }) => {
       `,
     });
 
-    const pdf = await page.pdf({
-      format: 'A4',
-      printBackground: true,
-      displayHeaderFooter: false,
-      preferCSSPageSize: false,
-      margin: {
-        top: '0px',
-        right: '0px',
-        bottom: '0px',
-        left: '0px'
-      }
+    const contentMetrics = await page.evaluate(() => {
+      const root = document.querySelector('#root');
+      const body = document.body;
+      const html = document.documentElement;
+
+      const height = Math.ceil(
+        Math.max(
+          root?.scrollHeight || 0,
+          body?.scrollHeight || 0,
+          body?.offsetHeight || 0,
+          html?.clientHeight || 0,
+          html?.scrollHeight || 0,
+          html?.offsetHeight || 0
+        )
+      );
+
+      const width = Math.ceil(
+        Math.max(
+          root?.scrollWidth || 0,
+          body?.scrollWidth || 0,
+          html?.scrollWidth || 0,
+          html?.clientWidth || 0
+        )
+      );
+
+      return { width, height };
     });
+
+    const safeContentHeight = Math.max(
+      SINGLE_PAGE_MIN_HEIGHT_PX,
+      Math.ceil((contentMetrics?.height || 0) + 32)
+    );
+
+    const canUseSingleLongPage = safeContentHeight <= SINGLE_PAGE_MAX_HEIGHT_PX;
+
+    const pdf = canUseSingleLongPage
+      ? await page.pdf({
+          width: `${Math.max(SINGLE_PAGE_WIDTH_PX, contentMetrics?.width || SINGLE_PAGE_WIDTH_PX)}px`,
+          height: `${safeContentHeight}px`,
+          printBackground: true,
+          displayHeaderFooter: false,
+          preferCSSPageSize: false,
+          margin: {
+            top: '0px',
+            right: '0px',
+            bottom: '0px',
+            left: '0px'
+          }
+        })
+      : await page.pdf({
+          format: 'A4',
+          printBackground: true,
+          displayHeaderFooter: false,
+          preferCSSPageSize: false,
+          margin: {
+            top: '0px',
+            right: '0px',
+            bottom: '0px',
+            left: '0px'
+          }
+        });
 
     const pdfBuffer = toPdfBuffer(pdf);
     if (!hasPdfSignature(pdfBuffer)) {
