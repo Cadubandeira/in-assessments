@@ -140,7 +140,7 @@ const ProtectedLayout = ({ user, children }) => {
   };
 
   return (
-    <div className={`min-h-screen ${TOKENS.colors.bg} pb-20`}>
+    <div className={`min-h-screen ${TOKENS.colors.bg} pb-20 md:pb-0`}>
       {!isPdfMode && <MobileHeader user={user} />}
       {!isPdfMode && <DesktopHeader user={user} role={role} onStartAssessment={handleStart} />}
       <main key={location.pathname} className={isPdfMode ? '' : 'pt-[72px]'}>
