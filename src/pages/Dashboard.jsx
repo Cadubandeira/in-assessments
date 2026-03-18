@@ -90,10 +90,19 @@ const Dashboard = ({ user }) => {
     totalXP: 0,
     levelProgress: null
   });
-  const [violenceZeroCard, setViolenceZeroCard] = useState({
-    title: 'Violência Zero - Organizacional',
-    description: 'Identifique sinais críticos, avalie decisões e fortaleça uma cultura de segurança no ambiente de trabalho.',
-    path: '/assessment/violencia-zero-organizacional'
+  const [assessmentCards, setAssessmentCards] = useState({
+    organizacional: {
+      visible: true,
+      title: 'Violência Zero - Organizacional',
+      description: 'Identifique sinais críticos, avalie decisões e fortaleça uma cultura de segurança no ambiente de trabalho.',
+      path: '/assessment/violencia-zero-organizacional'
+    },
+    individual: {
+      visible: true,
+      title: 'Violência Zero - Individual',
+      description: 'Avalie seu próprio comportamento, reconheça padrões de risco e desenvolva uma postura mais segura e consciente.',
+      path: '/assessment/violencia-zero-individual'
+    }
   });
   // Hook para carregar ranking do usuário
   const { ranking } = useUserRanking(user?.id);
@@ -220,42 +229,46 @@ const Dashboard = ({ user }) => {
           ? assessments.find((item) => item.id === VIOLENCIA_ZERO_INDIVIDUAL_ID)
           : assessments.find((item) => slugify(item.name || '').includes('violencia-zero-individual'));
 
-        let hasCompletedOrganizational = false;
-
-        if (organizationalAssessment?.id) {
-          const { data: completedOrganizationalEvents, error: completedOrganizationalError } = await supabase
+        const checkCompleted = async (assessmentId) => {
+          if (!assessmentId) return false;
+          const { data, error } = await supabase
             .from('assessment_events')
             .select('id')
             .eq('user_id', user.id)
-            .eq('assessment_id', organizationalAssessment.id)
+            .eq('assessment_id', assessmentId)
             .limit(1);
+          if (error) console.warn('Erro ao verificar conclusão de assessment:', error);
+          return (data || []).length > 0;
+        };
 
-          if (completedOrganizationalError) {
-            console.warn('Erro ao validar conclusão do Violência Zero - Organizacional:', completedOrganizationalError);
-          } else {
-            hasCompletedOrganizational = (completedOrganizationalEvents || []).length > 0;
-          }
-        }
+        const [hasCompletedOrganizational, hasCompletedIndividual] = await Promise.all([
+          checkCompleted(organizationalAssessment?.id),
+          checkCompleted(individualAssessment?.id)
+        ]);
 
-        if (hasCompletedOrganizational) {
-          setViolenceZeroCard(
-            buildViolenceZeroCard(
-              individualAssessment,
-              'Violência Zero - Individual',
-              '/assessment/violencia-zero-individual',
-              'Aprofunde o autoconhecimento para prevenir riscos e fortalecer atitudes seguras no dia a dia.'
-            )
-          );
-        } else {
-          setViolenceZeroCard(
-            buildViolenceZeroCard(
+        const buildCard = (assessment, fallbackTitle, fallbackPath, fallbackDescription) =>
+          buildViolenceZeroCard(assessment, fallbackTitle, fallbackPath, fallbackDescription);
+
+        setAssessmentCards({
+          organizacional: {
+            ...buildCard(
               organizationalAssessment,
               'Violência Zero - Organizacional',
               '/assessment/violencia-zero-organizacional',
               'Identifique sinais críticos, avalie decisões e fortaleça uma cultura de segurança no ambiente de trabalho.'
-            )
-          );
-        }
+            ),
+            visible: !hasCompletedOrganizational
+          },
+          individual: {
+            ...buildCard(
+              individualAssessment,
+              'Violência Zero - Individual',
+              '/assessment/violencia-zero-individual',
+              'Avalie seu próprio comportamento, reconheça padrões de risco e desenvolva uma postura mais segura e consciente.'
+            ),
+            visible: !hasCompletedIndividual
+          }
+        });
       }
 
       // Buscar dados de progressão do usuário
@@ -354,11 +367,13 @@ const Dashboard = ({ user }) => {
           {/* COLUNA ESQUERDA */}
           <div className="lg:col-span-8 flex flex-col gap-4 sm:gap-6 lg:gap-8 w-full">
 
+            {/* CARD VIOLÊNCIA ZERO - ORGANIZACIONAL */}
+            {assessmentCards.organizacional.visible && (
             <button
               type="button"
-              onClick={() => navigate(violenceZeroCard.path)}
+              onClick={() => navigate(assessmentCards.organizacional.path)}
               className="group relative overflow-hidden rounded-xl sm:rounded-2xl bg-gradient-to-r from-[#7C2D12] via-[#DC2626] to-[#FB7185] p-[1px] text-left shadow-2xl transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_24px_60px_rgba(220,38,38,0.35)]"
-              aria-label="Ir para o assessment Violência Zero"
+              aria-label="Ir para o assessment Violência Zero Organizacional"
             >
               <div className="relative overflow-hidden rounded-[calc(theme(borderRadius.2xl)-1px)] bg-[#1F1221] px-5 py-5 sm:px-6 sm:py-6 lg:px-8 lg:py-7 text-white">
                 <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,_rgba(255,255,255,0.22),_transparent_35%),radial-gradient(circle_at_bottom_left,_rgba(251,113,133,0.26),_transparent_30%)] opacity-90" />
@@ -373,11 +388,11 @@ const Dashboard = ({ user }) => {
                     </div>
 
                     <h2 className={`${TOKENS.fonts.serif} text-2xl sm:text-3xl lg:text-4xl font-extrabold leading-tight mb-2`}>
-                      {violenceZeroCard.title}
+                      {assessmentCards.organizacional.title}
                     </h2>
 
                     <p className="text-sm sm:text-base lg:text-lg text-white/85 leading-relaxed max-w-2xl">
-                      {violenceZeroCard.description}
+                      {assessmentCards.organizacional.description}
                     </p>
 
                     <div className="mt-5 inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-black uppercase tracking-[0.18em] text-[#B91C1C] transition-transform duration-300 group-hover:translate-x-1">
@@ -392,8 +407,52 @@ const Dashboard = ({ user }) => {
                 </div>
               </div>
             </button>
+            )}
+
+            {/* CARD VIOLÊNCIA ZERO - INDIVIDUAL */}
+            {assessmentCards.individual.visible && (
+            <button
+              type="button"
+              onClick={() => navigate(assessmentCards.individual.path)}
+              className="group relative overflow-hidden rounded-xl sm:rounded-2xl bg-gradient-to-r from-[#581C87] via-[#7C3AED] to-[#C084FC] p-[1px] text-left shadow-2xl transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_24px_60px_rgba(124,58,237,0.35)]"
+              aria-label="Ir para o assessment Violência Zero Individual"
+            >
+              <div className="relative overflow-hidden rounded-[calc(theme(borderRadius.2xl)-1px)] bg-[#1A0F2E] px-5 py-5 sm:px-6 sm:py-6 lg:px-8 lg:py-7 text-white">
+                <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,_rgba(255,255,255,0.22),_transparent_35%),radial-gradient(circle_at_bottom_left,_rgba(192,132,252,0.26),_transparent_30%)] opacity-90" />
+                <div className="absolute -right-10 -top-10 h-32 w-32 rounded-full bg-white/10 blur-3xl" />
+                <div className="absolute -bottom-12 left-8 h-28 w-28 rounded-full bg-[#C084FC]/20 blur-3xl" />
+
+                <div className="relative z-10 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="max-w-3xl">
+                    <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.24em] text-white/85">
+                      <span className="h-2 w-2 rounded-full bg-[#FDE68A] animate-pulse" />
+                      Novo assessment
+                    </div>
+
+                    <h2 className={`${TOKENS.fonts.serif} text-2xl sm:text-3xl lg:text-4xl font-extrabold leading-tight mb-2`}>
+                      {assessmentCards.individual.title}
+                    </h2>
+
+                    <p className="text-sm sm:text-base lg:text-lg text-white/85 leading-relaxed max-w-2xl">
+                      {assessmentCards.individual.description}
+                    </p>
+
+                    <div className="mt-5 inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-black uppercase tracking-[0.18em] text-[#7C3AED] transition-transform duration-300 group-hover:translate-x-1">
+                      Realizar agora
+                      <ArrowRight className="h-4 w-4" />
+                    </div>
+                  </div>
+
+                  <div className="hidden sm:flex h-20 w-20 lg:h-24 lg:w-24 flex-shrink-0 items-center justify-center rounded-[28px] border border-white/15 bg-white/10 shadow-lg">
+                    <TriangleAlert className="h-10 w-10 lg:h-12 lg:w-12 text-white" />
+                  </div>
+                </div>
+              </div>
+            </button>
+            )}
             
             {/* CARD DE PERFORMANCE */}
+            {userStats.totalAssessments > 0 && (
             <div className="bg-white/80 backdrop-blur-sm border border-white/50 p-4 sm:p-6 lg:p-8 rounded-xl sm:rounded-2xl shadow-xl w-full">
               <div className="flex flex-col md:flex-row items-center gap-4 sm:gap-6 md:gap-8 relative w-full">
                 <div className="w-full md:w-1/3 text-center md:text-left">
@@ -479,10 +538,12 @@ const Dashboard = ({ user }) => {
                 </div>
               </div>
             </div>
+            )}
 
             
 
             {/* MEU DESENVOLVIMENTO */}
+            {userStats.totalAssessments > 0 && (
             <div className={`bg-white rounded-xl sm:rounded-2xl p-4 sm:p-6 lg:p-8 shadow-sm w-full overflow-hidden ${developmentIndicators.length > 7 ? 'lg:min-h-[950px]' : ''}`}>
               <div className="flex flex-col h-full">
                 <div className="flex justify-between items-center mb-8">
@@ -496,15 +557,18 @@ const Dashboard = ({ user }) => {
                 />
               </div>
             </div>
+            )}
 
             {/* BANNER CTA ASSESSMENT */}
+            {userStats.totalAssessments > 0 && (
             <CallToActionCard
               icon={<Zap size={32} />}
-              title="Pronto para uma novo desafio?"
+              title="Pronto para um novo desafio?"
               description="Mapeie seu crescimento em competências e revele insights."
               buttonText="Vamos lá!"
               onButtonClick={() => navigate('/activities')}
             />
+            )}
 
           </div>
 
@@ -512,6 +576,7 @@ const Dashboard = ({ user }) => {
           <div className="lg:col-span-4 flex flex-col gap-4 sm:gap-6 lg:gap-8 w-full">
             
             {/* ATIVIDADES RECENTES */}
+            {userStats.totalAssessments > 0 && (
             <div className="bg-white rounded-xl sm:rounded-2xl shadow-sm p-4 sm:p-6 w-full">
               <div className="flex items-center justify-between mb-6">
                 <h3 className="text-lg font-bold text-[#1E1B4B]">Atividades Recentes</h3>
@@ -566,8 +631,10 @@ const Dashboard = ({ user }) => {
                 Ver Tudo
               </button>
             </div>
+            )}
 
             {/* RECOMENDA\u00c7\u00d5ES */}
+            {userStats.totalAssessments > 0 && (
             <div className="bg-white rounded-xl sm:rounded-2xl shadow-sm p-4 sm:p-6 w-full">
               <h3 className="text-lg font-bold text-[#1E1B4B] mb-4">Próximos Passos</h3>
               {/* Card de próximos passos como link para conteúdo */}
@@ -624,6 +691,7 @@ const Dashboard = ({ user }) => {
                 );
               })()}
             </div>
+            )}
           </div>
         </div>
       </main>

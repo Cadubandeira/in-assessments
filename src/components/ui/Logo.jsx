@@ -12,11 +12,11 @@ const Logo = ({ size = 'normal', className = '', dark = true }) => {
   const dotMargin = isLarge ? 'mb-1.5 md:mb-2' : 'mb-1 md:mb-1.5';
   
   return (
-    <div className={`flex flex-col justify-center select-none ${className}`}>
+    <div className={`notranslate flex flex-col justify-center select-none ${className}`} translate="no">
       <div className="flex items-baseline gap-2">
-        <span className={`font-['Dancing_Script'] ${textSize} ${textColor} font-bold leading-none`}>in</span>
+        <span className={`font-['Dancing_Script'] ${textSize} ${textColor} font-bold leading-none`} translate="no">in</span>
         <div className={`${dotSize} rounded-full ${accentColor.replace('text-', 'bg-')} self-end ${dotMargin} animate-pulse`} />
-        <span className={`font-sans ${subTextSize} ${textColor} font-bold uppercase tracking-[0.3em] self-end ${dotMargin}`}>Assessments</span>
+        <span className={`font-sans ${subTextSize} ${textColor} font-bold uppercase tracking-[0.3em] self-end ${dotMargin}`} translate="no">Assessments</span>
       </div>
     </div>
   );
