@@ -171,14 +171,14 @@ const LoginScreen = () => {
                 </Button>
               </div>
 
-              <div className="pt-4 text-center">
+              {/* <div className="pt-4 text-center">
                 <button 
                   onClick={() => setEmailMode(true)} 
                   className="text-sm font-medium text-[#64748B] hover:text-[#1E1B4B] transition-colors border-b border-transparent hover:border-[#1E1B4B]"
                 >
                   Entrar com e-mail
                 </button>
-              </div>
+              </div> */}
             </div>
           ) : (
             <div className="space-y-6 animate-in fade-in slide-in-from-right-8 duration-500">
