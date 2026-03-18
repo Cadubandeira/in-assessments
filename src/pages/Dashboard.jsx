@@ -576,8 +576,8 @@ const Dashboard = ({ user }) => {
                 const indicator = developmentIndicators.length > 0
                   ? developmentIndicators.reduce((min, ind) => ind.percentage < min.percentage ? ind : min, developmentIndicators[0])
                   : null;
-                const indicatorName = indicator ? indicator.name : 'Indicadores';
-                const link = indicator && indicatorLinks[indicatorName] ? indicatorLinks[indicatorName] : null;
+                const indicatorName = indicator ? indicator.name : 'Liderança';
+                const link = indicatorLinks[indicatorName] || null;
                 // Imagem de capa do podcast para Liderança
                 const coverImages = {
                   'Liderança': 'https://image-cdn-ak.spotifycdn.com/image/ab6772ab000015bef26f30d81cec7cbb9ccea5cc'
