@@ -5,6 +5,7 @@ import { supabase } from '../supabaseClient';
 import { TOKENS } from '../config/tokens';
 import ActivitiesSkeleton from '../components/skeletons/ActivitiesSkeleton';
 import CallToActionCard from '../components/CallToActionCard';
+import { useUserRole } from '../hooks/useUserRole';
 
 const slugify = (value) => value
   .toLowerCase()
@@ -65,6 +66,8 @@ const Activities = () => {
   const [specificScenario, setSpecificScenario] = useState(null);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
+  const { role } = useUserRole();
+  const isAdmin = role === 'admin';
 
   useEffect(() => {
     const fetch = async () => {
@@ -102,6 +105,8 @@ const Activities = () => {
   }, []);
 
   useEffect(() => {
+    if (!isAdmin) return;
+
     const fetchScenario = async () => {
       const { data } = await supabase
         .from('scenario_simulations')
@@ -114,7 +119,7 @@ const Activities = () => {
       }
     };
     fetchScenario();
-  }, []);
+  }, [isAdmin]);
 
   if (loading) {
     return <ActivitiesSkeleton />;
@@ -190,29 +195,58 @@ const Activities = () => {
           </div>
         </section>
 
-        <section>
-          <div className="mb-8">
-            <CallToActionCard
-              icon={<Zap size={32} />}
-              title="Situações reais desafiadoras"
-              description="Teste suas habilidades em cenários reais com pressão contextual e análise comportamental."
-              buttonText="SAIBA MAIS"
-              onButtonClick={() => navigate('/activities/real-scenarios')}
-              gradientFrom="from-red-600"
-              gradientTo="to-orange-500"
-              buttonTextColor="text-red-600"
-            />
-          </div>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8">
-            {specificScenario && (
-              <RealScenarioSimpleCard 
-                title={specificScenario.title}
-                description={specificScenario.description}
-                scenarioId="a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+        {isAdmin && (
+          <section>
+            <div className="mb-8">
+              <CallToActionCard
+                icon={<Zap size={32} />}
+                title="Situações reais desafiadoras"
+                description="Teste suas habilidades em cenários reais com pressão contextual e análise comportamental."
+                buttonText="SAIBA MAIS"
+                onButtonClick={() => navigate('/activities/real-scenarios')}
+                gradientFrom="from-red-600"
+                gradientTo="to-orange-500"
+                buttonTextColor="text-red-600"
               />
-            )}
-          </div>
-        </section>
+            </div>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8">
+              {specificScenario && (
+                <RealScenarioSimpleCard 
+                  title={specificScenario.title}
+                  description={specificScenario.description}
+                  scenarioId="a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+                />
+              )}
+            </div>
+          </section>
+        )}
+
+        {!isAdmin && (
+          <section>
+            <div className="mb-8">
+              <div className="bg-gradient-to-r from-red-600 to-orange-500 rounded-xl sm:rounded-2xl p-4 sm:p-6 lg:p-8 shadow-xl flex flex-col md:flex-row items-center justify-between text-white gap-4 sm:gap-6 w-full">
+                <div className="flex items-center gap-3 sm:gap-4 md:gap-6 w-full md:w-auto">
+                  <div className="bg-white/20 p-3 sm:p-4 rounded-lg flex-shrink-0">
+                    <Zap size={32} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h4 className="text-lg sm:text-xl font-bold">Situações reais desafiadoras</h4>
+                    <p className="text-white/80 text-base">
+                      Teste suas habilidades em cenários reais com pressão contextual e análise comportamental.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  disabled
+                  className="border border-white px-6 sm:px-8 py-2.5 sm:py-3 rounded-lg font-bold text-xs sm:text-sm uppercase tracking-wider whitespace-nowrap w-full md:w-auto cursor-default"
+                >
+                  EM BREVE
+                </button>
+              </div>
+            </div>
+          </section>
+        )}
       </main>
     </div>
   );

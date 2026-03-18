@@ -1146,7 +1146,7 @@ export default function Results() {
               <Share2 className="w-5 h-5" />
               Compartilhar
             </button>
-            <button
+            {/* <button
               type="button"
               aria-label="Baixar PDF do resultado"
               className="flex items-center gap-2 px-4 py-2 rounded-lg bg-white text-indigo-700 font-semibold shadow-sm hover:bg-indigo-50 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-indigo-300"
@@ -1176,7 +1176,7 @@ export default function Results() {
             >
               <Download className="w-5 h-5" />
               Download
-            </button>
+            </button> */}
           </div>}
         </div>
 
@@ -1257,9 +1257,12 @@ export default function Results() {
                   <span>100</span>
                 </div>
               </div>
-              <p className="mt-6 text-base sm:text-lg text-gray-700 leading-relaxed text-justify [text-align-last:left]">
-              {overallInterpretation || 'Este resultado reflete seu desempenho geral no assessment.'}
-            </p>
+              <div
+                className="prose prose-sm mt-6 sm:text-lg sm:prose-base max-w-none text-gray-700 leading-relaxed text-justify [text-align-last:left] [&_p]:mb-4 [&_p]:text-base [&_p]:leading-relaxed [&_ul]:my-4 [&_ol]:my-4 [&_li]:my-1 [&_strong]:font-semibold [&_em]:italic [&_a]:text-[#4F46E5] [&_a]:underline"
+                dangerouslySetInnerHTML={{
+                  __html: overallInterpretation || '<p>Este resultado reflete seu desempenho geral no assessment.</p>'
+                }}
+              />
             </div>
 
             {/* RESULTADOS DE NÍVEIS */}

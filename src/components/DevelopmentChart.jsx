@@ -7,7 +7,7 @@ import React, { useMemo } from 'react';
 import { Circle } from 'lucide-react';
 import { getLucideIcon } from '../utils/iconUtils';
 
-const DevelopmentChart = ({ indicators, user, onIndicatorClick }) => {
+const DevelopmentChart = ({ indicators, user, displayNameOverride, onIndicatorClick }) => {
   // Configurações do gráfico radial
   const AVATAR_RADIUS = 44; // Raio do avatar (px)
   const CIRCLE_RADIUS = 30; // Raio de cada círculo de progresso (px)
@@ -15,7 +15,7 @@ const DevelopmentChart = ({ indicators, user, onIndicatorClick }) => {
   const SVG_BASE_SIZE = 320; // Tamanho base do SVG
   const CENTER_BASE = SVG_BASE_SIZE / 2;
 
-  const displayName = user?.user_metadata?.display_name || user?.email?.split('@')[0] || 'Usuário';
+  const displayName = displayNameOverride || user?.user_metadata?.display_name || user?.email?.split('@')[0] || 'Usuário';
   const userInitial = displayName.charAt(0).toUpperCase();
 
   // Calcular configuração dos anéis baseado na quantidade de indicadores
@@ -134,7 +134,7 @@ const DevelopmentChart = ({ indicators, user, onIndicatorClick }) => {
           </g>
 
           {/* Círculos de Progresso dos Indicadores */}
-          {indicatorPositions.map((indicator, idx) => {
+          {indicatorPositions.map((indicator) => {
             const circumference = 2 * Math.PI * CIRCLE_RADIUS;
             const strokeDashoffset =
               circumference - (indicator.percentage / 100) * circumference;

@@ -1,18 +1,20 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Home, LogOut, Settings, History, Users, Zap } from 'lucide-react';
+import { Home, LogOut, Settings, History, Users, Zap, UserCog } from 'lucide-react';
 import { supabase } from '../../supabaseClient';
 import Logo from '../ui/Logo';
+import { useCommunityProfile } from '../../hooks/useCommunityProfile';
 
 const DesktopHeader = ({ user, role, onStartAssessment }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const { displayName } = useCommunityProfile(user);
 
-  const displayName = user?.user_metadata?.display_name || user?.email?.split('@')[0] || 'Usuário';
   const userInitial = displayName.charAt(0).toUpperCase();
   
   const isActive = (path) => location.pathname === path;
+  const isCommunityActive = location.pathname.startsWith('/comunidade');
 
   // Fechar menu ao clicar fora
   useEffect(() => {
@@ -68,13 +70,18 @@ const DesktopHeader = ({ user, role, onStartAssessment }) => {
               <History className="w-5 h-5" />
               <span>Histórico</span>
             </button>
-            <button
-              type="button"
-              className="flex items-center gap-2 text-gray-600 hover:text-[#4F46E5] transition-colors"
-            >
-              <Users className="w-5 h-5" />
-              <span>Comunidade</span>
-            </button>
+            {role === 'admin' && (
+              <button
+                type="button"
+                onClick={() => navigate('/comunidade')}
+                className={`flex items-center gap-2 transition-colors ${
+                  isCommunityActive ? 'text-[#4F46E5]' : 'text-gray-600 hover:text-[#4F46E5]'
+                }`}
+              >
+                <Users className="w-5 h-5" />
+                <span>Comunidade</span>
+              </button>
+            )}
             {role === 'admin' && (
               <button
                 type="button"
@@ -99,6 +106,18 @@ const DesktopHeader = ({ user, role, onStartAssessment }) => {
 
             {showUserMenu && (
               <div className="absolute right-0 top-12 bg-white rounded-lg shadow-xl border border-gray-200 py-2 min-w-[160px] animate-in fade-in slide-in-from-top-2 duration-200">
+                {role === 'admin' && (
+                  <button
+                    onClick={() => {
+                      setShowUserMenu(false);
+                      navigate('/comunidade');
+                    }}
+                    className="w-full px-4 py-2.5 text-left hover:bg-gray-50 flex items-center gap-3 text-sm text-gray-700 transition-colors"
+                  >
+                    <UserCog className="w-4 h-4" />
+                    <span>Editar perfil</span>
+                  </button>
+                )}
                 <button
                   onClick={handleLogout}
                   className="w-full px-4 py-2.5 text-left hover:bg-gray-50 flex items-center gap-3 text-sm text-gray-700 transition-colors"

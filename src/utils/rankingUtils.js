@@ -97,32 +97,31 @@ export const getTopUsers = async (limit = 10) => {
 
     console.log('Progression data:', progressionData);
 
-    // Buscar user_display_name de assessment_events para cada usuário
+    // Buscar display_name em profiles para cada usuário
     const userIds = progressionData.map(p => p.user_id);
-    
-    const { data: eventsData, error: eventsError } = await supabase
-      .from('assessment_events')
-      .select('user_id, user_display_name')
-      .in('user_id', userIds)
-      .order('created_at', { ascending: false });
 
-    if (eventsError) {
-      console.warn('Erro ao buscar eventos para display names:', eventsError);
+    const { data: profilesData, error: profilesError } = await supabase
+      .from('profiles')
+      .select('id, display_name')
+      .in('id', userIds);
+
+    if (profilesError) {
+      console.warn('Erro ao buscar profiles para display names:', profilesError);
     }
 
-    console.log('Events data for display names:', eventsData);
+    console.log('Profiles data for display names:', profilesData);
 
-    // Criar um mapa de user_id -> display_name a partir dos eventos
+    // Criar um mapa de user_id -> display_name a partir do perfil
     const displayNameMap = {};
-    if (eventsData) {
-      eventsData.forEach(event => {
-        if (event.user_id && event.user_display_name && !displayNameMap[event.user_id]) {
-          displayNameMap[event.user_id] = event.user_display_name;
+    if (profilesData) {
+      profilesData.forEach(profile => {
+        if (profile.id && profile.display_name) {
+          displayNameMap[profile.id] = profile.display_name;
         }
       });
     }
 
-    // Combinar dados de progressão com display_name dos eventos
+    // Combinar dados de progressão com display_name
     const enrichedData = progressionData.map((p, index) => {
       return {
         rank: index + 1,

@@ -1,14 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LogOut } from 'lucide-react';
+import { LogOut, UserCog } from 'lucide-react';
 import { supabase } from '../../supabaseClient';
 import Logo from '../ui/Logo';
+import { useCommunityProfile } from '../../hooks/useCommunityProfile';
 
-const MobileHeader = ({ user }) => {
+const MobileHeader = ({ user, role }) => {
   const navigate = useNavigate();
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const { displayName } = useCommunityProfile(user);
 
-  const displayName = user?.user_metadata?.display_name || user?.email?.split('@')[0] || 'Usuário';
   const userInitial = displayName.charAt(0).toUpperCase();
 
   // Fechar menu ao clicar fora
@@ -42,6 +43,18 @@ const MobileHeader = ({ user }) => {
         
         {showUserMenu && (
           <div className="absolute right-0 top-12 bg-white rounded-lg shadow-xl border border-gray-200 py-2 min-w-[160px] animate-in fade-in slide-in-from-top-2 duration-200">
+            {role === 'admin' && (
+              <button
+                onClick={() => {
+                  setShowUserMenu(false);
+                  navigate('/comunidade');
+                }}
+                className="w-full px-4 py-2.5 text-left hover:bg-gray-50 flex items-center gap-3 text-sm text-gray-700 transition-colors"
+              >
+                <UserCog className="w-4 h-4" />
+                <span>Editar perfil</span>
+              </button>
+            )}
             <button
               onClick={handleLogout}
               className="w-full px-4 py-2.5 text-left hover:bg-gray-50 flex items-center gap-3 text-sm text-gray-700 transition-colors"

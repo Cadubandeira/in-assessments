@@ -24,6 +24,11 @@ import PublicResults from './pages/PublicResults';
 import History from './pages/History';
 import Activities from './pages/Activities';
 import RealScenarios from './pages/RealScenarios';
+import Community from './pages/Community';
+import CommunityFeed from './pages/community/CommunityFeed';
+import CommunityProfile from './pages/community/CommunityProfile';
+import CommunityFollowing from './pages/community/CommunityFollowing';
+import CommunityNotifications from './pages/community/CommunityNotifications';
 import PrivacyPolicy from './pages/PrivacyPolicy';
 import TermsOfService from './pages/TermsOfService';
 import IndicatorsAdmin from './pages/admin/IndicatorsAdmin';
@@ -128,8 +133,17 @@ const ProtectedLayout = ({ user, children }) => {
   const { role } = useUserRole();
   const search = new URLSearchParams(location.search || '');
   const isPdfMode = search.get('pdf') === '1' || search.get('hideHeader') === '1';
+  const routePersistenceKey = location.pathname.startsWith('/comunidade')
+    ? '/comunidade'
+    : location.pathname;
 
   if (!user) return <Navigate to="/" replace />;
+  if (location.pathname.startsWith('/comunidade') && role !== 'admin') {
+    return <Navigate to="/dashboard" replace />;
+  }
+  if (location.pathname.startsWith('/activities/real-scenarios') && role !== 'admin') {
+    return <Navigate to="/dashboard" replace />;
+  }
 
   const handleStart = () => {
     if (!canUserTakeAssessment([], role)) {
@@ -141,9 +155,9 @@ const ProtectedLayout = ({ user, children }) => {
 
   return (
     <div className={`min-h-screen ${TOKENS.colors.bg} pb-20 md:pb-0`}>
-      {!isPdfMode && <MobileHeader user={user} />}
+      {!isPdfMode && <MobileHeader user={user} role={role} />}
       {!isPdfMode && <DesktopHeader user={user} role={role} onStartAssessment={handleStart} />}
-      <main key={location.pathname} className={isPdfMode ? '' : 'pt-[72px]'}>
+      <main key={routePersistenceKey} className={isPdfMode ? '' : 'pt-[72px]'}>
         {children}
       </main>
       {!isPdfMode && <MobileBottomNav onStartAssessment={handleStart} role={role} />}
@@ -217,6 +231,13 @@ export default function App() {
           <Route path="/results" element={<ProtectedLayout user={user}><Results /></ProtectedLayout>} />
           <Route path="/results/:id" element={<ProtectedLayout user={user}><Results /></ProtectedLayout>} />
           <Route path="/history" element={<ProtectedLayout user={user}><History /></ProtectedLayout>} />
+          <Route path="/comunidade" element={<ProtectedLayout user={user}><Community user={user} /></ProtectedLayout>}>
+            <Route index element={<Navigate to="feed" replace />} />
+            <Route path="feed" element={<CommunityFeed user={user} />} />
+            <Route path="perfil" element={<CommunityProfile user={user} />} />
+            <Route path="seguindo" element={<CommunityFollowing user={user} />} />
+            <Route path="notificacoes" element={<CommunityNotifications user={user} />} />
+          </Route>
           <Route path="/admin/management" element={<ProtectedLayout user={user}><Management user={user} /></ProtectedLayout>} />
           <Route path="/admin/indicators" element={<ProtectedLayout user={user}><IndicatorsAdmin /></ProtectedLayout>} />
           <Route path="/admin/assessments/builder" element={<ProtectedLayout user={user}><AssessmentBuilder /></ProtectedLayout>} />

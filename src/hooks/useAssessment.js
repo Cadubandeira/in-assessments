@@ -598,8 +598,13 @@ export const useAssessment = (options = {}) => {
       const isNiveisSchema = assessment.schema === 'niveis';
       const indicatorSnapshot = isNiveisSchema ? null : (indicatorResults || null);
 
-      // Extract display name from user metadata or use email as fallback
-      const displayName = user.user_metadata?.name || user.user_metadata?.full_name || user.email || 'Usuário';
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('display_name')
+        .eq('id', user.id)
+        .single();
+
+      const displayName = profileData?.display_name || user.user_metadata?.display_name || user.user_metadata?.name || user.user_metadata?.full_name || user.email || 'Usuário';
 
       const payload = {
         assessment_id: assessment.id,

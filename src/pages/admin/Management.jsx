@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Activity,
+  AlertTriangle,
   Award,
   BarChart3,
   Brain,
@@ -38,6 +39,21 @@ const iconMap = {
   'trending-up': TrendingUp
 };
 
+const isMissingRelationError = (error, relationName) => {
+  const message = (error?.message || '').toLowerCase();
+  const relation = (relationName || '').toLowerCase();
+  const errorCode = error?.code;
+
+  if (errorCode === 'PGRST205') {
+    return message.includes(relation);
+  }
+
+  return (
+    message.includes('could not find the table')
+    && message.includes(relation)
+  );
+};
+
 const Management = ({ user }) => {
   const navigate = useNavigate();
   const { role, loading: roleLoading } = useUserRole();
@@ -46,8 +62,10 @@ const Management = ({ user }) => {
   const [assessments, setAssessments] = useState([]);
   const [activeVersions, setActiveVersions] = useState({});
   const [statsByAssessment, setStatsByAssessment] = useState({});
+  const [communityReports, setCommunityReports] = useState([]);
   const [error, setError] = useState(null);
   const [hoveredTooltip, setHoveredTooltip] = useState(null);
+  const [moderatingReportId, setModeratingReportId] = useState(null);
 
   useEffect(() => {
     if (!roleLoading && role !== 'admin') {
@@ -61,7 +79,7 @@ const Management = ({ user }) => {
       try {
         setLoading(true);
 
-        const [indRes, assRes, verRes, statsRes] = await Promise.all([
+        const [indRes, assRes, verRes, statsRes, reportsRes] = await Promise.all([
           supabase
             .from('indicators_master')
             .select('id, name, color, icon')
@@ -75,13 +93,21 @@ const Management = ({ user }) => {
             .select('assessment_id, version_number, is_active'),
           supabase
             .from('assessment_event_stats')
-            .select('assessment_id, total_executions, unique_users, avg_per_user')
+            .select('assessment_id, total_executions, unique_users, avg_per_user'),
+          supabase
+            .from('community_post_reports')
+            .select('id, post_id, reporter_id, reason, details, status, moderator_notes, created_at')
+            .eq('status', 'pending')
+            .order('created_at', { ascending: false })
         ]);
 
         if (indRes.error) throw indRes.error;
         if (assRes.error) throw assRes.error;
         if (verRes.error) throw verRes.error;
         if (statsRes.error) throw statsRes.error;
+        if (reportsRes.error && !isMissingRelationError(reportsRes.error, 'community_post_reports')) {
+          throw reportsRes.error;
+        }
 
         if (!mounted) return;
 
@@ -107,6 +133,58 @@ const Management = ({ user }) => {
         });
 
         setStatsByAssessment(normalizedStats);
+
+        const pendingReports = reportsRes.error ? [] : (reportsRes.data || []);
+        const postIds = [...new Set(pendingReports.map((report) => report.post_id).filter(Boolean))];
+        const userIds = [...new Set(pendingReports.map((report) => report.reporter_id).filter(Boolean))];
+
+        let postsMap = {};
+        if (postIds.length > 0) {
+          const { data: postsData, error: postsError } = await supabase
+            .from('community_posts')
+            .select('id, author_id, content, created_at, is_deleted')
+            .in('id', postIds);
+
+          if (postsError) throw postsError;
+
+          postsMap = (postsData || []).reduce((acc, post) => {
+            acc[post.id] = post;
+            return acc;
+          }, {});
+
+          postsData?.forEach((post) => {
+            if (post.author_id) userIds.push(post.author_id);
+          });
+        }
+
+        const dedupedUserIds = [...new Set(userIds.filter(Boolean))];
+        let profilesMap = {};
+
+        if (dedupedUserIds.length > 0) {
+          const { data: profilesData, error: profilesError } = await supabase
+            .from('profiles')
+            .select('id, display_name')
+            .in('id', dedupedUserIds);
+
+          if (profilesError) throw profilesError;
+
+          profilesMap = (profilesData || []).reduce((acc, profile) => {
+            acc[profile.id] = profile;
+            return acc;
+          }, {});
+        }
+
+        const enrichedReports = pendingReports.map((report) => {
+          const post = postsMap[report.post_id] || null;
+          return {
+            ...report,
+            post,
+            reporterName: profilesMap[report.reporter_id]?.display_name || 'Usuário',
+            authorName: profilesMap[post?.author_id]?.display_name || 'Autor'
+          };
+        });
+
+        setCommunityReports(enrichedReports);
       } catch (err) {
         if (mounted) setError(err.message || String(err));
       } finally {
@@ -134,6 +212,39 @@ const Management = ({ user }) => {
       return (a.name || '').localeCompare(b.name || '', 'pt-BR');
     });
   }, [assessments]);
+
+  const handleModerateReport = async (report, action) => {
+    setModeratingReportId(report.id);
+
+    try {
+      if (action === 'hide' && report.post?.id) {
+        const { error: postError } = await supabase
+          .from('community_posts')
+          .update({ is_deleted: true, updated_at: new Date().toISOString() })
+          .eq('id', report.post.id);
+
+        if (postError) throw postError;
+      }
+
+      const { error: reportError } = await supabase
+        .from('community_post_reports')
+        .update({
+          status: action === 'hide' ? 'resolved' : 'dismissed',
+          moderator_id: user?.id || null,
+          moderator_notes: action === 'hide' ? 'Post ocultado pela moderação.' : 'Denúncia descartada pela moderação.',
+          resolved_at: new Date().toISOString()
+        })
+        .eq('id', report.id);
+
+      if (reportError) throw reportError;
+
+      setCommunityReports((current) => current.filter((item) => item.id !== report.id));
+    } catch (err) {
+      alert(`Não foi possível moderar a denúncia: ${err.message || String(err)}`);
+    } finally {
+      setModeratingReportId(null);
+    }
+  };
 
   if (roleLoading || loading) {
     return <ManagementSkeleton />;
@@ -173,6 +284,64 @@ const Management = ({ user }) => {
       </section>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 -mt-16 relative z-20 w-full">
+        <div className="bg-white rounded-xl sm:rounded-2xl shadow-sm p-4 sm:p-6 mb-4 sm:mb-6 lg:mb-8">
+          <div className="flex items-center gap-2 mb-4">
+            <AlertTriangle className="w-5 h-5 text-amber-500" />
+            <div>
+              <h2 className="text-xl sm:text-2xl font-bold text-[#1E1B4B]">Moderação da comunidade</h2>
+              <p className="text-sm text-gray-500">Denúncias pendentes para análise dos moderadores.</p>
+            </div>
+          </div>
+
+          {communityReports.length === 0 ? (
+            <p className="text-sm text-gray-500">Nenhuma denúncia pendente no momento.</p>
+          ) : (
+            <div className="space-y-3">
+              {communityReports.map((report) => (
+                <div key={report.id} className="rounded-xl border border-gray-200 p-4">
+                  <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-[#1E1B4B]">
+                        Denúncia por {report.reporterName} · motivo: {report.reason}
+                      </p>
+                      <p className="text-xs text-gray-500 mt-1">
+                        Autor do post: {report.authorName} · {new Date(report.created_at).toLocaleString('pt-BR')}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        disabled={moderatingReportId === report.id}
+                        onClick={() => handleModerateReport(report, 'dismiss')}
+                        className="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-600"
+                      >
+                        {moderatingReportId === report.id ? 'Processando...' : 'Descartar'}
+                      </button>
+                      <button
+                        type="button"
+                        disabled={moderatingReportId === report.id}
+                        onClick={() => handleModerateReport(report, 'hide')}
+                        className="rounded-lg bg-red-600 hover:bg-red-700 disabled:opacity-60 px-3 py-1.5 text-xs font-semibold text-white"
+                      >
+                        {moderatingReportId === report.id ? 'Processando...' : 'Ocultar post'}
+                      </button>
+                    </div>
+                  </div>
+
+                  {report.details && (
+                    <p className="mt-3 text-sm text-gray-700 bg-gray-50 rounded-lg p-3">{report.details}</p>
+                  )}
+
+                  <div className="mt-3 rounded-lg border border-gray-100 bg-gray-50 p-3">
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Conteúdo denunciado</p>
+                    <p className="text-sm text-gray-700 whitespace-pre-wrap">{report.post?.content || 'Post não encontrado.'}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6 lg:gap-8">
           <div className="lg:col-span-7 flex flex-col gap-4 sm:gap-6 lg:gap-8">
             <div className="bg-white rounded-xl sm:rounded-2xl shadow-sm p-4 sm:p-6">

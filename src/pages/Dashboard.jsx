@@ -13,6 +13,7 @@ import { supabase } from '../supabaseClient';
 import { TOKENS } from '../config/tokens';
 import { useUserRole } from '../hooks/useUserRole';
 import { useTopRanking } from '../hooks/useTopRanking';
+import { useCommunityProfile } from '../hooks/useCommunityProfile';
 import { canUserTakeAssessment } from '../utils/assessmentRules';
 import { 
   formatActivityName, 
@@ -43,19 +44,22 @@ const VIOLENCIA_ZERO_INDIVIDUAL_ID = import.meta.env.VITE_ASSESSMENT_VIOLENCIA_Z
 
 const Dashboard = ({ user }) => {
   const navigate = useNavigate();
+  const { displayName } = useCommunityProfile(user);
 
-  // Função para formatar nome do usuário com fallback
   const getDisplayUserName = (userData) => {
+    if (userData?.id && user?.id && userData.id === user.id) {
+      return displayName;
+    }
+
     if (!userData) return 'Usuário';
-    
-    // Tentar diversos campos possíveis que podem vir do backend
-    return userData.display_name || 
-           userData.user_display_name ||
-           userData.full_name || 
-           userData.name ||
-           userData.email?.split('@')[0] || 
-           userData.user_email?.split('@')[0] ||
-           'Usuário';
+
+    return userData.display_name
+      || userData.user_display_name
+      || userData.full_name
+      || userData.name
+      || userData.email?.split('@')[0]
+      || userData.user_email?.split('@')[0]
+      || 'Usuário';
   };
 
   // Mapeamento de indicadores para links de conteúdo
@@ -91,13 +95,6 @@ const Dashboard = ({ user }) => {
     description: 'Identifique sinais críticos, avalie decisões e fortaleça uma cultura de segurança no ambiente de trabalho.',
     path: '/assessment/violencia-zero-organizacional'
   });
-  const [displayName, setDisplayName] = useState(
-    user?.user_metadata?.display_name || 
-    user?.user_metadata?.full_name || 
-    user?.email?.split('@')[0] || 
-    'Usuário'
-  );
-
   // Hook para carregar ranking do usuário
   const { ranking } = useUserRanking(user?.id);
 
@@ -124,13 +121,6 @@ const Dashboard = ({ user }) => {
   }, [showRankingModal]);
 
   useEffect(() => {
-    // Atualiza nome base do metadata ao mudar usuário
-    setDisplayName(
-      user?.user_metadata?.display_name || 
-      user?.user_metadata?.full_name || 
-      user?.email?.split('@')[0] || 
-      'Usuário'
-    );
     // Reset animações e previousStats ao trocar usuário
     setAnimateXPBar(false);
     setAnimateLevel(false);
@@ -189,10 +179,6 @@ const Dashboard = ({ user }) => {
 
   const loadUserStats = async () => {
     if (!user) return;
-
-    // Usar display_name e full_name do user_metadata, email (sem domínio) como último recurso
-    const name = user?.user_metadata?.display_name || user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'Usuário';
-    setDisplayName(name);
 
     try {
       const buildViolenceZeroCard = (assessment, fallbackTitle, fallbackPath, fallbackDescription) => ({
@@ -505,6 +491,7 @@ const Dashboard = ({ user }) => {
                 <DevelopmentChart 
                   indicators={developmentIndicators} 
                   user={user} 
+                  displayNameOverride={displayName}
                   onIndicatorClick={setSelectedIndicator}
                 />
               </div>

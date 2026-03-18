@@ -161,8 +161,65 @@ CREATE TABLE public.profiles (
   id uuid NOT NULL,
   role text NOT NULL DEFAULT 'user'::text,
   created_at timestamp with time zone DEFAULT now(),
+  display_name text,
+  avatar_key text,
+  avatar_bg_color text,
+  community_opt_in boolean NOT NULL DEFAULT false,
+  community_onboarded_at timestamp with time zone,
+  is_banned boolean NOT NULL DEFAULT false,
+  banned_reason text,
+  updated_at timestamp with time zone DEFAULT now(),
   CONSTRAINT profiles_pkey PRIMARY KEY (id),
   CONSTRAINT profiles_id_fkey FOREIGN KEY (id) REFERENCES auth.users(id)
+);
+CREATE TABLE public.community_posts (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  author_id uuid NOT NULL,
+  content text NOT NULL,
+  is_deleted boolean NOT NULL DEFAULT false,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT community_posts_pkey PRIMARY KEY (id),
+  CONSTRAINT community_posts_author_id_fkey FOREIGN KEY (author_id) REFERENCES auth.users(id)
+);
+CREATE TABLE public.community_post_reactions (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  post_id uuid NOT NULL,
+  user_id uuid NOT NULL,
+  reaction_type text NOT NULL DEFAULT 'like'::text CHECK (reaction_type = ANY (ARRAY['like'::text, 'celebrate'::text, 'support'::text])),
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT community_post_reactions_pkey PRIMARY KEY (id),
+  CONSTRAINT community_post_reactions_post_id_user_id_key UNIQUE (post_id, user_id),
+  CONSTRAINT community_post_reactions_post_id_fkey FOREIGN KEY (post_id) REFERENCES public.community_posts(id),
+  CONSTRAINT community_post_reactions_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
+);
+CREATE TABLE public.community_follows (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  follower_id uuid NOT NULL,
+  following_id uuid NOT NULL,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT community_follows_pkey PRIMARY KEY (id),
+  CONSTRAINT community_follows_unique UNIQUE (follower_id, following_id),
+  CONSTRAINT community_follows_no_self CHECK (follower_id <> following_id),
+  CONSTRAINT community_follows_follower_id_fkey FOREIGN KEY (follower_id) REFERENCES auth.users(id),
+  CONSTRAINT community_follows_following_id_fkey FOREIGN KEY (following_id) REFERENCES auth.users(id)
+);
+CREATE TABLE public.community_post_reports (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  post_id uuid NOT NULL,
+  reporter_id uuid NOT NULL,
+  reason text NOT NULL CHECK (reason = ANY (ARRAY['spam'::text, 'abuso'::text, 'conteudo_inadequado'::text, 'desinformacao'::text, 'outro'::text])),
+  details text,
+  status text NOT NULL DEFAULT 'pending'::text CHECK (status = ANY (ARRAY['pending'::text, 'resolved'::text, 'dismissed'::text])),
+  moderator_id uuid,
+  moderator_notes text,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  resolved_at timestamp with time zone,
+  CONSTRAINT community_post_reports_pkey PRIMARY KEY (id),
+  CONSTRAINT community_post_reports_unique UNIQUE (post_id, reporter_id),
+  CONSTRAINT community_post_reports_post_id_fkey FOREIGN KEY (post_id) REFERENCES public.community_posts(id),
+  CONSTRAINT community_post_reports_reporter_id_fkey FOREIGN KEY (reporter_id) REFERENCES auth.users(id),
+  CONSTRAINT community_post_reports_moderator_id_fkey FOREIGN KEY (moderator_id) REFERENCES auth.users(id)
 );
 CREATE TABLE public.questions (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
