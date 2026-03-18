@@ -94,13 +94,13 @@ const Dashboard = ({ user }) => {
     organizacional: {
       visible: true,
       title: 'Violência Zero - Organizacional',
-      description: 'Identifique sinais críticos, avalie decisões e fortaleça uma cultura de segurança no ambiente de trabalho.',
+      description: 'Avalie a maturidade da sua organização no enfrentamento à violência contra a mulher.',
       path: '/assessment/violencia-zero-organizacional'
     },
     individual: {
       visible: true,
       title: 'Violência Zero - Individual',
-      description: 'Avalie seu próprio comportamento, reconheça padrões de risco e desenvolva uma postura mais segura e consciente.',
+      description: 'Avalie o seu nível de conhecimento individual sobre o tema da Violência contra Mulheres e Meninas.',
       path: '/assessment/violencia-zero-individual'
     }
   });
