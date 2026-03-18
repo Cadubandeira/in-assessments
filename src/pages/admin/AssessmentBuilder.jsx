@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { supabase } from '../../supabaseClient';
 import { useUserRole } from '../../hooks/useUserRole';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Trash2, ArrowLeft, Save, GitBranch, Sparkles, X, Copy, Power } from 'lucide-react';
+import { Plus, Trash2, ArrowLeft, Save, GitBranch, Sparkles, X, Copy, Power, ArrowUp, ArrowDown, GripVertical } from 'lucide-react';
 import RichTextEditor from '../../components/RichTextEditor';
 import OverallRangesEditor from '../../components/OverallRangesEditor';
 import AssessmentElementsModal from '../../components/AssessmentElementsModal';
@@ -93,6 +93,10 @@ export default function AssessmentBuilder() {
   // Estado para duplicação
   const [isDuplicating, setIsDuplicating] = useState(false);
 
+  // Estado para reordenação
+  const [isReordering, setIsReordering] = useState(false);
+  const [isSavingOrder, setIsSavingOrder] = useState(false);
+
   // Helper: derive active elements from loaded version data
   const deriveActiveElements = (versionData) => {
     const hasContent = (str) => {
@@ -123,7 +127,7 @@ export default function AssessmentBuilder() {
       try {
         setLoading(true);
         const [assRes, indRes] = await Promise.all([
-          supabase.from('assessments').select('id, name, description, is_active'),
+          supabase.from('assessments').select('id, name, description, is_active, display_order'),
           supabase.from('indicators_master').select('id, name'),
         ]);
 
@@ -131,7 +135,12 @@ export default function AssessmentBuilder() {
         if (indRes.error) throw indRes.error;
 
         if (mounted) {
-          setAssessments(assRes.data || []);
+          const sorted = [...(assRes.data || [])].sort((a, b) => {
+            const ao = a.display_order ?? 9999;
+            const bo = b.display_order ?? 9999;
+            return ao - bo;
+          });
+          setAssessments(sorted);
           setIndicators(indRes.data || []);
         }
       } catch (err) {
@@ -1973,6 +1982,29 @@ Deseja continuar?`;
 
   const hasNiveisContent = levels.length > 0 && levels.some(level => (level.questions || []).length > 0);
 
+  const handleMoveAssessment = (index, direction) => {
+    const newList = [...assessments];
+    const swapIndex = index + direction;
+    if (swapIndex < 0 || swapIndex >= newList.length) return;
+    [newList[index], newList[swapIndex]] = [newList[swapIndex], newList[index]];
+    setAssessments(newList);
+  };
+
+  const handleSaveOrder = async () => {
+    setIsSavingOrder(true);
+    try {
+      const updates = assessments.map((a, idx) =>
+        supabase.from('assessments').update({ display_order: idx + 1 }).eq('id', a.id)
+      );
+      await Promise.all(updates);
+      setIsReordering(false);
+    } catch (err) {
+      console.error('Erro ao salvar ordem:', err);
+    } finally {
+      setIsSavingOrder(false);
+    }
+  };
+
   const handleDuplicateAssessment = async (assessmentId, e) => {
     e.stopPropagation();
     if (isDuplicating) return;
@@ -2318,16 +2350,70 @@ Deseja continuar?`;
           <div className="bg-white/80 backdrop-blur-sm border border-white/60 rounded-2xl p-6 shadow-lg">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-semibold text-gray-900">Assessments</h2>
-              <button
-                onClick={handleInitNewAssessment}
-                className="p-2 bg-gradient-to-r from-[#4F46E5] to-[#6366F1] text-white rounded-lg hover:shadow-lg transition-all"
-                title="Criar Novo Assessment"
-              >
-                <Plus className="w-4 h-4" />
-              </button>
+              <div className="flex items-center gap-2">
+                {isReordering ? (
+                  <>
+                    <button
+                      onClick={() => setIsReordering(false)}
+                      className="px-2 py-1 text-xs text-gray-500 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      onClick={handleSaveOrder}
+                      disabled={isSavingOrder}
+                      className="px-2 py-1 text-xs font-semibold text-white bg-[#4F46E5] rounded-lg hover:bg-[#4338CA] transition-colors disabled:opacity-50"
+                    >
+                      {isSavingOrder ? 'Salvando...' : 'Salvar ordem'}
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      onClick={() => setIsReordering(true)}
+                      title="Reordenar assessments"
+                      className="p-2 text-gray-500 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                    >
+                      <GripVertical className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={handleInitNewAssessment}
+                      className="p-2 bg-gradient-to-r from-[#4F46E5] to-[#6366F1] text-white rounded-lg hover:shadow-lg transition-all"
+                      title="Criar Novo Assessment"
+                    >
+                      <Plus className="w-4 h-4" />
+                    </button>
+                  </>
+                )}
+              </div>
             </div>
             <div className="space-y-2">
-              {assessments.map((a) => (
+              {assessments.map((a, idx) => (
+                isReordering ? (
+                  <div
+                    key={a.id}
+                    className="flex items-center gap-2 px-3 py-2.5 rounded-lg border-2 border-gray-200 bg-white"
+                  >
+                    <div className="flex flex-col gap-0.5">
+                      <button
+                        onClick={() => handleMoveAssessment(idx, -1)}
+                        disabled={idx === 0}
+                        className="p-0.5 text-gray-400 hover:text-[#4F46E5] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                      >
+                        <ArrowUp className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => handleMoveAssessment(idx, 1)}
+                        disabled={idx === assessments.length - 1}
+                        className="p-0.5 text-gray-400 hover:text-[#4F46E5] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                      >
+                        <ArrowDown className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                    <span className="flex-1 text-sm font-medium text-gray-800 truncate">{a.name}</span>
+                    <span className="text-xs text-gray-400 font-mono">{idx + 1}</span>
+                  </div>
+                ) : (
                 <div
                   key={a.id}
                   className={`flex items-center justify-between rounded-lg border-2 transition-all ${
@@ -2369,6 +2455,7 @@ Deseja continuar?`;
                     </div>
                   )}
                 </div>
+                )
               ))}
             </div>
           </div>

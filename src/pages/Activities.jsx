@@ -73,13 +73,16 @@ const Activities = () => {
     const fetch = async () => {
       const { data } = await supabase
         .from('assessments')
-        .select('id, name, description, is_active, published_at, created_at')
+        .select('id, name, description, is_active, published_at, created_at, display_order')
         .eq('is_active', true);
 
       let sorted = [];
       if (data) {
         setAssessments(data);
         sorted = [...data].sort((a, b) => {
+          const ao = a.display_order ?? 9999;
+          const bo = b.display_order ?? 9999;
+          if (ao !== bo) return ao - bo;
           const dateA = new Date(a.published_at || a.created_at || 0).getTime();
           const dateB = new Date(b.published_at || b.created_at || 0).getTime();
           return dateB - dateA;
