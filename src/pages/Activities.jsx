@@ -78,7 +78,6 @@ const Activities = () => {
 
       let sorted = [];
       if (data) {
-        setAssessments(data);
         sorted = [...data].sort((a, b) => {
           const ao = a.display_order ?? 9999;
           const bo = b.display_order ?? 9999;
@@ -87,6 +86,7 @@ const Activities = () => {
           const dateB = new Date(b.published_at || b.created_at || 0).getTime();
           return dateB - dateA;
         });
+        setAssessments(sorted);
         setHighlightAssessment(sorted[0] || null);
       }
 

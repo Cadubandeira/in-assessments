@@ -362,17 +362,16 @@ const Dashboard = ({ user }) => {
 
       {/* CONTE\u00daDO PRINCIPAL */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 -mt-24 relative z-20 w-full">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6 lg:gap-8">
+        <div className={`grid ${userStats.totalAssessments > 0 ? 'grid-cols-1 lg:grid-cols-12' : 'grid-cols-1'} gap-4 sm:gap-6 lg:gap-8`}>
           
-          {/* COLUNA ESQUERDA */}
-          <div className="lg:col-span-8 flex flex-col gap-4 sm:gap-6 lg:gap-8 w-full">
-
-            {/* CARD VIOLÊNCIA ZERO - ORGANIZACIONAL */}
-            {assessmentCards.organizacional.visible && (
+          {/* CARDS DE ASSESSMENTS - FULL WIDTH */}
+          {/* CARD VIOLÊNCIA ZERO - ORGANIZACIONAL */}
+          {assessmentCards.organizacional.visible && (
+            <div className={`w-full ${userStats.totalAssessments > 0 ? 'lg:col-span-12' : ''}`}>
             <button
               type="button"
               onClick={() => navigate(assessmentCards.organizacional.path)}
-              className="group relative overflow-hidden rounded-xl sm:rounded-2xl bg-gradient-to-r from-[#7C2D12] via-[#DC2626] to-[#FB7185] p-[1px] text-left shadow-2xl transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_24px_60px_rgba(220,38,38,0.35)]"
+              className="w-full group relative overflow-hidden rounded-xl sm:rounded-2xl bg-gradient-to-r from-[#7C2D12] via-[#DC2626] to-[#FB7185] p-[1px] text-left shadow-2xl transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_24px_60px_rgba(220,38,38,0.35)]"
               aria-label="Ir para o assessment Violência Zero Organizacional"
             >
               <div className="relative overflow-hidden rounded-[calc(theme(borderRadius.2xl)-1px)] bg-[#1F1221] px-5 py-5 sm:px-6 sm:py-6 lg:px-8 lg:py-7 text-white">
@@ -407,14 +406,16 @@ const Dashboard = ({ user }) => {
                 </div>
               </div>
             </button>
+            </div>
             )}
 
             {/* CARD VIOLÊNCIA ZERO - INDIVIDUAL */}
             {assessmentCards.individual.visible && (
+            <div className={`w-full ${userStats.totalAssessments > 0 ? 'lg:col-span-12' : ''}`}>
             <button
               type="button"
               onClick={() => navigate(assessmentCards.individual.path)}
-              className="group relative overflow-hidden rounded-xl sm:rounded-2xl bg-gradient-to-r from-[#581C87] via-[#7C3AED] to-[#C084FC] p-[1px] text-left shadow-2xl transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_24px_60px_rgba(124,58,237,0.35)]"
+              className="w-full group relative overflow-hidden rounded-xl sm:rounded-2xl bg-gradient-to-r from-[#581C87] via-[#7C3AED] to-[#C084FC] p-[1px] text-left shadow-2xl transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_24px_60px_rgba(124,58,237,0.35)]"
               aria-label="Ir para o assessment Violência Zero Individual"
             >
               <div className="relative overflow-hidden rounded-[calc(theme(borderRadius.2xl)-1px)] bg-[#1A0F2E] px-5 py-5 sm:px-6 sm:py-6 lg:px-8 lg:py-7 text-white">
@@ -449,8 +450,13 @@ const Dashboard = ({ user }) => {
                 </div>
               </div>
             </button>
+            </div>
             )}
             
+            {/* CARD DE PERFORMANCE E CONTEÚDO - COL ESQUERDA - APENAS COM ASSESSMENTS */}
+            {userStats.totalAssessments > 0 && (
+            <div className="lg:col-span-8 flex flex-col gap-4 sm:gap-6 lg:gap-8 w-full">
+
             {/* CARD DE PERFORMANCE */}
             {userStats.totalAssessments > 0 && (
             <div className="bg-white/80 backdrop-blur-sm border border-white/50 p-4 sm:p-6 lg:p-8 rounded-xl sm:rounded-2xl shadow-xl w-full">
@@ -571,8 +577,10 @@ const Dashboard = ({ user }) => {
             )}
 
           </div>
+          )}
 
-          {/* COLUNA DIREITA */}
+          {/* COLUNA DIREITA - APENAS COM ASSESSMENTS */}
+          {userStats.totalAssessments > 0 && (
           <div className="lg:col-span-4 flex flex-col gap-4 sm:gap-6 lg:gap-8 w-full">
             
             {/* ATIVIDADES RECENTES */}
@@ -693,6 +701,7 @@ const Dashboard = ({ user }) => {
             </div>
             )}
           </div>
+          )}
         </div>
       </main>
 
@@ -880,8 +889,15 @@ const Dashboard = ({ user }) => {
 
       {/* FOOTER */}
       <footer className="mt-16 border-t border-[#E2E8F0] py-6 px-4">
-        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-[#94A3B8]">
-          <span>© {new Date().getFullYear()} In Assessments · BNDR Design LTDA</span>
+        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-[#475569]">
+          <a 
+            href="https://www.linkedin.com/in/cadubandeira/" 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="hover:text-[#4F46E5] transition-colors"
+          >
+            © {new Date().getFullYear()} In Assessments · BNDR Design LTDA
+          </a>
           <div className="flex items-center gap-4">
             <Link to="/privacy-policy" className="hover:text-[#4F46E5] transition-colors">
               Política de Privacidade
