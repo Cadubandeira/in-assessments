@@ -71,7 +71,27 @@ export async function createNewAssessmentVersion(assessmentId, previousVersionId
   if (previousVersionId) {
     const { data: prevVersion } = await supabase
       .from('assessment_versions')
-      .select('version_number, visualization_type, introduction_html, show_deepening_card, deepening_card_url')
+      .select(`
+        version_number,
+        schema,
+        level_mode,
+        visualization_type,
+        introduction_html,
+        final_reflection,
+        result_introduction,
+        pre_assessment_fields,
+        no_level_achieved_title,
+        no_level_achieved_description,
+        gamify_xp,
+        xp_completion,
+        xp_score_80_89,
+        xp_score_90_99,
+        xp_score_100,
+        show_indicator_intro,
+        show_level_badges,
+        show_deepening_card,
+        deepening_card_url
+      `)
       .eq('id', previousVersionId)
       .single();
     previousVersionData = prevVersion;
@@ -95,8 +115,22 @@ export async function createNewAssessmentVersion(assessmentId, previousVersionId
     visualizationType = assessmentData.visualization_type;
   }
 
-  // Copiar introduction_html da versão anterior, se existir
+  // Copiar campos da versão anterior, se existir
   const introductionHtml = previousVersionData?.introduction_html || '';
+  const finalReflection = previousVersionData?.final_reflection || null;
+  const resultIntroduction = previousVersionData?.result_introduction || null;
+  const preAssessmentFields = previousVersionData?.pre_assessment_fields || null;
+  const noLevelAchievedTitle = previousVersionData?.no_level_achieved_title || null;
+  const noLevelAchievedDescription = previousVersionData?.no_level_achieved_description || null;
+  const schema = previousVersionData?.schema || null;
+  const levelMode = previousVersionData?.level_mode || null;
+  const gamifyXp = previousVersionData?.gamify_xp || false;
+  const xpCompletion = gamifyXp ? (previousVersionData?.xp_completion || 0) : 0;
+  const xpScore80 = gamifyXp ? (previousVersionData?.xp_score_80_89 || 0) : 0;
+  const xpScore90 = gamifyXp ? (previousVersionData?.xp_score_90_99 || 0) : 0;
+  const xpScore100 = gamifyXp ? (previousVersionData?.xp_score_100 || 0) : 0;
+  const showIndicatorIntro = previousVersionData?.show_indicator_intro !== false;
+  const showLevelBadges = previousVersionData?.show_level_badges !== false;
   const showDeepeningCard = previousVersionData?.show_deepening_card !== false;
   const deepeningCardUrl = previousVersionData?.deepening_card_url || 'https://www.innernetworking.com.br/';
 
@@ -107,8 +141,22 @@ export async function createNewAssessmentVersion(assessmentId, previousVersionId
       assessment_id: assessmentId,
       version_number: nextVersionNumber,
       is_active: false,
+      schema,
+      level_mode: levelMode,
       visualization_type: visualizationType,
       introduction_html: introductionHtml,
+      final_reflection: finalReflection,
+      result_introduction: resultIntroduction,
+      pre_assessment_fields: preAssessmentFields,
+      no_level_achieved_title: noLevelAchievedTitle,
+      no_level_achieved_description: noLevelAchievedDescription,
+      gamify_xp: gamifyXp,
+      xp_completion: xpCompletion,
+      xp_score_80_89: xpScore80,
+      xp_score_90_99: xpScore90,
+      xp_score_100: xpScore100,
+      show_indicator_intro: showIndicatorIntro,
+      show_level_badges: showLevelBadges,
       show_deepening_card: showDeepeningCard,
       deepening_card_url: deepeningCardUrl
     }])

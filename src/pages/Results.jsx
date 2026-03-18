@@ -655,6 +655,7 @@ export default function Results() {
                   });
 
                   const answersPayload = {};
+                  let globalQuestionNumber = 1;
                   indicatorsData.forEach((indicator) => {
                     const indicatorMasterId = indicator.indicator_master_id ? String(indicator.indicator_master_id) : null;
                     const indicatorName = indicator.indicators_master?.name ? String(indicator.indicators_master.name) : null;
@@ -668,18 +669,21 @@ export default function Results() {
                       new Map(sourceQuestions.map((q) => [q.id, q])).values()
                     ).sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
 
-                    const questions = uniqueQuestions.map((question) => {
+                    const questions = uniqueQuestions.map((question, qIdx) => {
                       const answer = answersData[question.id];
                       const selectedAlternative = findSelectedAlternative(question.alternatives, answer);
 
                       return {
                         questionId: question.id,
                         questionText: question.text || `Pergunta ${question.display_order || ''}`.trim(),
+                        questionNumber: globalQuestionNumber + qIdx,
                         answerText: selectedAlternative?.text || null,
                         answerValue: selectedAlternative?.score_value ?? answer ?? null,
                         isAnswered: !!selectedAlternative
                       };
                     });
+
+                    globalQuestionNumber += uniqueQuestions.length;
 
                     const itemPayload = {
                       itemId: indicator.id,
@@ -1378,18 +1382,17 @@ export default function Results() {
 
                     <div className="mt-6">
                       {v.interpretation && (
-                        <p
+                        <div
                           data-indicator-interpretation-key={indicatorKey}
-                          className={`text-base sm:text-lg text-gray-700 leading-relaxed text-justify [text-align-last:left] ${
+                          className={`prose prose-sm max-w-none text-base sm:text-lg text-gray-700 leading-relaxed text-justify [text-align-last:left] ${
                             forceExpandAll || expandedIndicatorInterpretations[indicatorKey]
                               ? ''
                               : truncatedIndicatorInterpretations[indicatorKey]
                                 ? 'line-clamp-5 text-fade-out'
                                 : ''
                           }`}
-                        >
-                          {v.interpretation}
-                        </p>
+                          dangerouslySetInnerHTML={{ __html: v.interpretation }}
+                        />
                       )}
 
                       <div className="mt-2 flex items-center justify-between gap-4">

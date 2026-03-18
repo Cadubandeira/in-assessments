@@ -1374,6 +1374,9 @@ export default function AssessmentBuilder() {
         if (finalReflection !== undefined) {
           versionUpdateFields.final_reflection = finalReflection || null;
         }
+        if (preAssessmentFields !== undefined) {
+          versionUpdateFields.pre_assessment_fields = preAssessmentFields.length > 0 ? preAssessmentFields : null;
+        }
         // Adicionar campos de XP
         versionUpdateFields.gamify_xp = gamifyXp || false;
         versionUpdateFields.xp_completion = gamifyXp ? xpCompletion : 0;
@@ -1519,8 +1522,14 @@ export default function AssessmentBuilder() {
         if (introductionHtml !== undefined) {
           versionTextUpdate.introduction_html = introductionHtml;
         }
+        if (resultIntroduction !== undefined) {
+          versionTextUpdate.result_introduction = resultIntroduction || null;
+        }
         if (finalReflection !== undefined) {
           versionTextUpdate.final_reflection = finalReflection || null;
+        }
+        if (preAssessmentFields !== undefined) {
+          versionTextUpdate.pre_assessment_fields = preAssessmentFields.length > 0 ? preAssessmentFields : null;
         }
         // Adicionar campos de XP
         versionTextUpdate.gamify_xp = gamifyXp || false;

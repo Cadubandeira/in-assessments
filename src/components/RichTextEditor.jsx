@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Link from '@tiptap/extension-link';
 import Placeholder from '@tiptap/extension-placeholder';
 import { Mark } from '@tiptap/core';
+import { flushSync } from 'react-dom';
 import { 
   Bold, 
   Italic, 
@@ -71,6 +72,17 @@ export default function RichTextEditor({
   maxHeight = 500
 }) {
   const [showFontSizeMenu, setShowFontSizeMenu] = useState(false);
+  const lastEmittedValueRef = useRef(value || '');
+
+  const emitChange = (html) => {
+    lastEmittedValueRef.current = html;
+
+    if (onChange) {
+      flushSync(() => {
+        onChange(html);
+      });
+    }
+  };
 
   const fontSizes = [
     { label: 'Pequeno', value: '0.875rem' },
@@ -104,20 +116,44 @@ export default function RichTextEditor({
     content: value,
     onUpdate: ({ editor }) => {
       const html = editor.getHTML();
-      onChange?.(html);
+      emitChange(html);
+    },
+    onBlur: ({ editor }) => {
+      const html = editor.getHTML();
+      emitChange(html);
     },
     editorProps: {
       attributes: {
         class: 'prose prose-sm max-w-none focus:outline-none min-h-[120px] p-4 text-base'
+      },
+      handlePaste: (view, event) => {
+        queueMicrotask(() => {
+          const html = view.dom.innerHTML;
+          emitChange(html);
+        });
+
+        return false;
       }
     }
   });
 
   // Sync external value changes
-  React.useEffect(() => {
-    if (editor && value !== editor.getHTML()) {
-      editor.commands.setContent(value);
+  useEffect(() => {
+    if (!editor) {
+      return;
     }
+
+    const normalizedValue = value || '';
+
+    if (normalizedValue === lastEmittedValueRef.current) {
+      return;
+    }
+
+    if (normalizedValue !== editor.getHTML()) {
+      editor.commands.setContent(normalizedValue, false);
+    }
+
+    lastEmittedValueRef.current = normalizedValue;
   }, [value, editor]);
 
   if (!editor) {
