@@ -284,62 +284,83 @@ const Management = ({ user }) => {
       </section>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 -mt-16 relative z-20 w-full">
-        <div className="bg-white rounded-xl sm:rounded-2xl shadow-sm p-4 sm:p-6 mb-4 sm:mb-6 lg:mb-8">
-          <div className="flex items-center gap-2 mb-4">
-            <AlertTriangle className="w-5 h-5 text-amber-500" />
-            <div>
-              <h2 className="text-xl sm:text-2xl font-bold text-[#1E1B4B]">Moderação da comunidade</h2>
-              <p className="text-sm text-gray-500">Denúncias pendentes para análise dos moderadores.</p>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 lg:gap-8 mb-4 sm:mb-6 lg:mb-8">
+          <div className="bg-white rounded-xl sm:rounded-2xl shadow-sm p-4 sm:p-6">
+            <div className="flex items-center gap-2 mb-4">
+              <AlertTriangle className="w-5 h-5 text-amber-500" />
+              <div>
+                <h2 className="text-xl sm:text-2xl font-bold text-[#1E1B4B]">Moderação da comunidade</h2>
+                <p className="text-sm text-gray-500">Denúncias pendentes para análise dos moderadores.</p>
+              </div>
             </div>
+
+            {communityReports.length === 0 ? (
+              <p className="text-sm text-gray-500">Nenhuma denúncia pendente no momento.</p>
+            ) : (
+              <div className="space-y-3">
+                {communityReports.map((report) => (
+                  <div key={report.id} className="rounded-xl border border-gray-200 p-4">
+                    <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold text-[#1E1B4B]">
+                          Denúncia por {report.reporterName} · motivo: {report.reason}
+                        </p>
+                        <p className="text-xs text-gray-500 mt-1">
+                          Autor do post: {report.authorName} · {new Date(report.created_at).toLocaleString('pt-BR')}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          disabled={moderatingReportId === report.id}
+                          onClick={() => handleModerateReport(report, 'dismiss')}
+                          className="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-600"
+                        >
+                          {moderatingReportId === report.id ? 'Processando...' : 'Descartar'}
+                        </button>
+                        <button
+                          type="button"
+                          disabled={moderatingReportId === report.id}
+                          onClick={() => handleModerateReport(report, 'hide')}
+                          className="rounded-lg bg-red-600 hover:bg-red-700 disabled:opacity-60 px-3 py-1.5 text-xs font-semibold text-white"
+                        >
+                          {moderatingReportId === report.id ? 'Processando...' : 'Ocultar post'}
+                        </button>
+                      </div>
+                    </div>
+
+                    {report.details && (
+                      <p className="mt-3 text-sm text-gray-700 bg-gray-50 rounded-lg p-3">{report.details}</p>
+                    )}
+
+                    <div className="mt-3 rounded-lg border border-gray-100 bg-gray-50 p-3">
+                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Conteúdo denunciado</p>
+                      <p className="text-sm text-gray-700 whitespace-pre-wrap">{report.post?.content || 'Post não encontrado.'}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
-          {communityReports.length === 0 ? (
-            <p className="text-sm text-gray-500">Nenhuma denúncia pendente no momento.</p>
-          ) : (
-            <div className="space-y-3">
-              {communityReports.map((report) => (
-                <div key={report.id} className="rounded-xl border border-gray-200 p-4">
-                  <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
-                    <div>
-                      <p className="text-sm font-semibold text-[#1E1B4B]">
-                        Denúncia por {report.reporterName} · motivo: {report.reason}
-                      </p>
-                      <p className="text-xs text-gray-500 mt-1">
-                        Autor do post: {report.authorName} · {new Date(report.created_at).toLocaleString('pt-BR')}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        disabled={moderatingReportId === report.id}
-                        onClick={() => handleModerateReport(report, 'dismiss')}
-                        className="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-600"
-                      >
-                        {moderatingReportId === report.id ? 'Processando...' : 'Descartar'}
-                      </button>
-                      <button
-                        type="button"
-                        disabled={moderatingReportId === report.id}
-                        onClick={() => handleModerateReport(report, 'hide')}
-                        className="rounded-lg bg-red-600 hover:bg-red-700 disabled:opacity-60 px-3 py-1.5 text-xs font-semibold text-white"
-                      >
-                        {moderatingReportId === report.id ? 'Processando...' : 'Ocultar post'}
-                      </button>
-                    </div>
-                  </div>
-
-                  {report.details && (
-                    <p className="mt-3 text-sm text-gray-700 bg-gray-50 rounded-lg p-3">{report.details}</p>
-                  )}
-
-                  <div className="mt-3 rounded-lg border border-gray-100 bg-gray-50 p-3">
-                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Conteúdo denunciado</p>
-                    <p className="text-sm text-gray-700 whitespace-pre-wrap">{report.post?.content || 'Post não encontrado.'}</p>
-                  </div>
-                </div>
-              ))}
+          <div className="bg-white rounded-xl sm:rounded-2xl shadow-sm p-4 sm:p-6 flex flex-col">
+            <div className="flex items-center gap-2 mb-4">
+              <Sparkles className="w-5 h-5 text-indigo-500" />
+              <div>
+                <h2 className="text-xl sm:text-2xl font-bold text-[#1E1B4B]">Painel de resultados</h2>
+                <p className="text-sm text-gray-500">Visualize métricas e relatórios de assessments.</p>
+              </div>
             </div>
-          )}
+            
+            <div className="flex-1 flex items-center justify-center">
+              <button
+                onClick={() => navigate('/admin/panel')}
+                className="bg-gradient-to-r from-[#4F46E5] to-[#6366F1] text-white px-8 py-3 rounded-lg font-bold text-sm uppercase tracking-wider hover:scale-105 transition-transform"
+              >
+                Acessar painel
+              </button>
+            </div>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6 lg:gap-8">

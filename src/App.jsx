@@ -34,6 +34,7 @@ import TermsOfService from './pages/TermsOfService';
 import IndicatorsAdmin from './pages/admin/IndicatorsAdmin';
 import AssessmentBuilder from './pages/admin/AssessmentBuilder';
 import Management from './pages/admin/Management';
+import Panel from './pages/admin/Panel';
 
 // Scroll to top on route change
 const ScrollToTop = () => {
@@ -239,6 +240,7 @@ export default function App() {
             <Route path="notificacoes" element={<CommunityNotifications user={user} />} />
           </Route>
           <Route path="/admin/management" element={<ProtectedLayout user={user}><Management user={user} /></ProtectedLayout>} />
+          <Route path="/admin/panel" element={<ProtectedLayout user={user}><Panel user={user} /></ProtectedLayout>} />
           <Route path="/admin/indicators" element={<ProtectedLayout user={user}><IndicatorsAdmin /></ProtectedLayout>} />
           <Route path="/admin/assessments/builder" element={<ProtectedLayout user={user}><AssessmentBuilder /></ProtectedLayout>} />
           <Route path="*" element={<Navigate to={user ? "/dashboard" : "/"} replace />} />
