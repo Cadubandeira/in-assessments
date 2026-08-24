@@ -1,6 +1,8 @@
 import React from 'react';
 import { ArrowRight, Zap } from 'lucide-react';
 import { TOKENS } from '../config/tokens';
+import { normalizeScenarioHtml } from '../utils/scenarioTextNormalization';
+import { translateScenarioPressureIndicator } from '../utils/realScenarioUtils';
 
 /**
  * Consequence Screen Component
@@ -12,40 +14,6 @@ const ConsequenceScreen = ({
   onContinue,
   isLoading = false
 }) => {
-  const getPressureIcon = (indicator) => {
-    switch (indicator) {
-      case 'stakes_increased':
-        return '🔥';
-      case 'new_constraint_added':
-        return '⚠️';
-      case 'time_pressure_added':
-        return '⏱️';
-      case 'information_revealed':
-        return '💡';
-      case 'ambiguity_increased':
-        return '🤔';
-      default:
-        return '📊';
-    }
-  };
-
-  const getPressureLabel = (indicator) => {
-    switch (indicator) {
-      case 'stakes_increased':
-        return 'Risco aumentou';
-      case 'new_constraint_added':
-        return 'Nova restrição';
-      case 'time_pressure_added':
-        return 'Pressão de tempo';
-      case 'information_revealed':
-        return 'Nova informação';
-      case 'ambiguity_increased':
-        return 'Maior incerteza';
-      default:
-        return indicator;
-    }
-  };
-
   return (
     <div className="space-y-6 animate-fadeIn">
       {/* Consequence Content */}
@@ -65,8 +33,8 @@ const ConsequenceScreen = ({
         </div>
 
         <div 
-          className="prose max-w-none text-gray-800 leading-relaxed"
-          dangerouslySetInnerHTML={{ __html: content }}
+          className="prose max-w-none text-gray-800 leading-relaxed scenario-rich-content"
+          dangerouslySetInnerHTML={{ __html: normalizeScenarioHtml(content) }}
         />
       </div>
 
@@ -78,13 +46,19 @@ const ConsequenceScreen = ({
           </p>
           <div className="flex flex-wrap gap-2">
             {pressureIndicators.map((indicator, index) => (
-              <div
-                key={index}
-                className="inline-flex items-center gap-2 px-3 py-1.5 bg-white rounded-full text-sm text-amber-900 font-medium shadow-sm"
-              >
-                <span>{getPressureIcon(indicator)}</span>
-                <span>{getPressureLabel(indicator)}</span>
-              </div>
+              (() => {
+                const translated = translateScenarioPressureIndicator(indicator);
+
+                return (
+                  <div
+                    key={index}
+                    className="inline-flex items-center gap-2 px-3 py-1.5 bg-white rounded-full text-sm text-amber-900 font-medium shadow-sm"
+                  >
+                    <span>{translated.icon}</span>
+                    <span>{translated.label}</span>
+                  </div>
+                );
+              })()
             ))}
           </div>
         </div>

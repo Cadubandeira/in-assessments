@@ -160,11 +160,13 @@ const evaluateEmotionalResponses = (decisions) => {
 
     if (stakes === 'critical' || emotionalLoad === 'high') {
       highStakesCount++;
-      
-      // If user remained confident under pressure, good emotional control
-      if (confidence === 'confident') {
+
+      // Confidence can come from explicit self-report or passive behavioral signals.
+      const inferredConfidence = inferConfidence(decision);
+
+      if (inferredConfidence === 'confident') {
         emotionalControlScore += 2;
-      } else if (confidence === 'moderate') {
+      } else if (inferredConfidence === 'moderate') {
         emotionalControlScore += 1;
       }
     }
@@ -239,7 +241,7 @@ const assessCognitiveLoadHandling = (decisions) => {
   let highLoadCount = 0;
 
   decisions.forEach(decision => {
-    const perceivedLoad = decision.cognitive_load_perceived;
+    const perceivedLoad = inferCognitiveLoad(decision);
     const actualLoad = decision.node?.cognitive_markers?.cognitive_complexity;
 
     if (actualLoad === 'high') {
@@ -265,6 +267,36 @@ const assessCognitiveLoadHandling = (decisions) => {
       ? 'Reconhece e gerencia bem situações complexas'
       : 'Pode subestimar complexidade de cenários'
   };
+};
+
+const inferConfidence = (decision) => {
+  const explicitConfidence = decision?.decision_confidence;
+  if (explicitConfidence) return explicitConfidence;
+
+  const telemetry = decision?.metadata?.passiveTelemetry || {};
+  const dwell = telemetry?.dwell_time_before_confirm_seconds;
+  const changes = telemetry?.option_change_count;
+
+  if (dwell == null && changes == null) return 'moderate';
+  if ((dwell != null && dwell >= 12) || (changes != null && changes >= 2)) return 'moderate';
+  if ((dwell != null && dwell <= 4) && (changes != null && changes === 0)) return 'confident';
+  return 'moderate';
+};
+
+const inferCognitiveLoad = (decision) => {
+  const explicitLoad = decision?.cognitive_load_perceived;
+  if (explicitLoad) return explicitLoad;
+
+  const telemetry = decision?.metadata?.passiveTelemetry || {};
+  const totalDecisionTime = decision?.time_to_decide_seconds;
+  const dwell = telemetry?.dwell_time_before_confirm_seconds;
+  const changes = telemetry?.option_change_count || 0;
+
+  const effectiveTime = dwell ?? totalDecisionTime ?? 0;
+
+  if (effectiveTime >= 45 || changes >= 3) return 'high';
+  if (effectiveTime >= 20 || changes >= 1) return 'medium';
+  return 'low';
 };
 
 /**

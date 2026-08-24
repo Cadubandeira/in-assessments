@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Clock, AlertCircle, TrendingUp } from 'lucide-react';
+import { Clock, AlertCircle } from 'lucide-react';
 import { TOKENS } from '../config/tokens';
+import { normalizeScenarioHtml, normalizeScenarioText } from '../utils/scenarioTextNormalization';
+import { formatScenarioOptionParts } from '../utils/realScenarioUtils';
 
 /**
  * Decision Node Component
@@ -13,43 +15,89 @@ const DecisionNode = ({
 }) => {
   const [selectedOption, setSelectedOption] = useState(null);
   const [timeRemaining, setTimeRemaining] = useState(null);
-  const [confidence, setConfidence] = useState('moderate');
-  const [cognitiveLoad, setCognitiveLoad] = useState('medium');
   const [showMetadata, setShowMetadata] = useState(false);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [firstSelectedAt, setFirstSelectedAt] = useState(null);
+  const [lastSelectionChangeAt, setLastSelectionChangeAt] = useState(null);
+  const [selectionChangeCount, setSelectionChangeCount] = useState(0);
 
   const hasTimeLimit = node?.pressure_elements?.time_limit;
   const stakes = node?.pressure_elements?.stakes;
   const ambiguity = node?.pressure_elements?.ambiguity;
 
+  useEffect(() => {
+    setSelectedOption(null);
+    setShowMetadata(false);
+    setElapsedSeconds(0);
+    setFirstSelectedAt(null);
+    setLastSelectionChangeAt(null);
+    setSelectionChangeCount(0);
+    setTimeRemaining(node?.pressure_elements?.time_limit ?? null);
+  }, [node?.id, node?.pressure_elements?.time_limit]);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setElapsedSeconds((prev) => prev + 1);
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [node?.id]);
+
   // Timer effect
   useEffect(() => {
-    if (hasTimeLimit && timeRemaining === null) {
-      setTimeRemaining(node.pressure_elements.time_limit);
-    }
-
     if (timeRemaining !== null && timeRemaining > 0) {
       const timer = setTimeout(() => {
         setTimeRemaining(timeRemaining - 1);
       }, 1000);
       return () => clearTimeout(timer);
-    } else if (timeRemaining === 0 && selectedOption !== null) {
-      // Auto-submit on timeout
-      handleSubmit();
+    } else if (timeRemaining === 0) {
+      // Auto-submit on timeout with safe fallback.
+      if (selectedOption !== null) {
+        handleSubmit(true);
+      } else if ((node?.decision_options?.length || 0) > 0) {
+        handleSubmit(true, 0, true);
+      }
     }
-  }, [timeRemaining, hasTimeLimit, selectedOption]);
+  }, [timeRemaining, hasTimeLimit, selectedOption, node?.decision_options]);
 
   const handleOptionClick = (index) => {
+    const now = elapsedSeconds;
+
+    if (selectedOption !== null && selectedOption !== index) {
+      setSelectionChangeCount((prev) => prev + 1);
+      setLastSelectionChangeAt(now);
+    }
+
+    if (firstSelectedAt === null) {
+      setFirstSelectedAt(now);
+    }
+
     setSelectedOption(index);
     setShowMetadata(true);
   };
 
-  const handleSubmit = () => {
-    if (selectedOption === null) return;
+  const handleSubmit = (isAutoSubmit = false, forcedOptionIndex = null, timeoutAutoSelected = false) => {
+    const optionToSubmit = forcedOptionIndex ?? selectedOption;
+    if (optionToSubmit === null) return;
 
-    onDecision(selectedOption, {
-      confidence,
-      cognitiveLoad,
-      timeRemaining
+    const now = elapsedSeconds;
+    const effectiveFirstSelectedAt = firstSelectedAt ?? now;
+
+    const passiveTelemetry = {
+      option_first_selected_at: effectiveFirstSelectedAt,
+      option_last_changed_at: lastSelectionChangeAt,
+      option_change_count: selectionChangeCount,
+      node_view_started_at: 0,
+      decision_confirmed_at: now,
+      first_selection_latency_seconds: Math.max(0, effectiveFirstSelectedAt),
+      dwell_time_before_confirm_seconds: Math.max(0, now - effectiveFirstSelectedAt),
+      timeout_auto_submit: Boolean(isAutoSubmit),
+      timeout_auto_selected: Boolean(timeoutAutoSelected)
+    };
+
+    onDecision(optionToSubmit, {
+      timeRemaining,
+      passiveTelemetry
     });
   };
 
@@ -100,8 +148,8 @@ const DecisionNode = ({
       {/* Node Content */}
       <div className="bg-white border border-gray-200 rounded-2xl p-6 sm:p-8 shadow-sm">
         <div 
-          className="prose max-w-none text-gray-800 leading-relaxed"
-          dangerouslySetInnerHTML={{ __html: node.content }}
+          className="prose max-w-none text-gray-800 leading-relaxed scenario-rich-content"
+          dangerouslySetInnerHTML={{ __html: normalizeScenarioHtml(node.content) }}
         />
       </div>
 
@@ -136,9 +184,22 @@ const DecisionNode = ({
                     {String.fromCharCode(65 + index)}
                   </div>
                   <div className="flex-grow">
-                    <p className="text-base text-gray-800 leading-relaxed">
-                      {option.text}
-                    </p>
+                    {(() => {
+                      const parsed = formatScenarioOptionParts(normalizeScenarioText(option.text));
+
+                      return (
+                        <div className="space-y-2">
+                          {parsed.action && (
+                            <span className="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wide bg-[#EEF2FF] text-[#3730A3] border border-[#C7D2FE]">
+                              {parsed.action}
+                            </span>
+                          )}
+                          <p className="text-base text-gray-800 leading-relaxed">
+                            {parsed.action ? `"${parsed.speech}"` : parsed.speech}
+                          </p>
+                        </div>
+                      );
+                    })()}
                   </div>
                 </div>
               </button>
@@ -147,57 +208,9 @@ const DecisionNode = ({
         </div>
       </div>
 
-      {/* Metadata Collection (shown after selection) */}
+      {/* Confirmation (shown after selection) */}
       {showMetadata && selectedOption !== null && (
-        <div className="bg-gradient-to-br from-[#F3F4F6] to-[#E5E7EB] border border-gray-300 rounded-2xl p-6 space-y-4 animate-fadeIn">
-          <p className="text-sm font-semibold text-gray-700">
-            Antes de confirmar, nos ajude a entender sua decisão:
-          </p>
-
-          <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider text-gray-600 mb-2">
-              Qual seu nível de confiança nesta escolha?
-            </label>
-            <div className="flex gap-2">
-              {['uncertain', 'moderate', 'confident'].map(level => (
-                <button
-                  key={level}
-                  type="button"
-                  onClick={() => setConfidence(level)}
-                  className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-all ${
-                    confidence === level
-                      ? 'bg-[#4F46E5] text-white'
-                      : 'bg-white text-gray-700 hover:bg-gray-100'
-                  }`}
-                >
-                  {level === 'uncertain' ? 'Incerto' : level === 'moderate' ? 'Moderado' : 'Confiante'}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider text-gray-600 mb-2">
-              Quão complexa foi esta decisão?
-            </label>
-            <div className="flex gap-2">
-              {['low', 'medium', 'high'].map(level => (
-                <button
-                  key={level}
-                  type="button"
-                  onClick={() => setCognitiveLoad(level)}
-                  className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-all ${
-                    cognitiveLoad === level
-                      ? 'bg-[#4F46E5] text-white'
-                      : 'bg-white text-gray-700 hover:bg-gray-100'
-                  }`}
-                >
-                  {level === 'low' ? 'Fácil' : level === 'medium' ? 'Média' : 'Difícil'}
-                </button>
-              ))}
-            </div>
-          </div>
-
+        <div className="pt-2 animate-fadeIn">
           <button
             type="button"
             onClick={handleSubmit}
@@ -210,10 +223,7 @@ const DecisionNode = ({
                 Processando...
               </>
             ) : (
-              <>
-                Confirmar Decisão
-                <TrendingUp className="w-5 h-5" />
-              </>
+              <>Confirmar</>
             )}
           </button>
         </div>

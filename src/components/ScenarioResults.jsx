@@ -15,7 +15,8 @@ const ScenarioResults = ({
   analysis, 
   sessionMetadata,
   onClose,
-  totalXP = 0
+  totalXP = 0,
+  outcomeType = 'neutral'
 }) => {
   const [showXPOverlay, setShowXPOverlay] = useState(false);
   const [xpData, setXpData] = useState(null);
@@ -26,12 +27,16 @@ const ScenarioResults = ({
   // Calculate and PERSIST XP immediately on mount (BEFORE showing overlay)
   useEffect(() => {
     const awardXP = async () => {
-      if (!analysis?.kahneman || !sessionMetadata || xpAwarded) return;
+      if (!analysis || !sessionMetadata || xpAwarded) return;
 
       try {
         // 1. Calculate XP based on cognitive analysis
         const xp = calculateScenarioXP(
-          analysis.kahneman,
+          analysis.kahneman || {
+            system1_score: 50,
+            system2_score: 50,
+            biases: []
+          },
           sessionMetadata.avgDecisionTime || 0,
           sessionMetadata.decisionsCount || 0
         );
@@ -84,7 +89,13 @@ const ScenarioResults = ({
     );
   }
 
-  const { patterns, indicators, insights, kahneman, kahnemanInsight } = analysis;
+  const {
+    patterns = {},
+    indicators = {},
+    insights = [],
+    kahneman = null,
+    kahnemanInsight = null
+  } = analysis || {};
 
   const getInsightIcon = (type) => {
     switch (type) {
@@ -117,6 +128,57 @@ const ScenarioResults = ({
     const secs = seconds % 60;
     return `${mins}min ${secs}s`;
   };
+
+  const getOutcomeLabel = (value) => {
+    switch (value) {
+      case 'success':
+        return 'Desfecho: sucesso';
+      case 'partial':
+        return 'Desfecho: parcial';
+      case 'failure':
+        return 'Desfecho: insucesso';
+      default:
+        return 'Desfecho: em aprendizado';
+    }
+  };
+
+  const getOutcomeDescription = (value) => {
+    switch (value) {
+      case 'success':
+        return 'Sua trilha levou a um resultado positivo. Revise os pontos fortes para repetir esse padrão sob pressão.';
+      case 'partial':
+        return 'Você mitigou parte do problema, mas ainda houve perdas de eficácia. A aprendizagem está em identificar os pontos de alavancagem.';
+      case 'failure':
+        return 'Este desfecho mostra oportunidades claras de evolução. Erros aqui viram repertório para decisões melhores no próximo ciclo.';
+      default:
+        return 'Seu percurso trouxe sinais úteis para aprimorar decisões futuras.';
+    }
+  };
+
+  const getWeakSpots = () => {
+    const labels = {
+      decision_speed: 'Velocidade de decisão',
+      risk_profile: 'Gestão de risco',
+      thinking_style: 'Estilo de pensamento',
+      emotional_regulation: 'Regulação emocional',
+      adaptability: 'Adaptabilidade',
+      cognitive_load_management: 'Gestão de carga cognitiva',
+      consistency: 'Consistência decisória'
+    };
+
+    return Object.entries(patterns || {})
+      .filter(([, value]) => typeof value?.score === 'number' && value.score < 50)
+      .sort((a, b) => a[1].score - b[1].score)
+      .slice(0, 3)
+      .map(([key, value]) => ({
+        key,
+        label: labels[key] || key,
+        score: value.score,
+        description: value.description || 'Sinal de melhoria identificado nesta trilha.'
+      }));
+  };
+
+  const weakSpots = getWeakSpots();
 
   return (
     <div className="space-y-8 animate-fadeIn">
@@ -154,6 +216,33 @@ const ScenarioResults = ({
             <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">Decisões</p>
             <p className="text-lg font-bold text-gray-800">{sessionMetadata.decisionsCount}</p>
           </div>
+        </div>
+      )}
+
+      <div className="bg-gradient-to-r from-[#EEF2FF] to-[#F8FAFC] border border-[#C7D2FE] rounded-xl p-4">
+        <p className="text-sm font-semibold text-[#312E81] mb-1">
+          {getOutcomeLabel(outcomeType)}
+        </p>
+        <p className="text-sm text-gray-700">
+          {getOutcomeDescription(outcomeType)}
+        </p>
+      </div>
+
+      {(outcomeType === 'partial' || outcomeType === 'failure') && weakSpots.length > 0 && (
+        <div className="bg-[#FFF7ED] border border-[#FED7AA] rounded-xl p-5 space-y-3">
+          <h3 className="text-base font-bold text-[#9A3412]">
+            Onde a trilha perdeu eficacia
+          </h3>
+          {weakSpots.map((spot) => (
+            <div key={spot.key} className="bg-white rounded-lg border border-[#FDBA74] p-3">
+              <p className="text-sm font-semibold text-[#7C2D12]">
+                {spot.label} - {spot.score}/100
+              </p>
+              <p className="text-sm text-[#7C2D12]/90 mt-1">
+                {spot.description}
+              </p>
+            </div>
+          ))}
         </div>
       )}
 

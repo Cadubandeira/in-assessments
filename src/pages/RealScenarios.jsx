@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, PlayCircle, Loader2 } from 'lucide-react';
 import { TOKENS } from '../config/tokens';
@@ -8,6 +8,7 @@ import DecisionNode from '../components/DecisionNode';
 import ConsequenceScreen from '../components/ConsequenceScreen';
 import ScenarioResults from '../components/ScenarioResults';
 import RealScenariosSkeleton from '../components/skeletons/RealScenariosSkeleton';
+import { normalizeScenarioHtml } from '../utils/scenarioTextNormalization';
 
 const RealScenarios = () => {
   const navigate = useNavigate();
@@ -22,6 +23,7 @@ const RealScenarios = () => {
   const [consequenceData, setConsequenceData] = useState(null);
   const [completionData, setCompletionData] = useState(null);
   const [userTotalXP, setUserTotalXP] = useState(0);
+  const isCompletingRef = useRef(false);
   
   // Flag para evitar glitch quando há scenarioId na URL
   const [isInitializingFromUrl] = useState(!!scenarioId);
@@ -88,7 +90,13 @@ const RealScenarios = () => {
   // Auto-complete when reaching final node
   useEffect(() => {
     const finishScenario = async () => {
-      if (currentNode?.node_type === 'final' && phase === 'running' && !completionData) {
+      if (
+        currentNode?.node_type === 'final' &&
+        phase === 'running' &&
+        !completionData &&
+        !isCompletingRef.current
+      ) {
+        isCompletingRef.current = true;
         console.log('Final node reached, completing session...');
         const results = await completeSession();
         if (results) {
@@ -97,6 +105,7 @@ const RealScenarios = () => {
         } else {
           console.error('Failed to complete session');
         }
+        isCompletingRef.current = false;
       }
     };
 
@@ -187,6 +196,7 @@ const RealScenarios = () => {
               avgDecisionTime: completionData.totalTime / (completionData.decisionsCount || 1)
             }}
             totalXP={userTotalXP}
+            outcomeType={completionData.outcomeType}
             onClose={handleBackToActivities}
           />
         </main>
@@ -259,7 +269,7 @@ const RealScenarios = () => {
               <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#4F46E5] mb-2">Contexto Inicial</p>
               <div 
                 className="text-sm sm:text-base text-gray-700 leading-relaxed prose max-w-none"
-                dangerouslySetInnerHTML={{ __html: selectedScenario.initial_context }}
+                dangerouslySetInnerHTML={{ __html: normalizeScenarioHtml(selectedScenario.initial_context) }}
               />
             </div>
 

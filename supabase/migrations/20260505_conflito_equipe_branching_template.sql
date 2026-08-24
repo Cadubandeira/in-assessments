@@ -1,0 +1,74 @@
+-- Template de expansao de finais para o cenário:
+-- Conflito de Equipe: Crise de Liderança
+-- scenario_id: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+--
+-- Objetivo:
+-- 1) preservar o final existente
+-- 2) criar pelo menos um final de sucesso e um de insucesso
+-- 3) redirecionar opcoes do ultimo nó decisório para finais distintos
+--
+-- PASSO 1: Identifique o ultimo nó de decisão e o nó final atual usando o arquivo:
+-- supabase/debug_real_scenario_graph.sql
+--
+-- PASSO 2: Preencha os UUIDs abaixo antes de rodar.
+
+-- Exemplo de placeholders:
+-- ultimo_no_decisorio = '00000000-0000-0000-0000-000000000010'
+-- final_atual = '00000000-0000-0000-0000-000000000099'
+
+-- 1) Marcar final atual como parcial ou failure, conforme a leitura editorial.
+-- UPDATE public.scenario_nodes
+-- SET outcome_type = 'partial'
+-- WHERE id = 'COLE_UUID_FINAL_ATUAL'::uuid
+--   AND scenario_id = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890'::uuid;
+
+-- 2) Criar novo final de sucesso.
+-- INSERT INTO public.scenario_nodes (
+--   scenario_id,
+--   node_type,
+--   content,
+--   pressure_elements,
+--   decision_options,
+--   cognitive_markers,
+--   display_order,
+--   is_entry_node,
+--   outcome_type
+-- ) VALUES (
+--   'a1b2c3d4-e5f6-7890-abcd-ef1234567890'::uuid,
+--   'final',
+--   '<p><strong>Desfecho</strong></p><p>Você restabelece clareza, reduz o conflito e reconquista alinhamento operacional do time.</p><blockquote><p>"Agora temos direção, responsabilidades e próximos passos claros."</p></blockquote><p>O aprendizado aqui é que liderança sob pressão exige clareza, timing e plano concreto.</p>',
+--   '{}'::jsonb,
+--   '[]'::jsonb,
+--   '{}'::jsonb,
+--   999,
+--   false,
+--   'success'
+-- );
+
+-- 3) Criar novo final de insucesso.
+-- INSERT INTO public.scenario_nodes (
+--   scenario_id,
+--   node_type,
+--   content,
+--   pressure_elements,
+--   decision_options,
+--   cognitive_markers,
+--   display_order,
+--   is_entry_node,
+--   outcome_type
+-- ) VALUES (
+--   'a1b2c3d4-e5f6-7890-abcd-ef1234567890'::uuid,
+--   'final',
+--   '<p><strong>Desfecho</strong></p><p>O time sai sem alinhamento suficiente, o conflito persiste e o atraso se agrava.</p><blockquote><p>"Ainda não ficou claro quem decide o quê."</p></blockquote><p>O aprendizado aqui é que evitar definição ou adiar conflito crítico cobra um preço operacional alto.</p>',
+--   '{}'::jsonb,
+--   '[]'::jsonb,
+--   '{}'::jsonb,
+--   1000,
+--   false,
+--   'failure'
+-- );
+
+-- 4) Atualizar decision_options do ultimo nó decisório manualmente,
+-- apontando opções diferentes para cada final.
+-- Sugestão: use o resultado da query 2 do arquivo de debug para copiar o JSON atual,
+-- alterar somente os next_node_id e aplicar um UPDATE cirúrgico.

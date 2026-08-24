@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../supabaseClient';
+import { deriveOutcomeTypeFromAnalysis } from '../utils/realScenarioUtils';
 
 /**
  * Hook para gerenciar sessões de cenários adaptativos
@@ -22,6 +23,7 @@ export const useScenarioSession = ({ scenarioId }) => {
   // Decision tracking
   const [decisions, setDecisions] = useState([]);
   const [currentDecisionStartTime, setCurrentDecisionStartTime] = useState(null);
+  const completionPromiseRef = useRef(null);
 
   /**
    * Initialize scenario and session
@@ -145,9 +147,13 @@ export const useScenarioSession = ({ scenarioId }) => {
       // Navigate to next node
       const nextNodeId = option.next_node_id;
       if (!nextNodeId) {
-        // No next node specified - this shouldn't happen in our scenario design
-        // The final node detection is handled in the component via useEffect
-        console.warn('Decision has no next_node_id - session may need manual completion');
+        // Fallback: if a node has no next pointer, treat it as terminal to avoid blocking results.
+        setCurrentNode({
+          id: `virtual-final-${currentNode.id}`,
+          node_type: 'final',
+          content: 'Cenário concluído.',
+          decision_options: []
+        });
         return true;
       }
 
@@ -158,10 +164,15 @@ export const useScenarioSession = ({ scenarioId }) => {
 
       // Update session with new path
       const newPath = [...decisionPath, nextNodeId];
+      const nextOutcome = nextNode.node_type === 'final'
+        ? (nextNode.outcome_type || 'neutral')
+        : 'neutral';
+
       const { error: updateError } = await supabase
         .from('scenario_sessions')
         .update({
-          decision_path: newPath
+          decision_path: newPath,
+          outcome_type: nextOutcome
         })
         .eq('id', sessionId);
 
@@ -184,74 +195,195 @@ export const useScenarioSession = ({ scenarioId }) => {
    * Complete the session and perform cognitive analysis
    */
   const completeSession = useCallback(async () => {
-    if (!sessionId) return null;
-
-    try {
-      // Import analysis functions
-      const { analyzeCognitivePatterns } = await import('../utils/scenarioAnalysis');
-      const { analyzeKahnemanSystems, getKahnemanInsight } = await import('../utils/kahnemanAnalysis');
-      const { calculateScenarioXP } = await import('../utils/gamificationUtils');
-      
-      // Perform traditional analysis
-      const analysis = analyzeCognitivePatterns(decisions, scenario);
-
-      // Perform Kahneman-specific analysis
-      const kahnemanAnalysis = analyzeKahnemanSystems(decisions);
-      const kahnemanInsight = getKahnemanInsight(kahnemanAnalysis);
-
-      // Combine analyses
-      const fullAnalysis = {
-        ...analysis,
-        kahneman: kahnemanAnalysis,
-        kahnemanInsight: kahnemanInsight
-      };
-
-      // Calculate XP reward
-      const totalTime = Math.round((new Date() - sessionStartTime) / 1000);
-      const avgDecisionTime = decisions.length > 0 ? totalTime / decisions.length : 0;
-      const xpCalculation = calculateScenarioXP(kahnemanAnalysis, avgDecisionTime, decisions.length);
-      
-      // Format XP reward for overlay
-      const xpReward = {
-        baseXP: xpCalculation.baseXP,
-        bonuses: xpCalculation.bonuses,
-        totalEarned: xpCalculation.totalXP
-      };
-
-      // Update session as completed
-      const { error: updateError } = await supabase.rpc(
-        'complete_scenario_session',
-        {
-          p_session_id: sessionId,
-          p_cognitive_patterns: {
-            ...analysis.patterns,
-            kahneman_system1: kahnemanAnalysis.system1_score,
-            kahneman_system2: kahnemanAnalysis.system2_score,
-            kahneman_biases: kahnemanAnalysis.biases
-          },
-          p_indicator_mapping: analysis.indicators
-        }
-      );
-
-      if (updateError) throw updateError;
-
-      // Update user indicator scores
-      await updateUserIndicatorScores(analysis.indicators);
-
+    if (!sessionId) {
       return {
-        sessionId,
-        analysis: fullAnalysis,
-        totalTime,
-        decisionsCount: decisions.length,
-        xpReward
+        sessionId: null,
+        analysis: {
+          patterns: {},
+          indicators: {},
+          insights: [],
+          kahneman: {
+            system1_score: 50,
+            system2_score: 50,
+            system1_count: 0,
+            system2_count: 0,
+            biases: [],
+            balance: 'equilibrado',
+            avg_decision_time: 0,
+            fast_decisions_count: 0,
+            slow_decisions_count: 0,
+            total_decisions: 0,
+            decision_journey: []
+          },
+          kahnemanInsight: {
+            type: 'balanced',
+            title: 'Análise indisponível',
+            description: 'Não foi possível consolidar a sessão atual.',
+            kahneman_quote: ''
+          }
+        },
+        totalTime: 0,
+        decisionsCount: 0,
+        xpReward: {
+          baseXP: 100,
+          bonuses: {},
+          totalEarned: 100
+        }
       };
-
-    } catch (err) {
-      console.error('Error completing session:', err);
-      setError(err.message);
-      return null;
     }
-  }, [sessionId, decisions, scenario, sessionStartTime]);
+
+    if (completionPromiseRef.current) {
+      return completionPromiseRef.current;
+    }
+
+    const completionPromise = (async () => {
+      const normalizedDecisions = Array.isArray(decisions) ? decisions : [];
+      const safeSessionStart = sessionStartTime || new Date();
+
+      try {
+        // Import analysis functions
+        const { analyzeCognitivePatterns } = await import('../utils/scenarioAnalysis');
+        const { analyzeKahnemanSystems, getKahnemanInsight } = await import('../utils/kahnemanAnalysis');
+        const { calculateScenarioXP } = await import('../utils/gamificationUtils');
+
+        // Perform traditional analysis
+        const analysis = analyzeCognitivePatterns(normalizedDecisions, scenario || { target_indicators: [] });
+
+        // Perform Kahneman-specific analysis
+        const kahnemanAnalysis = analyzeKahnemanSystems(normalizedDecisions);
+        const kahnemanInsight = getKahnemanInsight(kahnemanAnalysis);
+
+        // Combine analyses
+        const fullAnalysis = {
+          patterns: analysis?.patterns || {},
+          indicators: analysis?.indicators || {},
+          insights: analysis?.insights || [],
+          kahneman: kahnemanAnalysis,
+          kahnemanInsight: kahnemanInsight
+        };
+
+        // Calculate XP reward
+        const totalTime = Math.max(0, Math.round((new Date() - safeSessionStart) / 1000));
+        const avgDecisionTime = normalizedDecisions.length > 0 ? totalTime / normalizedDecisions.length : 0;
+        const xpCalculation = calculateScenarioXP(kahnemanAnalysis, avgDecisionTime, normalizedDecisions.length);
+
+        // Format XP reward for overlay
+        const xpReward = {
+          baseXP: xpCalculation.baseXP,
+          bonuses: xpCalculation.bonuses,
+          totalEarned: xpCalculation.totalXP
+        };
+
+        // Update session as completed
+        const payloadPatterns = {
+          ...(analysis?.patterns || {}),
+          kahneman_system1: kahnemanAnalysis.system1_score,
+          kahneman_system2: kahnemanAnalysis.system2_score,
+          kahneman_biases: kahnemanAnalysis.biases
+        };
+        const payloadIndicators = analysis?.indicators || {};
+        const resolvedOutcomeType = deriveOutcomeTypeFromAnalysis(
+          fullAnalysis,
+          currentNode?.outcome_type || 'neutral'
+        );
+
+        const { error: updateError } = await supabase.rpc(
+          'complete_scenario_session',
+          {
+            p_session_id: sessionId,
+            p_cognitive_patterns: payloadPatterns,
+            p_indicator_mapping: payloadIndicators
+          }
+        );
+
+        if (updateError) {
+          console.error('RPC complete_scenario_session failed, applying fallback completion:', updateError);
+
+          await supabase
+            .from('scenario_sessions')
+            .update({
+              status: 'completed',
+              completed_at: new Date().toISOString(),
+              total_time_seconds: totalTime,
+              cognitive_patterns: payloadPatterns,
+              indicator_mapping: payloadIndicators,
+              outcome_type: resolvedOutcomeType
+            })
+            .eq('id', sessionId);
+        } else {
+          await supabase
+            .from('scenario_sessions')
+            .update({ outcome_type: resolvedOutcomeType })
+            .eq('id', sessionId);
+        }
+
+        // Update user indicator scores
+        await updateUserIndicatorScores(payloadIndicators);
+
+        return {
+          sessionId,
+          analysis: fullAnalysis,
+          totalTime,
+          decisionsCount: normalizedDecisions.length,
+          outcomeType: resolvedOutcomeType,
+          xpReward
+        };
+
+      } catch (err) {
+        console.error('Error completing session:', err);
+        setError(err.message);
+
+        const totalTime = Math.max(0, Math.round((new Date() - safeSessionStart) / 1000));
+
+        return {
+          sessionId,
+          analysis: {
+            patterns: {},
+            indicators: {},
+            insights: [
+              {
+                type: 'watch',
+                title: 'Análise parcial disponível',
+                description: 'Houve uma instabilidade ao consolidar todos os dados. Você pode refazer o cenário para gerar uma leitura completa.'
+              }
+            ],
+            kahneman: {
+              system1_score: 50,
+              system2_score: 50,
+              system1_count: 0,
+              system2_count: 0,
+              biases: [],
+              balance: 'equilibrado',
+              avg_decision_time: 0,
+              fast_decisions_count: 0,
+              slow_decisions_count: 0,
+              total_decisions: normalizedDecisions.length,
+              decision_journey: []
+            },
+            kahnemanInsight: {
+              type: 'balanced',
+              title: 'Leitura cognitiva parcial',
+              description: 'Os sinais principais foram capturados, mas parte da análise não pôde ser finalizada.',
+              kahneman_quote: ''
+            }
+          },
+          totalTime,
+          decisionsCount: normalizedDecisions.length,
+          outcomeType: currentNode?.outcome_type || 'neutral',
+          xpReward: {
+            baseXP: 100,
+            bonuses: {},
+            totalEarned: 100
+          }
+        };
+      } finally {
+        completionPromiseRef.current = null;
+      }
+    })();
+
+    completionPromiseRef.current = completionPromise;
+    return completionPromise;
+  }, [sessionId, decisions, scenario, sessionStartTime, currentNode?.outcome_type]);
 
   /**
    * Update user_indicator_scores based on scenario results

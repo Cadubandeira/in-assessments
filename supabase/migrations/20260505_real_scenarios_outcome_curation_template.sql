@@ -1,0 +1,68 @@
+-- RealScenarios: template de curadoria manual de desfechos por roteiro.
+-- Objetivo: substituir classificacao heuristica por mapeamento explicito de nos finais.
+
+-- 1) Inventario: liste todos os nos finais para curadoria.
+-- Execute e revise o resultado antes de aplicar updates.
+-- SELECT
+--   sn.id,
+--   ss.title AS scenario_title,
+--   sn.display_order,
+--   sn.outcome_type,
+--   LEFT(sn.content, 220) AS content_preview
+-- FROM public.scenario_nodes sn
+-- JOIN public.scenario_simulations ss ON ss.id = sn.scenario_id
+-- WHERE sn.node_type = 'final'
+-- ORDER BY ss.title, sn.display_order;
+
+-- 2) Exemplo de mapeamento explicito por scenario_id + node_id.
+-- Substitua os UUIDs abaixo pelos valores reais do seu ambiente.
+--
+-- WITH curated(node_id, outcome_type) AS (
+--   VALUES
+--     ('00000000-0000-0000-0000-000000000001'::uuid, 'success'::text),
+--     ('00000000-0000-0000-0000-000000000002'::uuid, 'partial'::text),
+--     ('00000000-0000-0000-0000-000000000003'::uuid, 'failure'::text)
+-- )
+-- UPDATE public.scenario_nodes sn
+-- SET outcome_type = curated.outcome_type
+-- FROM curated
+-- WHERE sn.id = curated.node_id
+--   AND sn.node_type = 'final';
+
+-- 3) Regra de seguranca opcional: evite cenarios sem final de insucesso.
+-- Esta consulta mostra cenarios ativos que ainda nao tem nenhum final failure.
+-- SELECT
+--   ss.id,
+--   ss.title,
+--   COUNT(*) FILTER (WHERE sn.node_type = 'final') AS total_finais,
+--   COUNT(*) FILTER (WHERE sn.node_type = 'final' AND sn.outcome_type = 'failure') AS finais_failure
+-- FROM public.scenario_simulations ss
+-- LEFT JOIN public.scenario_nodes sn ON sn.scenario_id = ss.id
+-- WHERE ss.is_active = true
+-- GROUP BY ss.id, ss.title
+-- HAVING COUNT(*) FILTER (WHERE sn.node_type = 'final' AND sn.outcome_type = 'failure') = 0
+-- ORDER BY ss.title;
+
+-- 4) Regra de seguranca opcional: evitar cenarios sem final de sucesso.
+-- SELECT
+--   ss.id,
+--   ss.title,
+--   COUNT(*) FILTER (WHERE sn.node_type = 'final') AS total_finais,
+--   COUNT(*) FILTER (WHERE sn.node_type = 'final' AND sn.outcome_type = 'success') AS finais_success
+-- FROM public.scenario_simulations ss
+-- LEFT JOIN public.scenario_nodes sn ON sn.scenario_id = ss.id
+-- WHERE ss.is_active = true
+-- GROUP BY ss.id, ss.title
+-- HAVING COUNT(*) FILTER (WHERE sn.node_type = 'final' AND sn.outcome_type = 'success') = 0
+-- ORDER BY ss.title;
+
+-- 5) Opcional: sincronizar outcome_type da sessao ao concluir historico antigo.
+-- UPDATE public.scenario_sessions s
+-- SET outcome_type = sn.outcome_type
+-- FROM public.scenario_nodes sn
+-- WHERE s.status = 'completed'
+--   AND s.outcome_type = 'neutral'
+--   AND sn.id = (
+--     SELECT (jsonb_array_elements_text(s.decision_path) ORDER BY 1 DESC LIMIT 1)::uuid
+--   )
+--   AND sn.node_type = 'final';

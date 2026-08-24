@@ -16,7 +16,7 @@ const Logo = ({ size = 'normal', className = '', dark = true }) => {
       <div className="flex items-baseline gap-2">
         <span className={`font-['Dancing_Script'] ${textSize} ${textColor} font-bold leading-none`} translate="no">in</span>
         <div className={`${dotSize} rounded-full ${accentColor.replace('text-', 'bg-')} self-end ${dotMargin} animate-pulse`} />
-        <span className={`font-sans ${subTextSize} ${textColor} font-bold uppercase tracking-[0.3em] self-end ${dotMargin}`} translate="no">Assessments</span>
+        <span className={`font-sans ${subTextSize} ${textColor} font-bold uppercase tracking-[0.3em]`} translate="no">Assessments</span>
       </div>
     </div>
   );
