@@ -7,7 +7,7 @@ import Logo from '../components/ui/Logo';
 import { ArrowRight } from 'lucide-react';
 import HCaptcha from '@hcaptcha/react-hcaptcha';
 
-const LoginScreen = () => {
+const LoginScreen = ({ onAuthenticated }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -23,6 +23,9 @@ const LoginScreen = () => {
     // evitar ser redirecionado para o domínio de produção caso o Supabase ignore
     // o `redirectTo` (isso ocorre quando a URL não está registrada nos redirects do projeto).
     const redirectBase = (typeof window !== 'undefined') ? window.location.origin : '';
+    if (window.location.hash.startsWith('#/apply/')) {
+      sessionStorage.setItem('auth_return_path', window.location.hash.slice(1));
+    }
     const redirectUrl = import.meta.env.DEV ? redirectBase : (redirectBase + import.meta.env.BASE_URL);
 
     const isMicrosoftProvider = provider === 'azure';
@@ -81,6 +84,9 @@ const LoginScreen = () => {
     } else {
       const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
       error = signInError;
+      if (!error && onAuthenticated) {
+        await onAuthenticated();
+      }
     }
     if (error) {
       alert(error.message);

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 import { useNavigate } from 'react-router-dom';
-import { getActiveAssessmentVersion } from '../utils/assessmentVersions';
+import { getActiveAssessmentVersion, getAssessmentVersion } from '../utils/assessmentVersions';
 
 const isUuid = (value) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 const slugify = (value) => value
@@ -12,9 +12,10 @@ const slugify = (value) => value
   .replace(/(^-|-$)+/g, '');
 
 export const useAssessment = (options = {}) => {
-  const { assessmentIdOrSlug } = options;
+  const { assessmentIdOrSlug, applicationSessionToken } = options;
   const [assessment, setAssessment] = useState(null);
   const [assessmentVersionId, setAssessmentVersionId] = useState(null);
+  const [applicationSessionId, setApplicationSessionId] = useState(null);
   const [versionNumber, setVersionNumber] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -34,22 +35,38 @@ export const useAssessment = (options = {}) => {
 
   useEffect(() => {
     fetchAssessment();
-  }, [assessmentIdOrSlug]);
+  }, [assessmentIdOrSlug, applicationSessionToken]);
 
   const fetchAssessment = async () => {
     try {
       setLoading(true);
+      setApplicationSessionId(null);
+
+      let applicationSession = null;
+      if (applicationSessionToken) {
+        const { data: sessionData, error: sessionError } = await supabase
+          .rpc('get_application_session', { p_token: applicationSessionToken });
+        if (sessionError) throw sessionError;
+        applicationSession = Array.isArray(sessionData) ? sessionData[0] : sessionData;
+        if (!applicationSession) throw new Error('Sessão de aplicação não encontrada.');
+        if (applicationSession.status !== 'open') throw new Error('Esta sessão de aplicação já foi encerrada.');
+        if (applicationSession.expires_at && new Date(applicationSession.expires_at) <= new Date()) {
+          throw new Error('Esta sessão de aplicação expirou.');
+        }
+        setApplicationSessionId(applicationSession.id);
+      }
       
       // 1. Buscar assessment ativo (por slug/id ou default)
       let assessmentData = null;
       let assessmentError = null;
 
-      if (assessmentIdOrSlug) {
-        if (isUuid(assessmentIdOrSlug)) {
+      const requestedAssessment = applicationSession?.assessment_id || assessmentIdOrSlug;
+      if (requestedAssessment) {
+        if (isUuid(requestedAssessment)) {
           const { data, error } = await supabase
             .from('assessments')
             .select('*')
-            .eq('id', assessmentIdOrSlug)
+            .eq('id', requestedAssessment)
             .eq('is_active', true)
             .single();
           assessmentData = data;
@@ -61,7 +78,7 @@ export const useAssessment = (options = {}) => {
             .eq('is_active', true);
           if (error) throw error;
 
-          const match = (data || []).find(item => slugify(item.name || '') === assessmentIdOrSlug);
+          const match = (data || []).find(item => slugify(item.name || '') === requestedAssessment);
           if (!match) throw new Error('Assessment nao encontrado ou desativado.');
           assessmentData = match;
         }
@@ -80,7 +97,9 @@ export const useAssessment = (options = {}) => {
       if (!assessmentData) throw new Error('Nenhum assessment ativo encontrado.');
 
       // 2. Buscar versão ativa do assessment E carregar introduction_html + overall_ranges
-      const activeVersion = await getActiveAssessmentVersion(assessmentData.id);
+      const activeVersion = applicationSession?.assessment_version_id
+        ? await getAssessmentVersion(applicationSession.assessment_version_id)
+        : await getActiveAssessmentVersion(assessmentData.id);
 
       // Buscar introduction_html, schema, level_mode, pre_assessment_fields e XP config
       const { data: versionData, error: versionError } = await supabase
@@ -622,13 +641,28 @@ export const useAssessment = (options = {}) => {
         activity_name: assessment.name, // Gamificação: nome descritivo da atividade
         xp_awarded: false, // Marca que XP ainda não foi concedido
         assessment_schema: assessment.schema || 'indicadores', // Schema: 'indicadores' | 'niveis' - usado por triggers
+        application_session_id: applicationSessionId,
       };
 
       const { error: insertError } = await supabase
         .from('assessment_events')
         .insert([payload]);
 
-      if (insertError) throw insertError;
+      if (insertError) {
+        if (insertError.code === '23505' && applicationSessionId) {
+          const { data: existingEvent } = await supabase
+            .from('assessment_events')
+            .select('id')
+            .eq('application_session_id', applicationSessionId)
+            .eq('user_id', user.id)
+            .maybeSingle();
+          if (existingEvent?.id) {
+            navigate(`/results/${existingEvent.id}`);
+            return;
+          }
+        }
+        throw insertError;
+      }
 
       navigate('/results');
     } catch (err) {

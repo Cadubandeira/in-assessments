@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router-dom';
 import { useAssessment } from '../hooks/useAssessment';
 import { useXPRewards } from '../hooks/useXPRewards';
 import { TOKENS } from '../config/tokens';
@@ -11,6 +11,8 @@ import AssessmentSkeleton from '../components/skeletons/AssessmentSkeleton';
 
 const Assessment = () => {
   const { id } = useParams();
+  const [searchParams] = useSearchParams();
+  const applicationSessionToken = searchParams.get('application_session');
   const { 
     assessment, 
     loading, 
@@ -29,7 +31,7 @@ const Assessment = () => {
     xpScore90,
     xpScore100,
     showIndicatorIntro
-  } = useAssessment({ assessmentIdOrSlug: id });
+  } = useAssessment({ assessmentIdOrSlug: id, applicationSessionToken });
 
   // XP Hooks - will be overridden by assessment-specific config if gamifyXp is true
   let { baseXP, bonusThresholds, rewards } = useXPRewards('assessment');

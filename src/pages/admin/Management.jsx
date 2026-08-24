@@ -359,6 +359,12 @@ const Management = ({ user }) => {
               >
                 Acessar painel
               </button>
+              <button
+                onClick={() => navigate('/admin/applications')}
+                className="mt-3 rounded-lg border border-indigo-200 bg-white px-8 py-3 text-sm font-bold uppercase tracking-wider text-indigo-700 hover:bg-indigo-50"
+              >
+                Aplicações presenciais
+              </button>
             </div>
           </div>
         </div>

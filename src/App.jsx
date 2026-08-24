@@ -35,6 +35,8 @@ import IndicatorsAdmin from './pages/admin/IndicatorsAdmin';
 import AssessmentBuilder from './pages/admin/AssessmentBuilder';
 import Management from './pages/admin/Management';
 import Panel from './pages/admin/Panel';
+import ApplicationSession from './pages/ApplicationSession';
+import ApplicationsAdmin from './pages/admin/ApplicationsAdmin';
 
 // Scroll to top on route change
 const ScrollToTop = () => {
@@ -45,7 +47,37 @@ const ScrollToTop = () => {
   return null;
 };
 
-const AssessmentRunner = ({ user }) => {
+const AuthenticatedEntry = () => {
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const returnPath = sessionStorage.getItem('auth_return_path');
+    if (returnPath) {
+      window.location.hash = returnPath;
+      return;
+    }
+    navigate('/dashboard', { replace: true });
+  }, [navigate]);
+
+  return <div className="min-h-screen flex items-center justify-center bg-[#F5F3EC]">Abrindo...</div>;
+};
+
+const PendingApplicationRedirect = ({ user }) => {
+  const returnPath = sessionStorage.getItem('auth_return_path');
+
+  useEffect(() => {
+    if (!user || !returnPath) return;
+
+    const currentHash = window.location.hash || '';
+    if (currentHash !== `#${returnPath}`) {
+      window.location.hash = returnPath;
+    }
+  }, [user, returnPath]);
+
+  return null;
+};
+
+const AssessmentRunner = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const [assessment, setAssessment] = useState(null);
@@ -213,14 +245,16 @@ export default function App() {
       <ScrollToTop />
       <ErrorBoundary>
       <div className={`min-h-screen ${TOKENS.colors.bg} ${TOKENS.colors.ink} selection:bg-[#4F46E5] selection:text-white`}>
+        <PendingApplicationRedirect user={user} />
         
         <Routes>
           {/* Public results page, no authentication required */}
           <Route path="/public-results/:id" element={<PublicResults />} />
+          <Route path="/apply/:token" element={<ApplicationSession user={user} />} />
           <Route path="/privacy-policy" element={<PrivacyPolicy />} />
           <Route path="/terms-of-service" element={<TermsOfService />} />
           <Route path="/login" element={!user ? <Navigate to="/" replace /> : <Navigate to="/dashboard" replace />} />
-          <Route path="/" element={user ? <Navigate to="/dashboard" replace /> : <LoginScreen />} />
+          <Route path="/" element={user ? <AuthenticatedEntry /> : <LoginScreen />} />
           
           <Route path="/dashboard" element={<ProtectedLayout user={user}><Dashboard user={user} /></ProtectedLayout>} />
           <Route path="/activities" element={<ProtectedLayout user={user}><Activities /></ProtectedLayout>} />
@@ -241,9 +275,10 @@ export default function App() {
           </Route>
           <Route path="/admin/management" element={<ProtectedLayout user={user}><Management user={user} /></ProtectedLayout>} />
           <Route path="/admin/panel" element={<ProtectedLayout user={user}><Panel user={user} /></ProtectedLayout>} />
+          <Route path="/admin/applications" element={<ProtectedLayout user={user}><ApplicationsAdmin user={user} /></ProtectedLayout>} />
           <Route path="/admin/indicators" element={<ProtectedLayout user={user}><IndicatorsAdmin /></ProtectedLayout>} />
           <Route path="/admin/assessments/builder" element={<ProtectedLayout user={user}><AssessmentBuilder /></ProtectedLayout>} />
-          <Route path="*" element={<Navigate to={user ? "/dashboard" : "/"} replace />} />
+          <Route path="*" element={user ? <AuthenticatedEntry /> : <Navigate to="/" replace />} />
         </Routes>
       </div>
       </ErrorBoundary>
