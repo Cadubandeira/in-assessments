@@ -485,7 +485,12 @@ const Experiences = ({ user }) => {
                 <button type="button" onClick={() => window.open('https://wa.me/5541992082713?text=Ol%C3%A1%2C%20quero%20solicitar%20uma%20aplica%C3%A7%C3%A3o%20de%20avalia%C3%A7%C3%A3o%20em%20grupo%20para%20%5Btema%5D.', '_blank', 'noopener,noreferrer')} className="rounded-xl bg-white px-6 py-3 text-sm font-bold text-[#312E81] shadow-lg transition hover:bg-indigo-50">
                   Solicitar
                 </button>
-                <button type="button" onClick={() => window.location.hash = '#como-funciona'} className="rounded-xl border border-white/30 bg-white/5 px-6 py-3 text-sm font-bold text-white transition hover:bg-white/10">
+                <button type="button" onClick={() => {
+                  const el = document.getElementById('como-funciona');
+                  if (el) {
+                    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                  }
+                }} className="rounded-xl border border-white/30 bg-white/5 px-6 py-3 text-sm font-bold text-white transition hover:bg-white/10">
                   Como funciona
                 </button>
               </div>
@@ -585,24 +590,47 @@ const Experiences = ({ user }) => {
           ))}
         </section>
 
-        <section id="como-funciona" className="mt-20 rounded-[32px] border border-slate-200 bg-white p-8 shadow-sm">
+        <section id="como-funciona" className="mt-20 rounded-[32px] border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
           <div className="text-center">
-            <p className="text-xs font-bold uppercase tracking-[0.22em] text-indigo-600">Como funciona</p>
-            <h2 className={`${TOKENS.fonts.serif} mt-3 text-3xl font-bold text-[#1E1B4B]`}>
-              Um fluxo simples para medir grupos e gerar insights
-            </h2>
+            <p className="text-xs font-bold uppercase tracking-[0.22em] text-indigo-600">5 Etapas para sua avaliação em grupo</p>
           </div>
 
-          <div className="mt-10 grid gap-6 md:grid-cols-4">
+          <div className="mt-10 grid gap-5 lg:grid-cols-5">
             {[
-              'Escolher assessment',
-              'Criar avaliação em grupo',
-              'Convidar participantes',
-              'Analisar resultados'
+              {
+                number: '01',
+                title: 'Solicitar',
+                description: 'Você inicia o processo pelo nosso WhatsApp informando o objetivo da sua avaliação em grupo.'
+              },
+              {
+                number: '02',
+                title: 'Definir',
+                description: 'Apoiamos a escolha do assessment ideal para seu objetivo ou criamos uma versão personalizada para a sua necessidade.'
+              },
+              {
+                number: '03',
+                title: 'Acessar',
+                description: 'Você ganha acesso exclusivo à página da sua avaliação em grupo para testar e definir os grupos de participantes.'
+              },
+              {
+                number: '04',
+                title: 'Convidar',
+                description: 'Inicie compartilhando sua avaliação via QRCode ou link com os participantes. Acompanhe a adesão em tempo real.'
+              },
+              {
+                number: '05',
+                title: 'Analisar',
+                description: 'Monitore os resultados, compare grupos e encerre participações quando quiser.'
+              }
             ].map((step, idx) => (
-              <div key={step} className="rounded-2xl bg-slate-50 p-5 text-left">
-                <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-full bg-[#4F46E5] text-sm font-bold text-white">0{idx + 1}</div>
-                <p className="text-base font-bold text-[#1E1B4B]">{step}</p>
+              <div key={step.number} className="relative rounded-[28px] border border-slate-200 bg-gradient-to-b from-white to-slate-50 p-5 shadow-sm transition hover:-translate-y-1 hover:shadow-lg">
+                <div className="mb-5 flex items-center justify-between">
+                  <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[#4F46E5] text-sm font-bold text-white">
+                    {step.number}
+                  </span>
+                </div>
+                <h3 className="text-lg font-bold text-[#1E1B4B]">{step.title}</h3>
+                <p className="mt-3 text-sm leading-6 text-slate-600">{step.description}</p>
               </div>
             ))}
           </div>
