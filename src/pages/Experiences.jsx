@@ -552,7 +552,7 @@ const Experiences = ({ user }) => {
       </section>
 
       <main className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
-        <section className="text-center">
+        <section id="casos-de-uso" className="scroll-mt-24 text-center">
           <p className="text-xs font-bold uppercase tracking-[0.22em] text-indigo-600">Casos de uso</p>
           <h2 className={`${TOKENS.fonts.serif} mt-3 text-3xl font-bold text-[#1E1B4B] sm:text-4xl`}>
             Avaliações em grupo para diferentes momentos corporativos
@@ -590,7 +590,7 @@ const Experiences = ({ user }) => {
           ))}
         </section>
 
-        <section id="como-funciona" className="mt-20 rounded-[32px] border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+        <section id="como-funciona" className="scroll-mt-24 mt-20 rounded-[32px] border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
           <div className="text-center">
             <p className="text-xs font-bold uppercase tracking-[0.22em] text-indigo-600">5 Etapas para sua avaliação em grupo</p>
           </div>
@@ -687,20 +687,25 @@ const Experiences = ({ user }) => {
         </section>
 
         <section id="contato" className="mt-20 rounded-[32px] bg-gradient-to-r from-[#312E81] via-[#4F46E5] to-[#6366F1] px-6 py-12 text-center text-white shadow-xl">
-          <p className="text-xs font-bold uppercase tracking-[0.22em] text-indigo-100">Pronto para testar?</p>
+          <p className="text-xs font-bold uppercase tracking-[0.22em] text-indigo-100">Dúvidas? Entre em contato</p>
           <h2 className={`${TOKENS.fonts.serif} mt-3 text-3xl font-bold sm:text-4xl`}>
-            Descubra como uma avaliação em grupo pode transformar a sua organização.
+            Nossa equipe está pronta para atendê-lo
           </h2>
           <p className="mx-auto mt-4 max-w-2xl text-indigo-100">
             A equipe pode criar avaliações em grupo personalizadas para workshops, programas de desenvolvimento, treinamentos e outras iniciativas corporativas.
           </p>
           <div className="mt-8 flex flex-wrap items-center justify-center gap-4">
             <a href="https://wa.me/5541992082713" target="_blank" rel="noreferrer" className="rounded-xl bg-white px-6 py-3 text-sm font-bold text-[#312E81] transition hover:bg-indigo-50">
-              Falar no WhatsApp
+              Contatar
             </a>
-            <button type="button" onClick={() => window.location.hash = '#top'} className="rounded-xl border border-white/30 bg-white/5 px-6 py-3 text-sm font-bold text-white transition hover:bg-white/10">
-              Entender o fluxo
-            </button>
+             <button type="button" onClick={() => {
+                  const el = document.getElementById('casos-de-uso');
+                  if (el) {
+                    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                  }
+                }} className="rounded-xl border border-white/30 bg-white/5 px-6 py-3 text-sm font-bold text-white transition hover:bg-white/10">
+                  Conhecer casos de uso
+                </button>
           </div>
         </section>
       </main>
