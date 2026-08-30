@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
 import ErrorBoundary from './components/ErrorBoundary';
 import { HashRouter, Routes, Route, Navigate, useNavigate, useLocation, useParams } from 'react-router-dom';
 import { 
@@ -23,20 +23,21 @@ import Results from './pages/Results';
 import PublicResults from './pages/PublicResults';
 import History from './pages/History';
 import Activities from './pages/Activities';
-import RealScenarios from './pages/RealScenarios';
-import Community from './pages/Community';
-import CommunityFeed from './pages/community/CommunityFeed';
-import CommunityProfile from './pages/community/CommunityProfile';
-import CommunityFollowing from './pages/community/CommunityFollowing';
-import CommunityNotifications from './pages/community/CommunityNotifications';
 import PrivacyPolicy from './pages/PrivacyPolicy';
 import TermsOfService from './pages/TermsOfService';
-import IndicatorsAdmin from './pages/admin/IndicatorsAdmin';
-import AssessmentBuilder from './pages/admin/AssessmentBuilder';
-import Management from './pages/admin/Management';
-import Panel from './pages/admin/Panel';
 import ApplicationSession from './pages/ApplicationSession';
-import ApplicationsAdmin from './pages/admin/ApplicationsAdmin';
+
+const RealScenarios = lazy(() => import('./pages/RealScenarios'));
+const Community = lazy(() => import('./pages/Community'));
+const CommunityFeed = lazy(() => import('./pages/community/CommunityFeed'));
+const CommunityProfile = lazy(() => import('./pages/community/CommunityProfile'));
+const CommunityFollowing = lazy(() => import('./pages/community/CommunityFollowing'));
+const CommunityNotifications = lazy(() => import('./pages/community/CommunityNotifications'));
+const IndicatorsAdmin = lazy(() => import('./pages/admin/IndicatorsAdmin'));
+const AssessmentBuilder = lazy(() => import('./pages/admin/AssessmentBuilder'));
+const Management = lazy(() => import('./pages/admin/Management'));
+const Panel = lazy(() => import('./pages/admin/Panel'));
+const ApplicationsAdmin = lazy(() => import('./pages/admin/ApplicationsAdmin'));
 
 // Scroll to top on route change
 const ScrollToTop = () => {
@@ -159,6 +160,12 @@ const ResultsSummary = () => {
   );
 };
 
+const PageLoader = () => (
+  <div className="min-h-screen flex items-center justify-center bg-[#F5F3EC] text-[#1E1B4B] font-medium">
+    Carregando página...
+  </div>
+);
+
 // --- LAYOUT PROTEGIDO ---
 const ProtectedLayout = ({ user, children }) => {
   const location = useLocation();
@@ -247,39 +254,41 @@ export default function App() {
       <div className={`min-h-screen ${TOKENS.colors.bg} ${TOKENS.colors.ink} selection:bg-[#4F46E5] selection:text-white`}>
         <PendingApplicationRedirect user={user} />
         
-        <Routes>
-          {/* Public results page, no authentication required */}
-          <Route path="/public-results/:id" element={<PublicResults />} />
-          <Route path="/apply/:token" element={<ApplicationSession user={user} />} />
-          <Route path="/privacy-policy" element={<PrivacyPolicy />} />
-          <Route path="/terms-of-service" element={<TermsOfService />} />
-          <Route path="/login" element={!user ? <Navigate to="/" replace /> : <Navigate to="/dashboard" replace />} />
-          <Route path="/" element={user ? <AuthenticatedEntry /> : <LoginScreen />} />
-          
-          <Route path="/dashboard" element={<ProtectedLayout user={user}><Dashboard user={user} /></ProtectedLayout>} />
-          <Route path="/activities" element={<ProtectedLayout user={user}><Activities /></ProtectedLayout>} />
-          <Route path="/activities/real-scenarios" element={<ProtectedLayout user={user}><RealScenarios /></ProtectedLayout>} />
-          <Route path="/activities/real-scenarios/:scenarioId" element={<ProtectedLayout user={user}><RealScenarios /></ProtectedLayout>} />
-          <Route path="/assessments" element={<Navigate to="/activities" replace />} />
-          <Route path="/assessment/active" element={<ProtectedLayout user={user}><Assessment /></ProtectedLayout>} />
-          <Route path="/assessment/:id" element={<ProtectedLayout user={user}><Assessment /></ProtectedLayout>} />
-          <Route path="/results" element={<ProtectedLayout user={user}><Results /></ProtectedLayout>} />
-          <Route path="/results/:id" element={<ProtectedLayout user={user}><Results /></ProtectedLayout>} />
-          <Route path="/history" element={<ProtectedLayout user={user}><History /></ProtectedLayout>} />
-          <Route path="/comunidade" element={<ProtectedLayout user={user}><Community user={user} /></ProtectedLayout>}>
-            <Route index element={<Navigate to="feed" replace />} />
-            <Route path="feed" element={<CommunityFeed user={user} />} />
-            <Route path="perfil" element={<CommunityProfile user={user} />} />
-            <Route path="seguindo" element={<CommunityFollowing user={user} />} />
-            <Route path="notificacoes" element={<CommunityNotifications user={user} />} />
-          </Route>
-          <Route path="/admin/management" element={<ProtectedLayout user={user}><Management user={user} /></ProtectedLayout>} />
-          <Route path="/admin/panel" element={<ProtectedLayout user={user}><Panel user={user} /></ProtectedLayout>} />
-          <Route path="/admin/applications" element={<ProtectedLayout user={user}><ApplicationsAdmin user={user} /></ProtectedLayout>} />
-          <Route path="/admin/indicators" element={<ProtectedLayout user={user}><IndicatorsAdmin /></ProtectedLayout>} />
-          <Route path="/admin/assessments/builder" element={<ProtectedLayout user={user}><AssessmentBuilder /></ProtectedLayout>} />
-          <Route path="*" element={user ? <AuthenticatedEntry /> : <Navigate to="/" replace />} />
-        </Routes>
+        <Suspense fallback={<PageLoader />}>
+          <Routes>
+            {/* Public results page, no authentication required */}
+            <Route path="/public-results/:id" element={<PublicResults />} />
+            <Route path="/apply/:token" element={<ApplicationSession user={user} />} />
+            <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+            <Route path="/terms-of-service" element={<TermsOfService />} />
+            <Route path="/login" element={!user ? <Navigate to="/" replace /> : <Navigate to="/dashboard" replace />} />
+            <Route path="/" element={user ? <AuthenticatedEntry /> : <LoginScreen />} />
+            
+            <Route path="/dashboard" element={<ProtectedLayout user={user}><Dashboard user={user} /></ProtectedLayout>} />
+            <Route path="/activities" element={<ProtectedLayout user={user}><Activities /></ProtectedLayout>} />
+            <Route path="/activities/real-scenarios" element={<ProtectedLayout user={user}><RealScenarios /></ProtectedLayout>} />
+            <Route path="/activities/real-scenarios/:scenarioId" element={<ProtectedLayout user={user}><RealScenarios /></ProtectedLayout>} />
+            <Route path="/assessments" element={<Navigate to="/activities" replace />} />
+            <Route path="/assessment/active" element={<ProtectedLayout user={user}><Assessment /></ProtectedLayout>} />
+            <Route path="/assessment/:id" element={<ProtectedLayout user={user}><Assessment /></ProtectedLayout>} />
+            <Route path="/results" element={<ProtectedLayout user={user}><Results /></ProtectedLayout>} />
+            <Route path="/results/:id" element={<ProtectedLayout user={user}><Results /></ProtectedLayout>} />
+            <Route path="/history" element={<ProtectedLayout user={user}><History /></ProtectedLayout>} />
+            <Route path="/comunidade" element={<ProtectedLayout user={user}><Community user={user} /></ProtectedLayout>}>
+              <Route index element={<Navigate to="feed" replace />} />
+              <Route path="feed" element={<CommunityFeed user={user} />} />
+              <Route path="perfil" element={<CommunityProfile user={user} />} />
+              <Route path="seguindo" element={<CommunityFollowing user={user} />} />
+              <Route path="notificacoes" element={<CommunityNotifications user={user} />} />
+            </Route>
+            <Route path="/admin/management" element={<ProtectedLayout user={user}><Management user={user} /></ProtectedLayout>} />
+            <Route path="/admin/panel" element={<ProtectedLayout user={user}><Panel user={user} /></ProtectedLayout>} />
+            <Route path="/admin/applications" element={<ProtectedLayout user={user}><ApplicationsAdmin user={user} /></ProtectedLayout>} />
+            <Route path="/admin/indicators" element={<ProtectedLayout user={user}><IndicatorsAdmin /></ProtectedLayout>} />
+            <Route path="/admin/assessments/builder" element={<ProtectedLayout user={user}><AssessmentBuilder /></ProtectedLayout>} />
+            <Route path="*" element={user ? <AuthenticatedEntry /> : <Navigate to="/" replace />} />
+          </Routes>
+        </Suspense>
       </div>
       </ErrorBoundary>
     </HashRouter>
