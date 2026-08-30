@@ -52,7 +52,8 @@ export const useUserRole = () => {
             if (mounted) setRole('user');
           }
         } else {
-          if (mounted) setRole(data?.role || 'user');
+          const nextRole = data?.role || 'user';
+          if (mounted) setRole(['admin', 'user', 'corporate'].includes(nextRole) ? nextRole : 'user');
         }
       } catch (err) {
         console.error('Error fetching user role:', err);

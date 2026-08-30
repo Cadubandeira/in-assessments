@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Home, Zap, History, Users, Settings } from 'lucide-react';
+import { Home, Zap, History, Users, Settings, BriefcaseBusiness } from 'lucide-react';
 
 const MobileBottomNav = ({ onStartAssessment, role }) => {
   const navigate = useNavigate();
@@ -35,6 +35,16 @@ const MobileBottomNav = ({ onStartAssessment, role }) => {
         <span className="text-[10px] font-bold">Histórico</span>
       </button>
       
+      {['admin', 'corporate', 'user'].includes(role) && (
+        <button 
+          onClick={() => navigate('/group-evaluations')}
+          className={`${isActive('/group-evaluations') ? 'text-[#4F46E5]' : 'text-gray-500'} flex flex-col items-center gap-1`}
+        >
+          <BriefcaseBusiness className="w-6 h-6" />
+          <span className="text-[10px] font-bold">Avaliação em grupo</span>
+        </button>
+      )}
+
       {role === 'admin' && (
         <button 
           onClick={() => navigate('/comunidade')}

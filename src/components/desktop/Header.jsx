@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Home, LogOut, Settings, History, Users, Zap, UserCog } from 'lucide-react';
+import { Home, LogOut, Settings, History, Users, Zap, UserCog, BriefcaseBusiness } from 'lucide-react';
 import { supabase } from '../../supabaseClient';
 import Logo from '../ui/Logo';
 import { useCommunityProfile } from '../../hooks/useCommunityProfile';
@@ -70,6 +70,18 @@ const DesktopHeader = ({ user, role, onStartAssessment }) => {
               <History className="w-5 h-5" />
               <span>Histórico</span>
             </button>
+            {['admin', 'corporate', 'user'].includes(role) && (
+              <button
+                type="button"
+                onClick={() => navigate('/group-evaluations')}
+                className={`flex items-center gap-2 transition-colors ${
+                  isActive('/group-evaluations') ? 'text-[#4F46E5]' : 'text-gray-600 hover:text-[#4F46E5]'
+                }`}
+              >
+                <BriefcaseBusiness className="w-5 h-5" />
+                <span>Avaliação em grupo</span>
+              </button>
+            )}
             {role === 'admin' && (
               <button
                 type="button"

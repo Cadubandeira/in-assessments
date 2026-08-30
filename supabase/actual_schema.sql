@@ -162,6 +162,7 @@ CREATE TABLE public.profiles (
   role text NOT NULL DEFAULT 'user'::text,
   created_at timestamp with time zone DEFAULT now(),
   display_name text,
+  email text,
   avatar_key text,
   avatar_bg_color text,
   community_opt_in boolean NOT NULL DEFAULT false,

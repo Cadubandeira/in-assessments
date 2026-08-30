@@ -33,6 +33,7 @@ const CommunityFeed = lazy(() => import('./pages/community/CommunityFeed'));
 const CommunityProfile = lazy(() => import('./pages/community/CommunityProfile'));
 const CommunityFollowing = lazy(() => import('./pages/community/CommunityFollowing'));
 const CommunityNotifications = lazy(() => import('./pages/community/CommunityNotifications'));
+const Experiences = lazy(() => import('./pages/Experiences'));
 const IndicatorsAdmin = lazy(() => import('./pages/admin/IndicatorsAdmin'));
 const AssessmentBuilder = lazy(() => import('./pages/admin/AssessmentBuilder'));
 const Management = lazy(() => import('./pages/admin/Management'));
@@ -265,6 +266,9 @@ export default function App() {
             <Route path="/" element={user ? <AuthenticatedEntry /> : <LoginScreen />} />
             
             <Route path="/dashboard" element={<ProtectedLayout user={user}><Dashboard user={user} /></ProtectedLayout>} />
+            <Route path="/group-evaluations" element={<ProtectedLayout user={user}><Experiences user={user} /></ProtectedLayout>} />
+            <Route path="/avaliacoes-em-grupo" element={<Navigate to="/group-evaluations" replace />} />
+            <Route path="/experiences" element={<Navigate to="/group-evaluations" replace />} />
             <Route path="/activities" element={<ProtectedLayout user={user}><Activities /></ProtectedLayout>} />
             <Route path="/activities/real-scenarios" element={<ProtectedLayout user={user}><RealScenarios /></ProtectedLayout>} />
             <Route path="/activities/real-scenarios/:scenarioId" element={<ProtectedLayout user={user}><RealScenarios /></ProtectedLayout>} />

@@ -19,14 +19,18 @@ const LoginScreen = ({ onAuthenticated }) => {
   const handleOAuthLogin = async (provider) => {
     setLoading(true);
     // Constrói a URL de redirect.
-    // Durante o desenvolvimento local forçamos usar `window.location.origin` para
-    // evitar ser redirecionado para o domínio de produção caso o Supabase ignore
-    // o `redirectTo` (isso ocorre quando a URL não está registrada nos redirects do projeto).
-    const redirectBase = (typeof window !== 'undefined') ? window.location.origin : '';
+    // Em desenvolvimento local, o redirect deve seguir a origem atual ou a URL
+    // explícita do ambiente local para evitar cair no domínio de produção.
+    const fallbackBase = (typeof window !== 'undefined') ? window.location.origin : '';
+    const explicitRedirectUrl = import.meta.env.VITE_REDIRECT_URL || import.meta.env.VITE_APP_URL || '';
+    const localOrigin = ['localhost', '127.0.0.1'].includes((typeof window !== 'undefined' ? window.location.hostname : ''))
+      ? fallbackBase
+      : '';
+    const redirectUrl = explicitRedirectUrl || localOrigin || fallbackBase || (fallbackBase + import.meta.env.BASE_URL);
+
     if (window.location.hash.startsWith('#/apply/')) {
       sessionStorage.setItem('auth_return_path', window.location.hash.slice(1));
     }
-    const redirectUrl = import.meta.env.DEV ? redirectBase : (redirectBase + import.meta.env.BASE_URL);
 
     const isMicrosoftProvider = provider === 'azure';
 
